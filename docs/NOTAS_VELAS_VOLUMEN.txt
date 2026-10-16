@@ -1,0 +1,31 @@
+NOTAS: VELAS POR VOLUMEN (DESACTIVADAS EN LA INTERFAZ)
+======================================================
+Estado: el codigo sigue en el proyecto (lib.js, view.js, core.js), pero la opcion "BTC (volumen)"
+esta oculta desde la v0.4.1. Se retoma mas adelante con el plan de abajo.
+
+QUE SALIO MAL EN LA PRUEBA REAL (v0.4)
+1. Poco historial / insuficiente para analizar: se pedia 1000 operaciones por peticion con un tope de
+   ~90 peticiones (~90.000 operaciones). En BTC de futuros eso es solo minutos u horas de mercado,
+   asi que alcanzaba muy pocas velas. La prueba simulada tenia muchas menos operaciones por segundo que
+   el mercado real, por eso parecia suficiente.
+2. Muy lento: cada vela exige leer miles de operaciones una por una; Binance limita las peticiones
+   (futuros: aggTrades pesa 20 de un limite de 2400 por minuto), asi que no se puede acelerar pidiendo mas.
+3. Cambiaba entre "Spot" y "Futuros": al cargar, si la peticion a Futuros fallaba o se frenaba por limite,
+   el programa pasaba a Spot en silencio. Debe fijarse el mercado (el usuario elige) y avisar del error
+   en lugar de cambiar solo.
+4. Se probo solo con datos simulados; no habia forma de ver estos problemas antes.
+
+COMO HACERLO BIEN (PLAN)
+A. Historial: usar los archivos historicos diarios de Binance (data.binance.vision, aggTrades de futuros
+   BTCUSDT, un archivo por dia). Se descargan una vez, se convierten a velas por volumen y se guardan
+   en disco (cache local). Asi se tienen dias o semanas de historial al instante en las siguientes aperturas.
+   Requiere que la PC pueda descargar de ese sitio (comprobarlo primero con una prueba real).
+B. Tiempo real: conexion WebSocket de operaciones (btcusdt@aggTrade) en vez de consultar cada 1,5 s.
+   No gasta limite de peticiones y es casi instantaneo.
+C. Mercado fijo: selector Futuros/Spot visible; nunca cambiar solo. Si falla, mostrar el error.
+D. Limites de velas estables: calcular las velas siempre desde un punto fijo (por ejemplo 00:00 UTC de cada
+   dia) para que no cambien al cerrar y abrir el programa.
+E. Probar con datos reales desde el inicio: una prueba corta de conexion (boton "Probar conexion") que
+   informe si Futuros responde, velocidad de descarga y cuantas velas se pueden armar.
+F. Aclaraciones del concepto: el modo "bloques de Bitcoin" se descarto (no sigue la actividad del mercado).
+   Los quiebres de estructura (BOS/CHoCH/FVG) no se calculan solos todavia; serian un modulo aparte.

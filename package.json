@@ -1,0 +1,37 @@
+{
+  "name": "ar-trading",
+  "productName": "Ar_Trading",
+  "version": "0.6.0",
+  "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "browser": "node server.js",
+    "test": "node test/lib.test.js && node test/indicators.test.js",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.artrading.app",
+    "productName": "Ar_Trading",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}

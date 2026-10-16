@@ -1,0 +1,45 @@
+AR_TRADING - VERSION 0.6.0
+========================
+
+NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
+Ver NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE ESTA VERSION (v0.6)
+- Paneles RSI / Estocastico: la altura que dejas al arrastrar el separador se guarda y ya no se
+  reajusta al mover el grafico. Flechas ▲ ▼ en cada panel para subirlo o bajarlo (por encima o por
+  debajo del precio y de los demas paneles), igual que en TradingView.
+- Medias moviles: grupos EMA y SMA, cada uno con su casilla de activar. Al activar EMA aparece
+  solo una EMA 59 azul; al activar SMA, una SMA 249 roja. Cada linea: periodo, color, grosor (1-6).
+  Puedes agregar mas lineas dentro de cada grupo.
+- Historial local: las velas ya descargadas se guardan en tu equipo (no se vuelven a pedir) y el
+  programa va descargando en segundo plano el historial anterior, asi al ir hacia atras las velas
+  aparecen casi al instante, sobre todo en temporalidades personalizadas.
+- Ajustes: ventana movible (arrastra el titulo) y sin velo, para ver los cambios en el grafico.
+- Mi paleta de colores: junto a cada selector de color hay un boton ▾ con tu paleta (clic aplica el
+  color, "+ Guardar" anade el actual, clic derecho quita). Se edita tambien en Ajustes.
+- Plantillas de grafico: guarda colores, velas, indicadores, medias, fondo, rejilla y marca de agua;
+  aplicalas al grafico seleccionado o a todos, actualizalas o eliminalas (Ajustes).
+- Tus logos: horizontal en la barra superior y vertical en la marca de agua (claro/oscuro segun el fondo).
+- Nota: las medias moviles de configuraciones anteriores se reinician a los nuevos valores.
+
+INSTALACION (Windows)
+1. Instala Node.js (una sola vez): https://nodejs.org -> versión LTS.
+2. Descomprime esta carpeta donde quieras (por ejemplo en Documentos).
+3. Doble clic en  instalar.bat  (necesita internet; solo la primera vez en esta carpeta).
+4. Doble clic en  iniciar.bat  -> se abre el programa.
+
+OPCIONAL: CREAR UN INSTALADOR .EXE
+- Doble clic en  crear_instalador.bat . En la carpeta "dist" quedará "Ar_Trading Setup 0.6.0.exe".
+- Si da error de permisos: clic derecho -> "Ejecutar como administrador".
+
+SI EL PROGRAMA DE ESCRITORIO NO ABRE
+- Usa  iniciar_navegador.bat : abre el mismo programa en tu navegador.
+
+NOTAS
+- Al cambiar de nombre, el programa guarda sus ajustes en una carpeta nueva: en la primera
+  apertura de esta versión tendrás que volver a elegir tus colores y medias móviles.
+- Los datos en vivo se actualizan cada pocos segundos. Por ahora solo Binance.
+- Probado con datos simulados; si algo se ve raro con datos reales, avisame (F12 muestra errores).
+- F12 abre las herramientas de desarrollo (útil si algo falla); F5 recarga.
+- Se usa la librería Lightweight Charts de TradingView (licencia Apache 2.0);
+  por eso aparece el logo de TradingView en la esquina del gráfico.
