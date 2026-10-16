@@ -2,7 +2,7 @@ AR_TRADING - VERSION 0.6.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
-Ver NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
 NOVEDADES DE ESTA VERSION (v0.6)
 - Paneles RSI / Estocastico: la altura que dejas al arrastrar el separador se guarda y ya no se

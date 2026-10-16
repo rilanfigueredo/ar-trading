@@ -17,7 +17,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/js/app.js`: estado global, configuración, barra superior, selector de diseño, panel de indicadores, Ajustes (ventana movible), paleta, plantillas, migración de configuración.
 - `renderer/assets/`: logos (horizontal/vertical × oscuro/claro).
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
-- `LEEME.txt` (novedades + instalación), `NOTAS_VELAS_VOLUMEN.txt`, `test/`.
+- `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
 ## 3. Funciones actuales (v0.6)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
@@ -55,7 +55,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 6. Esperar que la barra superior pase a dos filas en pantallas < ~1600 px con varios gráficos (aceptado).
 
 ## 7. Lecciones del historial del proyecto
-- **Velas por volumen (v0.4) fracasaron en datos reales**: poco historial, lentitud (miles de operaciones por vela), cambio silencioso Spot/Futuros, y se probó solo con simulación. Plan correcto en `NOTAS_VELAS_VOLUMEN.txt` (archivos diarios de data.binance.vision, WebSocket aggTrade, mercado fijo, botón de prueba de conexión). Aprendizaje: **probar primero con datos reales lo que depende del mercado**, y avisar al usuario cuando no se pueda.
+- **Velas por volumen (v0.4) fracasaron en datos reales**: poco historial, lentitud (miles de operaciones por vela), cambio silencioso Spot/Futuros, y se probó solo con simulación. Plan correcto en `docs/NOTAS_VELAS_VOLUMEN.txt` (archivos diarios de data.binance.vision, WebSocket aggTrade, mercado fijo, botón de prueba de conexión). Aprendizaje: **probar primero con datos reales lo que depende del mercado**, y avisar al usuario cuando no se pueda.
 - El usuario valora: exactitud ("milimétrica"), independencia por gráfico, control total de colores/estilos, rapidez al mover el gráfico, y que se apliquen TODOS sus cambios.
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
