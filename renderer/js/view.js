@@ -199,6 +199,7 @@
       s.chart.applyOptions(themeOptions());
       renderWatermark();
       if (s.bars.length) { syncMas(); renderLegend(null); }
+      if (view.draw) view.draw.repaint();
     }
 
     // ---------- Marca de agua ----------
@@ -278,11 +279,13 @@
       const pi = mainPaneIdx();
       const old = s.series;
       if (old && s.pivot) { try { old.detachPrimitive(s.pivot); } catch (e) { /* ya quitado */ } }
+      if (view.draw) view.draw.detach();
       const def = { candles: LC.CandlestickSeries, line: LC.LineSeries, area: LC.AreaSeries }[vcfg.chartType];
       s.series = s.chart.addSeries(def, mainOptions(), pi);
       s.series.setData(s.bars.map(toPoint));
       if (old) s.chart.removeSeries(old);
       if (s.pivot) s.series.attachPrimitive(s.pivot);
+      if (view.draw) view.draw.attach(s.series);
       applyScaleMode();
     }
 
@@ -435,6 +438,28 @@
 
     const mainPaneIdx = () => (s.series ? s.series.getPane().paneIndex() : 0);
     const mainScale = () => (s.series ? s.series.priceScale() : s.chart.priceScale('right'));
+
+    // ---------- Dibujos (v0.7): la capa pinta sobre el panel de precios y usa estas conversiones tiempo/precio <-> píxel ----------
+    const num = (v) => typeof v === 'number' && isFinite(v);
+    const drawEnv = {
+      host, chartEl,
+      series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol,
+      active: () => !!(s.chart && s.series && s.bars.length && !s.loading && !isVol()),
+      xOfTime(t) { const lg = logicalAtTime(t); return lg === null ? null : xOfLogical(lg); },
+      timeOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? timeAtLogical(lg) : null; },
+      logicalOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? lg : null; },
+      centerTime: (i) => s.bars[i].time + spanAt(i) / 2,
+      barsBetween(t1, t2) { const a = logicalAtTime(t1), b = logicalAtTime(t2); return a === null || b === null ? 0 : Math.round(Math.abs(b - a)); },
+      yOfPrice(p) { const y = s.series.priceToCoordinate(p); return num(y) ? y : null; },
+      priceOfY(y) { const p = s.series.coordinateToPrice(y); return num(p) ? p : null; },
+      paneRect() { const pe = s.series && s.series.getPane().getHTMLElement(); return pe ? pe.getBoundingClientRect() : null; },
+      plotWidth: () => chartEl.clientWidth - priceAxisWidth(),
+      fmtPrice: (p) => fmtVal(p),
+      chartType: () => vcfg.chartType,
+      theme: () => themeName(),
+      bg: () => lookVars().bg,
+    };
+    view.draw = G.drawStore && window.TVDraw && window.TVDraw.createLayer ? window.TVDraw.createLayer(drawEnv, G.drawStore) : null;
     // Alturas de los paneles: las que el usuario deja al arrastrar los separadores se guardan y no se vuelven a tocar.
     function paneKeys() {
       const map = [];
@@ -1033,6 +1058,7 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 7 });
         renderLegend(null);
         s.loading = false;
+        if (view.draw) view.draw.repaint();
         setStatus(okText(), 'live');
         s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
         warmBack(token);
@@ -1276,6 +1302,7 @@
         stopPolling();
         clearInterval(s.timerTimer);
         closeAxisMenu();
+        if (view.draw) view.draw.destroy();
         try { s.chart.remove(); } catch (e) { /* ya quitado */ }
         host.innerHTML = '';
       },

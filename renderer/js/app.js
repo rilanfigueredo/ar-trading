@@ -64,12 +64,16 @@
       ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch'], paneH: {}, candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
     };
   }
+  // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
+  function defaultDraw() {
+    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: false, keep: false, favBar: true, hideAll: false, styles: {} };
+  }
   function defaultCharts(symbol) {
     return ['m:60', 'm:240', 'd:1', 'm:15'].map((tf) => newChart(symbol, tf));
   }
   function defaultConfig() {
     return {
-      version: 4, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true },
+      version: 5, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       favorites: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT'],
@@ -250,6 +254,7 @@
     $('syncTime').classList.toggle('active', A.cfg.sync.time);
     $('btnLayout').textContent = 'Diseño: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1);
     renderTfButtons();
+    if (window.TVDrawUI) window.TVDrawUI.refresh();
   }
   function setTimeframe(id) {
     id = L.normalizeId(id);
@@ -932,7 +937,7 @@
   }
   function togglePanel() {
     const p = $('panel');
-    if (p.classList.contains('hidden')) renderPanel();
+    if (p.classList.contains('hidden')) { renderPanel(); $('objPanel').classList.add('hidden'); if (window.TVDrawUI) window.TVDrawUI.refresh(); }
     p.classList.toggle('hidden');
     $('btnIndicators').classList.toggle('active', !p.classList.contains('hidden'));
   }
@@ -1033,8 +1038,42 @@
     cfg.charts.forEach((c) => { if (!cfg.tfs.includes(c.tf)) cfg.tfs.push(c.tf); });
     const n = LAYOUTS[cfg.layout].n;
     if (!(cfg.active >= 0 && cfg.active < n)) cfg.active = 0;
-    cfg.version = 4;
+    cfg.drawings = cleanDrawings(saved.drawings);
+    cfg.draw = cleanDrawPrefs(saved.draw);
+    cfg.version = 5;
     return cfg;
+  }
+  // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
+  function cleanDrawings(src) {
+    const out = {};
+    if (!src || typeof src !== 'object' || Array.isArray(src)) return out;
+    const ok = (v) => typeof v === 'number' && isFinite(v);
+    Object.keys(src).forEach((sym) => {
+      if (!Array.isArray(src[sym])) return;
+      const list = src[sym].filter((d) => {
+        const spec = d && window.TVDraw.TYPES[d.type];
+        if (!spec || !Array.isArray(d.pts) || !d.pts.length) return false;
+        if (!d.pts.every((p) => p && ok(p.t) && ok(p.p))) return false;
+        if (spec.pts && d.pts.length < spec.pts) return false;
+        return true;
+      }).map((d, i) => {
+        const o = Object.assign(window.TVDraw.defaults(d.type), d);
+        if (!o.id) o.id = 'm' + Date.now().toString(36) + i;
+        o.locked = !!o.locked; o.hidden = !!o.hidden;
+        if (o.type === 'fib' && !Array.isArray(o.levels)) o.levels = window.TVDraw.fibLevels();
+        return o;
+      });
+      if (list.length) out[sym] = list;
+    });
+    return out;
+  }
+  function cleanDrawPrefs(src) {
+    const d = Object.assign(defaultDraw(), src && typeof src === 'object' ? src : {});
+    const types = window.TVDraw.TYPES;
+    d.favs = (Array.isArray(d.favs) ? d.favs : []).filter((t) => types[t]);
+    ['magnet', 'keep', 'favBar', 'hideAll'].forEach((k) => { d[k] = !!d[k]; });
+    if (!d.styles || typeof d.styles !== 'object' || Array.isArray(d.styles)) d.styles = {};
+    return d;
   }
 
   async function init() {
@@ -1045,9 +1084,12 @@
     A.cfg.tfs = (A.cfg.tfs || []).filter((id) => !String(id).startsWith('v:'));
     if (!A.cfg.tfs.length) A.cfg.tfs = L.DEFAULT_TFS.slice();
     (A.cfg.charts || []).forEach((c) => { if (String(c.tf).startsWith('v:')) c.tf = 'm:60'; });
+    // Dibujos: el almacén se crea antes que los gráficos (cada gráfico se engancha a él).
+    G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg);
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
     applyLayout();
+    window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg });
     API.symbols().then((s) => { A.symbols = s; eachView((v) => v.applyLook()); }).catch(() => {});
   }
 

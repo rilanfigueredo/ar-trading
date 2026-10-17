@@ -1,10 +1,37 @@
-AR_TRADING - VERSION 0.6.0
+AR_TRADING - VERSION 0.7.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.6)
+NOVEDADES DE ESTA VERSION (v0.7) - HERRAMIENTAS DE DIBUJO
+- Barra lateral izquierda con las herramientas (clic en un grupo para elegir): Lineas (tendencia,
+  horizontal, rayo, canal paralelo, polilinea), Fibonacci, Rectangulo, Texto y Regla.
+- Como dibujar: elige la herramienta y haz clic en el grafico (clic-clic) o arrastra. Canal paralelo:
+  3 clics (los dos primeros marcan la linea y el tercero por donde pasa la paralela). Polilinea:
+  un clic por punto y doble clic (o Enter) para terminar. Texto: clic, escribes y Enter.
+  Esc cancela. La regla mide precio, porcentaje, velas y tiempo; se queda hasta que haces otro clic.
+- Seleccionar: clic sobre el dibujo. Arrastra el cuerpo para moverlo o un circulo para cambiar un punto.
+  Aparece una barra con color, grosor, estilo, bloquear, ocultar, duplicar, propiedades y borrar.
+  Doble clic (o clic derecho) abre propiedades y el menu del dibujo.
+- Fibonacci con niveles editables: activar/desactivar, cambiar valor y color, agregar o quitar niveles,
+  fondo entre niveles, precio de cada nivel, extender a izquierda/derecha y linea de tendencia.
+- Iman (icono de iman): los puntos se pegan al maximo, minimo, apertura o cierre de la vela mas cercana.
+- Mantener herramienta (chincheta): sigue dibujando sin volver al cursor.
+- Ojo: oculta o muestra todos los dibujos. Papelera: elimina todos los de ese activo.
+- Bloquear (no se mueve ni se borra), ocultar y duplicar cada dibujo.
+- Los dibujos se guardan POR ACTIVO: se ven igual en todas las temporalidades y en todos los
+  graficos que muestren ese activo, y se conservan al cerrar el programa.
+- Panel de objetos (icono de lista): arbol con todos los dibujos del activo; clic selecciona,
+  doble clic abre propiedades, botones para ocultar, bloquear, duplicar y eliminar.
+- Barra de favoritos (estrella): atajos a tus herramientas preferidas. En cada grupo de la barra
+  lateral marca la estrella de las que quieras (por defecto: tendencia, horizontal, Fibonacci, rectangulo).
+- El estilo (color, grosor...) que eliges se recuerda para los proximos dibujos del mismo tipo.
+- Atajos: Alt+T tendencia, Alt+H horizontal, Alt+F Fibonacci, Alt+R rectangulo, Esc cancelar,
+  Supr borrar, Ctrl+Z deshacer, Ctrl+Y rehacer, Ctrl+D duplicar, Enter terminar polilinea.
+- No hay dibujos en el modo de velas por volumen (esta desactivado por ahora).
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.6)
 - Paneles RSI / Estocastico: la altura que dejas al arrastrar el separador se guarda y ya no se
   reajusta al mover el grafico. Flechas ▲ ▼ en cada panel para subirlo o bajarlo (por encima o por
   debajo del precio y de los demas paneles), igual que en TradingView.
@@ -29,7 +56,7 @@ INSTALACION (Windows)
 4. Doble clic en  iniciar.bat  -> se abre el programa.
 
 OPCIONAL: CREAR UN INSTALADOR .EXE
-- Doble clic en  crear_instalador.bat . En la carpeta "dist" quedará "Ar_Trading Setup 0.6.0.exe".
+- Doble clic en  crear_instalador.bat . En la carpeta "dist" quedará "Ar_Trading Setup 0.7.0.exe".
 - Si da error de permisos: clic derecho -> "Ejecutar como administrador".
 
 SI EL PROGRAMA DE ESCRITORIO NO ABRE
