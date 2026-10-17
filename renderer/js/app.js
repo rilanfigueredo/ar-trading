@@ -66,14 +66,14 @@
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
   function defaultDraw() {
-    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: false, keep: false, favBar: true, hideAll: false, styles: {} };
+    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: 'off', keep: false, favBar: true, favPos: { edge: 'left', off: 0.2 }, hideAll: false, styles: {}, templates: {} };
   }
   function defaultCharts(symbol) {
     return ['m:60', 'm:240', 'd:1', 'm:15'].map((tf) => newChart(symbol, tf));
   }
   function defaultConfig() {
     return {
-      version: 5, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, draw: defaultDraw(),
+      version: 6, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       favorites: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT'],
@@ -279,7 +279,10 @@
   }
   // ---------- Ventanas emergentes ----------
   let floatPos = null; // dónde dejó el usuario la ventana de ajustes
+  let modalClose = null; // función que se avisa cuando la ventana se cierra (por cualquier motivo)
   function openModal(build, opts) {
+    if (modalClose) { const f = modalClose; modalClose = null; f(); }
+    modalClose = (opts && opts.onClose) || null;
     const box = $('modalBox');
     const floating = !!(opts && opts.floating);
     box.innerHTML = '';
@@ -314,7 +317,10 @@
       }
     }
   }
-  function closeModal() { $('modal').classList.add('hidden'); closePalette(); }
+  function closeModal() {
+    $('modal').classList.add('hidden'); closePalette();
+    if (modalClose) { const f = modalClose; modalClose = null; f(); }
+  }
 
   // ---------- Paleta de colores propia ----------
   let palEl = null;
@@ -966,7 +972,7 @@
     $('btnIndicators').onclick = togglePanel;
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeModal(); if (A.max >= 0) { A.max = -1; applyMax(); } }
+      if (e.key === 'Escape') { if (!(window.TVDrawUI && window.TVDrawUI.cancelProps())) closeModal(); if (A.max >= 0) { A.max = -1; applyMax(); } }
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.key === '[' || e.key === ']') {
@@ -1040,7 +1046,8 @@
     if (!(cfg.active >= 0 && cfg.active < n)) cfg.active = 0;
     cfg.drawings = cleanDrawings(saved.drawings);
     cfg.draw = cleanDrawPrefs(saved.draw);
-    cfg.version = 5;
+    cfg.folders = cleanFolders(saved.folders, cfg.drawings);
+    cfg.version = 6;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
@@ -1050,7 +1057,11 @@
     const ok = (v) => typeof v === 'number' && isFinite(v);
     Object.keys(src).forEach((sym) => {
       if (!Array.isArray(src[sym])) return;
-      const list = src[sym].filter((d) => {
+      const list = src[sym].map((d) => {
+        // v0.7 → v0.8: el "rayo" inclinado pasa a ser rayo horizontal (a la altura de su primer punto)
+        if (d && d.type === 'ray' && Array.isArray(d.pts) && d.pts[0]) return Object.assign({}, d, { type: 'hray', pts: [d.pts[0]] });
+        return d;
+      }).filter((d) => {
         const spec = d && window.TVDraw.TYPES[d.type];
         if (!spec || !Array.isArray(d.pts) || !d.pts.length) return false;
         if (!d.pts.every((p) => p && ok(p.t) && ok(p.p))) return false;
@@ -1070,10 +1081,60 @@
   function cleanDrawPrefs(src) {
     const d = Object.assign(defaultDraw(), src && typeof src === 'object' ? src : {});
     const types = window.TVDraw.TYPES;
-    d.favs = (Array.isArray(d.favs) ? d.favs : []).filter((t) => types[t]);
-    ['magnet', 'keep', 'favBar', 'hideAll'].forEach((k) => { d[k] = !!d[k]; });
-    if (!d.styles || typeof d.styles !== 'object' || Array.isArray(d.styles)) d.styles = {};
+    const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    // Herramientas favoritas: "tipo" o "tipo:idDePlantilla". El rayo antiguo pasa a rayo horizontal.
+    const favs = [];
+    (Array.isArray(d.favs) ? d.favs : []).forEach((f) => {
+      let k = String(f);
+      if (k === 'ray') k = 'hray';
+      if (k.startsWith('ray:')) k = 'hray' + k.slice(3);
+      if (types[k.split(':')[0]] && !favs.includes(k)) favs.push(k);
+    });
+    d.favs = favs;
+    // Imán: antes sí/no; ahora apagado / débil / fuerte
+    d.magnet = d.magnet === 'weak' || d.magnet === 'strong' ? d.magnet : d.magnet === true || d.magnet === 1 ? 'weak' : 'off';
+    ['keep', 'favBar', 'hideAll'].forEach((k) => { d[k] = !!d[k]; });
+    d.styles = isObj(d.styles) ? d.styles : {};
+    if (d.styles.ray) { if (!d.styles.hray) d.styles.hray = d.styles.ray; delete d.styles.ray; }
+    d.templates = isObj(d.templates) ? d.templates : {};
+    Object.keys(d.templates).forEach((t) => {
+      const arr = Array.isArray(d.templates[t]) ? d.templates[t].filter((x) => x && typeof x.id === 'string' && isObj(x.style)) : [];
+      if (types[t] && arr.length) d.templates[t] = arr.map((x) => ({ id: x.id, name: String(x.name || 'Plantilla'), style: x.style })); else delete d.templates[t];
+    });
+    const fp = d.favPos;
+    d.favPos = isObj(fp) && ['left', 'right', 'top', 'bottom'].includes(fp.edge) && typeof fp.off === 'number' && isFinite(fp.off)
+      ? { edge: fp.edge, off: Math.max(0, Math.min(1, fp.off)) } : { edge: 'left', off: 0.2 };
     return d;
+  }
+  // Carpetas de dibujos (por activo). Se descartan las dañadas, los ciclos y las referencias a carpetas que no existen.
+  function cleanFolders(src, drawings) {
+    const out = {};
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      Object.keys(src).forEach((sym) => {
+        if (!Array.isArray(src[sym])) return;
+        const seen = new Set();
+        let fs = src[sym].filter((f) => f && typeof f.id === 'string' && f.id && !seen.has(f.id) && seen.add(f.id))
+          .map((f) => ({ id: f.id, name: String(f.name || 'Carpeta'), parent: typeof f.parent === 'string' ? f.parent : null, open: f.open !== false }));
+        const ids = new Set(fs.map((f) => f.id));
+        fs.forEach((f) => { if (f.parent && (!ids.has(f.parent) || f.parent === f.id)) f.parent = null; });
+        // ciclos: si siguiendo los padres se vuelve a la misma carpeta, se corta
+        fs.forEach((f) => {
+          const trail = new Set([f.id]);
+          let c = f;
+          while (c && c.parent) {
+            if (trail.has(c.parent)) { c.parent = null; break; }
+            trail.add(c.parent); c = fs.find((x) => x.id === c.parent);
+          }
+        });
+        if (fs.length) out[sym] = fs;
+      });
+    }
+    // dibujos que apuntan a una carpeta inexistente vuelven a la raíz
+    Object.keys(drawings || {}).forEach((sym) => {
+      const ids = new Set((out[sym] || []).map((f) => f.id));
+      drawings[sym].forEach((d) => { if (d.folder && !ids.has(d.folder)) delete d.folder; });
+    });
+    return out;
   }
 
   async function init() {
@@ -1085,7 +1146,7 @@
     if (!A.cfg.tfs.length) A.cfg.tfs = L.DEFAULT_TFS.slice();
     (A.cfg.charts || []).forEach((c) => { if (String(c.tf).startsWith('v:')) c.tf = 'm:60'; });
     // Dibujos: el almacén se crea antes que los gráficos (cada gráfico se engancha a él).
-    G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg);
+    G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg, () => A.cfg.folders);
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
     applyLayout();

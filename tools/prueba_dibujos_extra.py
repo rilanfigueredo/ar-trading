@@ -31,8 +31,8 @@ with sync_playwright() as pw:
     r = page.request.post(URL + 'api/config', data=json.dumps(old))
     page.reload(); ready()
     n = ev('window.__tv.cfg')
-    check('config v0.6 migra a versión 5', n['version'] == 5)
-    check('migración: dibujos vacíos y preferencias por defecto', n['drawings'] == {} and n['draw']['favs'] == ['trend', 'hline', 'fib', 'rect'] and n['draw']['magnet'] is False)
+    check('config v0.6 migra a versión 6', n['version'] == 6)
+    check('migración: dibujos vacíos y preferencias por defecto', n['drawings'] == {} and n['draw']['favs'] == ['trend', 'hline', 'fib', 'rect'] and n['draw']['magnet'] == 'off' and n['folders'] == {})
     check('migración: lo demás se conserva', n['charts'][0]['symbol'] == sym and n['theme'] == old['theme'] and n['palette'] == old['palette'])
 
     bad = dict(old); bad['version'] = 5
@@ -51,7 +51,7 @@ with sync_playwright() as pw:
     kinds = [d['type'] for d in n['drawings'].get(sym, [])]
     check('dibujos dañados se descartan sin romper', kinds == ['trend', 'fib'], str(kinds))
     check('el Fibonacci sin niveles recibe los niveles por defecto', len(n['drawings'][sym][1]['levels']) == 11)
-    check('preferencias dañadas se corrigen', n['draw']['favs'] == ['trend'] and n['draw']['magnet'] is True and n['draw']['styles'] == {})
+    check('preferencias dañadas se corrigen', n['draw']['favs'] == ['trend'] and n['draw']['magnet'] == 'weak' and n['draw']['styles'] == {})
 
     # 2) dos gráficos del mismo activo: el dibujo aparece en ambos
     good = dict(old); good['version'] = 5; good['layout'] = '2h'

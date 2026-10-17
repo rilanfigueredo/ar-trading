@@ -144,3 +144,79 @@ assert.ok(D.defaults('text').size > 0);
 }
 
 console.log('draw.test.js OK');
+
+// ---------- v0.8 ----------
+{
+  const G = D.geom;
+  // rectángulo: 8 tiradores; arrastrar un lado solo cambia ese lado
+  const pts = [{ t: 100, p: 50 }, { t: 200, p: 20 }];       // esquina arriba-izq. y abajo-der.
+  const P = [{ x: 10, y: 10 }, { x: 110, y: 40 }];
+  assert.strictEqual(G.rectHandles(P).length, 8);
+  let r = G.resizeRectData(pts, P, 5, { t: 300, p: 999 });   // lado derecho
+  assert.deepStrictEqual(r, [{ t: 100, p: 50 }, { t: 300, p: 20 }]);
+  r = G.resizeRectData(pts, P, 4, { t: 999, p: 70 });        // lado de arriba
+  assert.deepStrictEqual(r, [{ t: 100, p: 70 }, { t: 200, p: 20 }]);
+  r = G.resizeRectData(pts, P, 3, { t: 50, p: 5 });          // esquina abajo-izq.
+  assert.deepStrictEqual(r, [{ t: 50, p: 50 }, { t: 200, p: 5 }]);
+  // recuadro de selección
+  const rc = { x1: 0, y1: 0, x2: 100, y2: 100 };
+  assert.ok(G.inRect({ type: 'trend' }, [{ x: 10, y: 10 }, { x: 90, y: 90 }], rc));
+  assert.ok(!G.inRect({ type: 'trend' }, [{ x: 10, y: 10 }, { x: 190, y: 90 }], rc));
+  assert.ok(G.inRect({ type: 'hline' }, [{ x: 500, y: 50 }], rc));
+  // rayo horizontal
+  assert.ok(G.hitDistance({ type: 'hray', pts: [{}] }, [{ x: 50, y: 50 }], 200, 52, 400, {}) <= 2);
+  assert.ok(G.hitDistance({ type: 'hray', pts: [{}] }, [{ x: 50, y: 50 }], 10, 50, 400, {}) > 30);
+  assert.ok(D.TYPES.hray && !D.TYPES.ray);
+  ['trend', 'hline', 'hray'].forEach((t) => { const d = D.defaults(t); assert.ok('text' in d && 'tSize' in d && 'tV' in d && 'tH' in d, t); });
+  assert.ok('center' in D.defaults('rect') && 'extL' in D.defaults('rect'));
+}
+{
+  // almacén: selección múltiple, carpetas, plantillas, cancelar
+  const root = {}, fol = {}, prefs = { favs: [], styles: {}, templates: {} };
+  const st = D.createStore(() => root, () => prefs, () => {}, () => fol);
+  const S = 'X';
+  const mk = (t) => st.add(S, Object.assign(D.defaults(t), { type: t, pts: [{ t: 1, p: 1 }, { t: 2, p: 2 }] }));
+  const a = mk('trend'), b = mk('rect'), c = mk('hline');
+  st.selectMany(S, [a.id, b.id], false);
+  assert.deepStrictEqual(st.selIds(S), [a.id, b.id]);
+  st.select(S, c.id, 'toggle');
+  assert.strictEqual(st.selIds(S).length, 3);
+  st.select(S, c.id, 'toggle');
+  assert.strictEqual(st.selIds(S).length, 2);
+  // carpeta madre y subcarpeta
+  const f1 = st.addFolder(S, { name: 'ESTRUCTURA 4H' });
+  const f2 = st.addFolder(S, { name: 'LIQUIDEZ 4H', parent: f1.id, ids: [a.id] });
+  const f3 = st.addFolder(S, { name: 'RANGOS 4H', parent: f1.id, ids: [b.id] });
+  assert.strictEqual(st.get(S, a.id).folder, f2.id);
+  assert.deepStrictEqual(st.folderItems(S, f1.id).sort(), [a.id, b.id].sort());
+  assert.strictEqual(st.moveFolder(S, f1.id, f2.id), false);        // no se puede meter una carpeta en su hija
+  assert.strictEqual(st.moveFolder(S, f3.id, f2.id), true);
+  st.setFolderFlag(S, f1.id, 'hidden', true);
+  assert.ok(st.get(S, a.id).hidden && st.get(S, b.id).hidden && !st.get(S, c.id).hidden);
+  st.removeFolder(S, f2.id);                                         // los dibujos suben de nivel
+  assert.strictEqual(st.get(S, a.id).folder, f1.id);
+  st.undo(S);
+  assert.strictEqual(st.get(S, a.id).folder, f2.id);
+  // plantillas
+  const t1 = st.saveTemplate('trend', 'Rojo', Object.assign({}, st.get(S, a.id), { color: '#ff0000', text: 'zona' }));
+  assert.strictEqual(st.templates('trend').length, 1);
+  st.setTool('trend', t1.id);
+  assert.strictEqual(st.typeDefaults('trend').color, '#ff0000');
+  assert.strictEqual(st.typeDefaults('trend').text, 'zona');
+  st.setTool(null);
+  assert.ok(st.applyTemplate(S, c.id, t1.id) === false);             // otra herramienta: no aplica
+  prefs.favs.push('trend:' + t1.id);
+  st.deleteTemplate('trend', t1.id);
+  assert.deepStrictEqual(prefs.favs, []);
+  // cancelar: revierte todo el gesto
+  st.begin(S);
+  st.patch(S, a.id, { color: '#00ff00' }); st.patch(S, a.id, { width: 5 });
+  st.abort();
+  assert.notStrictEqual(st.get(S, a.id).color, '#00ff00');
+  // aceptar: un solo paso de deshacer
+  const before = st.get(S, a.id).color;
+  st.begin(S); st.patch(S, a.id, { color: '#00ff00' }); st.patch(S, a.id, { width: 5 }); st.end();
+  st.undo(S);
+  assert.strictEqual(st.get(S, a.id).color, before);
+}
+console.log('draw.test.js v0.8 OK');

@@ -1,10 +1,45 @@
-AR_TRADING - VERSION 0.7.0
+AR_TRADING - VERSION 0.8.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.7) - HERRAMIENTAS DE DIBUJO
+NOVEDADES DE ESTA VERSION (v0.8)
+- HISTORIAL EN TEMPORALIDADES GRANDES (urgente): antes, una temporalidad rara como 25-35 dias (o mayor de
+  2 horas) casi no cargaba velas y aparecian una a una al mover el grafico. Ahora:
+  * Carga mucho mas historial de golpe y sigue completando solo hasta tener unas 1500 velas (se ve
+    "cargando" mientras tanto); ya no hay que mover el grafico.
+  * Si pones una duracion que no se puede armar bien con velas de Binance (por ejemplo 30 dias y 2 horas),
+    el programa la redondea a la mas cercana que SI carga rapido (30 dias) y te lo avisa con una nota.
+- RECTANGULO: 8 tiradores (4 esquinas y 4 lados) para agrandar o achicar como en TradingView; linea
+  central (con color, tipo de linea y grosor) y opcion de ampliar a la izquierda y a la derecha.
+- IMAN con 3 estados (clic en el icono del iman): apagado, debil (solo se pega si el cursor esta cerca de
+  la vela) y fuerte (se pega siempre al precio de la vela mas cercano).
+- RAYO HORIZONTAL reemplaza al rayo: un clic y la linea sale hacia la derecha. Los rayos antiguos se
+  convierten solos en rayos horizontales.
+- TEXTO EN LINEAS: tendencia, linea horizontal y rayo horizontal tienen el mismo texto: contenido, color,
+  tamano, negrita, posicion (por encima / en el centro / por debajo) y lugar (izquierda / centro / derecha).
+  Fibonacci tambien tiene color, tamano, posicion y lugar para el texto de sus niveles.
+- SHIFT al dibujar o mover un punto de una linea de tendencia (y canal, polilinea, regla): queda
+  perfectamente horizontal, ignorando el iman.
+- PLANTILLAS en todas las herramientas: en la ventana de propiedades, boton "Plantilla" (guardar el estilo
+  y el texto actuales con un nombre, aplicar o borrar). Las plantillas aparecen en el menu de cada grupo
+  de herramientas ("Plantilla: nombre") y se pueden poner en la barra de favoritos (estrella).
+- VENTANA DE PROPIEDADES: botones Plantilla, Aceptar y Cancelar. Se cierra (aceptando) al hacer clic
+  fuera, por ejemplo en el grafico. Esc = cancelar (descarta los cambios).
+- BARRA DERECHA con el icono de Objetos: clic abre el panel con todos los dibujos, otro clic lo cierra.
+- SELECCION MULTIPLE: Shift + arrastrar dibuja un recuadro y selecciona todo lo que quede dentro;
+  Ctrl + clic suma o quita dibujos de uno en uno. Se pueden mover, duplicar, bloquear, ocultar,
+  cambiar de color, agrupar y borrar en grupo.
+- CARPETAS Y SUBCARPETAS: con varios dibujos seleccionados, boton "Agrupar" (icono de carpeta) y le pones
+  nombre (ej. "ESTRUCTURA 4H"). En el panel de objetos, cada carpeta tiene boton de subcarpeta (ej. "LIQUIDEZ 4H",
+  "RANGOS 4H"; si hay dibujos seleccionados entran en ella), ojo y candado para toda la carpeta,
+  doble clic en el nombre para renombrar y se puede arrastrar dibujos o carpetas dentro de otras.
+  Quitar una carpeta NO borra sus dibujos. Todo se guarda por activo.
+- BARRA DE FAVORITOS MOVIBLE: arrastra el punto de agarre (los 6 puntitos) a cualquier borde del
+  grafico. Arriba o abajo queda horizontal; a la izquierda o derecha, vertical. Se recuerda la posicion.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.7) - HERRAMIENTAS DE DIBUJO
 - Barra lateral izquierda con las herramientas (clic en un grupo para elegir): Lineas (tendencia,
   horizontal, rayo, canal paralelo, polilinea), Fibonacci, Rectangulo, Texto y Regla.
 - Como dibujar: elige la herramienta y haz clic en el grafico (clic-clic) o arrastra. Canal paralelo:

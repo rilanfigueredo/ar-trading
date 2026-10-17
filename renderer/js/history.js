@@ -112,7 +112,7 @@
     let reached = false;
     let left = nBlocks;
     while (left > 0 && !reached) {
-      const group = Math.min(6, left);
+      const group = Math.min(8, left);
       const idxs = [];
       for (let i = 0; i < group; i++) idxs.push(idx - i);
       const res = await Promise.all(idxs.map((i) => getBlock(symbol, iv, i)));

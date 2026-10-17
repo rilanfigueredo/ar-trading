@@ -36,6 +36,10 @@
 
   // Etiqueta corta de una duración en segundos: 30s, 1m 30s, 2h 5m 10s, 4h 18m
   function labelSeconds(S) {
+    if (S >= 86400) {
+      const d = Math.floor(S / 86400), h = Math.floor((S % 86400) / 3600), m = Math.floor((S % 3600) / 60), x = S % 60;
+      return [d ? `${d}d` : '', h ? `${h}h` : '', m ? `${m}m` : '', x ? `${x}s` : ''].filter(Boolean).join(' ');
+    }
     if (S < 60) return `${S}s`;
     if (S % 60 === 0) return labelMinutes(S / 60);
     const h = Math.floor(S / 3600), m = Math.floor((S % 3600) / 60), x = S % 60;
@@ -46,6 +50,16 @@
     if (T % 60 === 0) return `${T / 60}h`;
     return `${Math.floor(T / 60)}h ${T % 60}m`;
   }
+
+  // Duración legible: 30 d 2 h 24 m
+  function labelDur(S) {
+    const d = Math.floor(S / 86400), h = Math.floor((S % 86400) / 3600), m = Math.floor((S % 3600) / 60), x = S % 60;
+    return [d ? `${d} d` : '', h ? `${h} h` : '', m ? `${m} m` : '', x ? `${x} s` : ''].filter(Boolean).join(' ') || '0 s';
+  }
+  // Máximo de velas base por barra. Si una duración "rara" (por ejemplo 30,1 días) obligaría a armarla con velas de
+  // 1 minuto o 1 segundo, el historial tardaría muchísimo y casi no se vería nada: se ajusta a la duración más
+  // cercana que se pueda armar con velas más grandes (y se avisa con una nota).
+  const MAX_RATIO = 300;
 
   // Crea una temporalidad a partir de una unidad (m, h, d, w, M) y un valor (acepta decimales).
   // Devuelve { id, label, base, kind, sec, ratio, n?, note? }
@@ -99,6 +113,22 @@
     if (S % 86400 === 0) { const t = makeTf('d', S / 86400); t.note = note || t.note; return t; }
     const base = BASES.find((b) => b.sec <= S && S % b.sec === 0);
     const ratio = S / base.sec;
+    if (ratio > MAX_RATIO) {
+      const grains = [{ sec: 86400 }].concat(BASES); // de la más gruesa a la más fina
+      let best = null;
+      for (const g of grains) {
+        const n = Math.round(S / g.sec);
+        if (n < 1 || n > MAX_RATIO) continue;
+        const err = Math.abs(n * g.sec - S) / S;
+        if (err <= 0.03) { best = { S2: n * g.sec, err }; break; }
+        if (!best || err < best.err) best = { S2: n * g.sec, err };
+      }
+      if (best && best.S2 !== S) {
+        const t = makeTf('s', best.S2);
+        t.note = `Se ajustó de ${labelDur(S)} a ${labelDur(best.S2)} para que el historial cargue rápido y completo (con la duración exacta habría que armar cada barra con miles de velas de ${base.id}).` + (note ? ' ' + note : '');
+        return t;
+      }
+    }
     const whole = S % 60 === 0;
     return {
       id: whole ? `m:${S / 60}` : `s:${S}`, label: labelSeconds(S), base: base.id, kind: ratio === 1 ? 'native' : 'fixed',
@@ -561,7 +591,7 @@
     return color;
   }
 
-  const lib = { volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  const lib = { labelDur, MAX_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

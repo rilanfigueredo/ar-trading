@@ -1039,7 +1039,8 @@
           if (token !== s.token || s.destroyed) return;
           if (first.length) s.anchor = Math.floor(first[0][0] / 1000);
         }
-        const pages = Math.min(40, Math.max(2, Math.ceil((1500 * L.ratioOf(tf)) / 1000)));
+        // Primera carga corta (se ve enseguida); el resto del historial se completa solo en segundo plano (autoFill).
+        const pages = Math.min(16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
         const res = await fetchBack(undefined, pages, token);
         if (!res) return;
         if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en Binance.`);
@@ -1063,6 +1064,7 @@
         s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
         warmBack(token);
         G.onLoaded(view);
+        autoFill(token);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
         s.loading = false;
@@ -1078,14 +1080,14 @@
       const blocks = Math.max(4, Math.min(40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed);
     }
-    async function loadMore() {
+    async function loadMore(pagesOverride) {
       if (tfNow().kind === 'vol') return loadMoreVol();
-      if (s.loadingMore || s.reachedStart || !s.base.length || s.loading) return;
+      if (s.loadingMore || s.reachedStart || !s.base.length || s.loading) return false;
       s.loadingMore = true;
       const token = s.token;
       try {
         const tf = tfNow();
-        const pages = Math.max(1, Math.min(30, Math.ceil((500 * L.ratioOf(tf)) / 1000)));
+        const pages = typeof pagesOverride === 'number' ? pagesOverride : Math.max(1, Math.min(30, Math.ceil((500 * L.ratioOf(tf)) / 1000)));
         setStatus('Cargando más historial…', 'loading');
         const res = await fetchBack(s.base[0].time * 1000 - 1, pages, token);
         if (!res) return;
@@ -1103,10 +1105,26 @@
         }
         setStatus(okText(), 'live');
         warmBack(token);
+        return true;
       } catch (e) {
         setStatus('Error al cargar historial', 'err');
+        return false;
       } finally {
         s.loadingMore = false;
+      }
+    }
+    // Completa el historial sin que haya que mover el gráfico: sigue pidiendo velas anteriores hasta tener
+    // unas 1.500 barras (o todo el historial disponible), con un tope de bloques por seguridad.
+    async function autoFill(token) {
+      const TARGET = 1500, MAX_BLOCKS = 150;
+      let used = 0;
+      const tf = tfNow();
+      const pages = Math.max(4, Math.min(16, Math.ceil((300 * L.ratioOf(tf)) / 1000)));
+      while (token === s.token && !s.destroyed && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
+        if (s.loadingMore) { await new Promise((r) => setTimeout(r, 150)); continue; }
+        const ok = await loadMore(pages);
+        used += pages;
+        if (ok === false) break;
       }
     }
 

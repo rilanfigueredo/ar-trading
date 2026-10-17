@@ -72,8 +72,8 @@ with sync_playwright() as pw:
     page.screenshot(path=f'{OUT}/01_basicos.png')
 
     # 5) rayo
-    pick('lines', 'Rayo'); click(0.40, 0.75); click(0.50, 0.70)
-    check('rayo', any(x['type'] == 'ray' for x in drawings()))
+    pick('lines', 'Rayo horizontal'); click(0.40, 0.75)
+    check('rayo horizontal (1 clic)', any(x['type'] == 'hray' for x in drawings()))
 
     # 6) canal paralelo (3 clics)
     pick('lines', 'Canal paralelo'); click(0.60, 0.80); click(0.75, 0.70); click(0.75, 0.80)
@@ -130,7 +130,7 @@ with sync_playwright() as pw:
     check('Ctrl+D duplica', len(drawings()) == n_before + 1)
 
     # 13) panel de objetos
-    page.click('#drawBar [data-k="objects"]'); page.wait_for_timeout(200)
+    page.click('#rightBar [data-k="objects"]'); page.wait_for_timeout(200)
     rows = page.locator('#objPanel .obj-row').count()
     check('árbol de objetos lista los dibujos', rows == n_before + 1, str(rows))
     page.screenshot(path=f'{OUT}/04_objetos.png')
@@ -139,11 +139,11 @@ with sync_playwright() as pw:
     page.locator('#objPanel .obj-row').first.locator('.obj-btn').first.click(); page.wait_for_timeout(100)
 
     # 14) propiedades del Fibonacci (doble clic en una línea de nivel)
-    page.click('#drawBar [data-k="objects"]')
+    page.click('#rightBar [data-k="objects"]')
     fib = [x for x in drawings() if x['type'] == 'fib'][0]
     page.evaluate(f"window.__tv.views[0].draw && window.TVDraw && 0")
     # abrir propiedades desde el menú contextual del árbol: doble clic en la fila
-    page.click('#drawBar [data-k="objects"]')
+    page.click('#rightBar [data-k="objects"]')
     page.locator('#objPanel .obj-row', has_text='Fibonacci').dblclick(); page.wait_for_timeout(200)
     check('ventana de propiedades de Fibonacci', page.locator('.fib-row').count() == 11, str(page.locator('.fib-row').count()))
     page.locator('.fib-row').nth(2).locator('input[type=number]').fill('0.45'); page.wait_for_timeout(100)
@@ -165,7 +165,8 @@ with sync_playwright() as pw:
 
     # 16) imán
     page.click('#drawBar [data-k="magnet"]'); page.wait_for_timeout(60)
-    check('imán activado', ev('window.__tv.cfg.draw.magnet') is True)
+    page.get_by_text('Imán fuerte', exact=True).click(); page.wait_for_timeout(60)
+    check('imán fuerte activado', ev('window.__tv.cfg.draw.magnet') == 'strong')
     page.keyboard.press('Alt+h')
     # se hace clic a ~12 px del máximo de una vela visible: el imán debe pegar el punto a su precio más cercano
     pos = ev('''(() => { const v = window.__tv.views[0], s = v.state; const i = s.bars.length - 40; const b = s.bars[i];
@@ -178,7 +179,8 @@ with sync_playwright() as pw:
     bars = ev('window.__tv.views[0].bars.map(b=>[b.open,b.high,b.low,b.close]).flat()')
     snapped = any(abs(hl[-1]['pts'][0]['p'] - v) < 1e-9 for v in bars)
     check('el imán pega el precio a la vela', snapped)
-    page.click('#drawBar [data-k="magnet"]')
+    page.click('#drawBar [data-k="magnet"]'); page.get_by_text('Imán apagado', exact=True).click(); page.wait_for_timeout(60)
+    check('imán apagado', ev('window.__tv.cfg.draw.magnet') == 'off')
 
     # 17) ocultar todos
     page.click('#drawBar [data-k="hideAll"]'); page.wait_for_timeout(100)

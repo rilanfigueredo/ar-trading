@@ -154,3 +154,26 @@ console.log('Todas las pruebas pasaron');
   assert.strictEqual(L.tfById('s:30').base, '1s');
   console.log('Pruebas de segundos: ok');
 }
+
+// ---- v0.8: duraciones "raras" se ajustan para no armarlas con miles de velas de 1 minuto / 1 segundo
+{
+  const a = L.makeTf('d', 30.1);               // 30 d 2 h 24 m -> 30 d (velas de 1 día)
+  eq(a.id, 'd:30'); eq(a.base, '1d'); assert.ok(/ajust/i.test(a.note));
+  const b = L.makeTf('d', 29.53);
+  eq(b.id, 'd:30');
+  const c = L.makeTf('s', 3601);                // 1 h 1 s -> 1 h
+  eq(c.id, 'm:60'); assert.ok(c.note.length > 0);
+  const d = L.makeTf('h', 5.0083);              // 5 h 30 s -> 5 h
+  eq(d.id, 'm:300');
+  const e = L.makeTf('m', 137);                 // 2 h 17 m: ratio 137 (< 300) se respeta tal cual
+  eq(e.id, 'm:137'); eq(e.base, '1m'); eq(e.ratio, 137);
+  const f = L.makeTf('d', 25.5);                // 25 d 12 h se arma con velas de 12 h
+  eq(f.base, '12h'); eq(f.sec, 25.5 * 86400); eq(f.label, '25d 12h');
+  // ninguna temporalidad sale con más de MAX_RATIO velas base por barra
+  for (const [u, v] of [['d', 33.3], ['d', 27.77], ['h', 71.3], ['w', 4.3], ['h', 9.99], ['m', 1234], ['s', 100001]]) {
+    const t = L.makeTf(u, v);
+    assert.ok(t.ratio <= L.MAX_RATIO, `${u}${v} -> ratio ${t.ratio}`);
+  }
+  eq(L.labelDur(2600640), '30 d 2 h 24 m');
+}
+console.log('Pruebas de duraciones grandes: ok');

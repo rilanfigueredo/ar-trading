@@ -1,13 +1,15 @@
-// Ar_Trading - capa de dibujo de un gráfico (v0.7): pinta los dibujos sobre el panel de precios (primitiva de la serie)
-// y maneja el ratón (crear, seleccionar, mover, editar puntos). Los datos viven en el almacén de draw.js.
+// Ar_Trading - capa de dibujo de un gráfico: pinta los dibujos sobre el panel de precios (primitiva de la serie)
+// y maneja el ratón (crear, seleccionar, mover, editar puntos, selección múltiple). Los datos viven en el almacén de draw.js.
 (function (root) {
   'use strict';
   const D = root.TVDraw;
   const G = D.geom;
-  const HIT = 6;          // distancia (px) para "tocar" un dibujo
-  const HANDLE_HIT = 9;   // distancia (px) para agarrar un tirador
-  const MAGNET_PX = 40;   // el imán actúa si el precio de la vela está a menos de esto
+  const HIT = 6;            // distancia (px) para "tocar" un dibujo
+  const HANDLE_HIT = 9;     // distancia (px) para agarrar un tirador
+  const MAGNET_WEAK_PX = 30; // imán débil: solo actúa si el precio de la vela está a menos de esto
   const ACCENT = '#2962ff';
+  // Con Shift, el nuevo punto queda a la misma altura que el anterior (línea horizontal exacta).
+  const SHIFT_TYPES = { trend: true, channel: true, poly: true, ruler: true };
 
   let measCtx = null;
   function measure(text, size, bold) {
@@ -33,11 +35,12 @@
 
   // env: enlace con el gráfico (lo arma view.js). store: almacén de draw.js.
   function createLayer(env, store) {
-    const L = { draft: null, ruler: null, hoverId: null, drag: null, press: null, editor: null };
+    const L = { draft: null, ruler: null, hoverId: null, drag: null, press: null, editor: null, marquee: null };
     let request = null, attachedTo = null, destroyed = false;
     const host = env.host;
     const repaint = () => { if (request) request(); };
     const themed = (c) => (root.TVLib ? root.TVLib.themedColor(c, env.theme()) : c);
+    const magnetMode = () => { const m = store.prefs().magnet; return m === true ? 'weak' : (m === 'weak' || m === 'strong' ? m : 'off'); };
 
     function toPx(d) {
       const out = [];
@@ -57,6 +60,34 @@
     }
     function seg(ctx, s) { ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke(); }
 
+    // Texto sobre un tramo de línea (de (x1,y1) a (x2,y2), de izquierda a derecha): lugar (izquierda/centro/derecha) y posición (encima/centro/debajo).
+    function drawLineText(ctx, d, x1, y1, x2, y2, w) {
+      if (!d.text) return;
+      const size = d.tSize || 12;
+      let xa = Math.max(x1, 0), xb = Math.min(x2, w);
+      if (xb < xa) return;
+      const pad = 6;
+      let ax, align;
+      if (d.tH === 'right') { ax = xb - pad; align = 'right'; } else if (d.tH === 'center') { ax = (xa + xb) / 2; align = 'center'; } else { ax = xa + pad; align = 'left'; }
+      const m = x2 !== x1 ? (y2 - y1) / (x2 - x1) : 0;
+      const ay = y1 + m * (ax - x1);
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.font = `${d.tBold ? '700 ' : ''}${size}px sans-serif`;
+      ctx.textAlign = align;
+      ctx.fillStyle = themed(d.tColor || d.color);
+      const bg = env.bg();
+      if (d.tV === 'below') { ctx.textBaseline = 'top'; haloText(ctx, d.text, ax, ay + 4, bg); }
+      else if (d.tV === 'center') {
+        ctx.textBaseline = 'middle';
+        const wd = measure(d.text, size, !!d.tBold);
+        const bx = align === 'left' ? ax - 3 : align === 'right' ? ax - wd - 3 : ax - wd / 2 - 3;
+        ctx.save(); ctx.fillStyle = bg; ctx.fillRect(bx, ay - size / 2 - 1, wd + 6, size + 2); ctx.restore();
+        ctx.fillText(d.text, ax, ay);
+      } else { ctx.textBaseline = 'bottom'; haloText(ctx, d.text, ax, ay - 4, bg); }
+      ctx.restore();
+    }
+
     function drawOne(ctx, d, w, h, o) {
       const P = toPx(d);
       if (!P || !P.length) return;
@@ -64,24 +95,24 @@
       const color = themed(d.color);
       switch (d.type) {
         case 'trend':
-          if (P.length > 1) seg(ctx, G.lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w));
-          break;
-        case 'ray':
-          if (P.length > 1) seg(ctx, G.raySegment(P[0].x, P[0].y, P[1].x, P[1].y, w));
+          if (P.length > 1) {
+            seg(ctx, G.lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w));
+            const a = P[0].x <= P[1].x ? P[0] : P[1], b = P[0].x <= P[1].x ? P[1] : P[0];
+            drawLineText(ctx, d, a.x, a.y, b.x, b.y, w);
+          }
           break;
         case 'hline':
           seg(ctx, [0, P[0].y, w, P[0].y]);
+          drawLineText(ctx, d, 0, P[0].y, w, P[0].y, w);
+          break;
+        case 'hray':
+          seg(ctx, [P[0].x, P[0].y, Math.max(w + 50, P[0].x), P[0].y]);
+          drawLineText(ctx, d, P[0].x, P[0].y, w, P[0].y, w);
           break;
         case 'poly':
           if (P.length > 1) { ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y); ctx.stroke(); }
           break;
-        case 'rect':
-          if (P.length > 1) {
-            const r = G.rectOf(P);
-            if (d.fill) { ctx.fillStyle = rgba(color, (d.fillOpacity == null ? 15 : d.fillOpacity) / 100); ctx.fillRect(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1); }
-            ctx.strokeRect(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1);
-          }
-          break;
+        case 'rect': if (P.length > 1) drawRect(ctx, d, P, w, color); break;
         case 'channel': drawChannel(ctx, d, P, w, color); break;
         case 'fib': if (P.length > 1) drawFib(ctx, d, P, w, o); break;
         case 'text': drawText(ctx, d, P); break;
@@ -89,7 +120,27 @@
         default: break;
       }
       ctx.setLineDash([]);
-      if ((o && o.selected) || (o && o.draft)) drawHandles(ctx, d, P, w);
+      if (o && ((o.selected && o.single) || o.draft)) drawHandles(ctx, d, P, w);
+    }
+
+    function drawRect(ctx, d, P, w, color) {
+      const r = G.rectOf(P);
+      const [xl, xr] = G.boxXRange(P, d.extL, d.extR, w);
+      if (d.fill) { ctx.fillStyle = rgba(color, (d.fillOpacity == null ? 15 : d.fillOpacity) / 100); ctx.fillRect(xl, r.y1, xr - xl, r.y2 - r.y1); }
+      ctx.beginPath();
+      // con extensión, los lados verticales solo se ven en el extremo que no se extiende
+      ctx.moveTo(xl, r.y1); ctx.lineTo(xr, r.y1);
+      ctx.moveTo(xl, r.y2); ctx.lineTo(xr, r.y2);
+      if (!d.extL) { ctx.moveTo(xl, r.y1); ctx.lineTo(xl, r.y2); }
+      if (!d.extR) { ctx.moveTo(xr, r.y1); ctx.lineTo(xr, r.y2); }
+      ctx.stroke();
+      if (d.center) {
+        ctx.save();
+        ctx.strokeStyle = themed(d.cColor || d.color); ctx.lineWidth = d.cWidth || 1; ctx.setLineDash(D.DASHES[d.cDash] || []);
+        const my = (r.y1 + r.y2) / 2;
+        seg(ctx, [xl, my, xr, my]);
+        ctx.restore();
+      }
     }
 
     function drawChannel(ctx, d, P, w, color) {
@@ -125,13 +176,26 @@
           ctx.fillRect(xl, ya, xr - xl, yb - ya);
         }
       }
-      ctx.font = '11px sans-serif'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      const size = d.tSize || 11;
+      ctx.font = `${d.tBold ? '700 ' : ''}${size}px sans-serif`;
       ctx.lineWidth = (d.width || 1) + (o && (o.hover || o.selected) ? 0.5 : 0);
+      const vxl = Math.max(xl, 0), vxr = Math.min(xr, w), bg = env.bg();
       lv.forEach((l) => {
         ctx.strokeStyle = l.color; ctx.setLineDash(D.DASHES[d.dash] || []);
         seg(ctx, [xl, l.y, xr, l.y]);
-        ctx.fillStyle = l.color;
-        haloText(ctx, d.showPrice ? `${l.v} (${env.fmtPrice(l.price)})` : String(l.v), Math.max(xl, 0) + 4, l.y - 3, env.bg());
+        ctx.setLineDash([]);
+        const label = d.showPrice ? `${l.v} (${env.fmtPrice(l.price)})` : String(l.v);
+        let ax, align;
+        if (d.tH === 'right') { ax = vxr - 4; align = 'right'; } else if (d.tH === 'center') { ax = (vxl + vxr) / 2; align = 'center'; } else { ax = vxl + 4; align = 'left'; }
+        ctx.textAlign = align; ctx.fillStyle = themed(d.tColor || l.color);
+        if (d.tV === 'below') { ctx.textBaseline = 'top'; haloText(ctx, label, ax, l.y + 3, bg); }
+        else if (d.tV === 'center') {
+          ctx.textBaseline = 'middle';
+          const wd = measure(label, size, !!d.tBold);
+          const bx = align === 'left' ? ax - 3 : align === 'right' ? ax - wd - 3 : ax - wd / 2 - 3;
+          ctx.save(); ctx.fillStyle = bg; ctx.fillRect(bx, l.y - size / 2 - 1, wd + 6, size + 2); ctx.restore();
+          ctx.fillText(label, ax, l.y);
+        } else { ctx.textBaseline = 'alphabetic'; haloText(ctx, label, ax, l.y - 3, bg); }
       });
       if (d.trendLine) {
         ctx.strokeStyle = themed(d.color); ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
@@ -158,7 +222,6 @@
       ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
       seg(ctx, [a.x, a.y, b.x, b.y]);
       ctx.setLineDash([]);
-      // punta de flecha
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 9 * Math.cos(ang - 0.4), b.y - 9 * Math.sin(ang - 0.4));
       ctx.lineTo(b.x - 9 * Math.cos(ang + 0.4), b.y - 9 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
@@ -195,15 +258,21 @@
     function paint(ctx, w, h) {
       if (!env.active()) return;
       const sym = env.symbol();
-      const sel = store.state.sel;
+      const single = store.state.multi.length === 1;
       ctx.save();
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       store.list(sym).forEach((d) => {
         if (d.hidden || store.prefs().hideAll) return;
-        drawOne(ctx, d, w, h, { selected: !!sel && sel.sym === sym && sel.id === d.id, hover: L.hoverId === d.id });
+        drawOne(ctx, d, w, h, { selected: store.isSelected(sym, d.id), single, hover: L.hoverId === d.id });
       });
       if (L.draft) drawOne(ctx, Object.assign({}, L.draft, { pts: L.draft.pts.concat(L.draft.cur ? [L.draft.cur] : []) }), w, h, { draft: true });
       if (L.ruler) drawOne(ctx, L.ruler, w, h, {});
+      if (L.marquee) {
+        const m = L.marquee, x = Math.min(m.x1, m.x2), y = Math.min(m.y1, m.y2);
+        ctx.fillStyle = 'rgba(41,98,255,0.10)'; ctx.strokeStyle = ACCENT; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+        ctx.fillRect(x, y, Math.abs(m.x2 - m.x1), Math.abs(m.y2 - m.y1));
+        ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(m.x2 - m.x1), Math.abs(m.y2 - m.y1));
+      }
       ctx.restore();
     }
 
@@ -219,7 +288,7 @@
         const out = [];
         if (!env.active() || store.prefs().hideAll) return out;
         store.list(env.symbol()).forEach((d) => {
-          if (d.type !== 'hline' || d.hidden || !d.pts[0]) return;
+          if ((d.type !== 'hline' && d.type !== 'hray') || d.hidden || !d.pts[0]) return;
           out.push({
             coordinate: () => { const y = env.yOfPrice(d.pts[0].p); return num(y) ? y : -100; },
             text: () => env.fmtPrice(d.pts[0].p),
@@ -238,11 +307,14 @@
       const inPane = !!pr && e.clientY >= pr.top && e.clientY <= pr.bottom && x >= 0 && x <= env.plotWidth();
       return { x, y, inPane };
     }
-    // Punto (tiempo, precio) bajo el ratón; con el imán se pega al precio más cercano de la vela.
-    function dataAt(x, y) {
+    // Punto (tiempo, precio) bajo el ratón. shiftRef: con Shift el precio es el del punto anterior (horizontal exacta, sin imán).
+    // Imán: débil = se pega si el precio de la vela (A/M/m/C) está cerca; fuerte = se pega siempre al más cercano de la vela que está debajo.
+    function dataAt(x, y, shiftRef) {
       let t = env.timeOfX(x), p = env.priceOfY(y);
       if (!num(t) || !num(p)) return null;
-      if (store.prefs().magnet) {
+      if (shiftRef) return { t, p: shiftRef.p };
+      const mode = magnetMode();
+      if (mode !== 'off') {
         const bars = env.bars(), lg = env.logicalOfX(x);
         if (num(lg)) {
           const i = Math.round(lg);
@@ -251,7 +323,7 @@
             const vals = env.chartType() === 'candles' ? [b.open, b.high, b.low, b.close] : [b.close];
             let best = null, bd = 1e9;
             vals.forEach((v) => { const yy = env.yOfPrice(v); if (num(yy) && Math.abs(yy - y) < bd) { bd = Math.abs(yy - y); best = v; } });
-            if (best !== null && bd <= MAGNET_PX) { p = best; t = env.centerTime(i); }
+            if (best !== null && (mode === 'strong' || bd <= MAGNET_WEAK_PX)) { p = best; t = env.centerTime(i); }
           }
         }
       }
@@ -261,13 +333,24 @@
       const t = env.timeOfX(env.xOfTime(pt.t) + dx), p = env.priceOfY(env.yOfPrice(pt.p) + dy);
       return num(t) && num(p) ? { t, p } : pt;
     }
+    // Punto de referencia para la horizontal con Shift al crear un dibujo (el último punto ya puesto).
+    function draftShiftRef(d) {
+      if (!SHIFT_TYPES[d.type] || !d.pts.length) return null;
+      if (d.type === 'channel' && d.pts.length !== 1) return null;
+      return d.pts[d.pts.length - 1];
+    }
+    // ... y al arrastrar un tirador: el punto vecino.
+    function handleShiftRef(type, orig, idx) {
+      if (type === 'trend' || (type === 'channel' && idx < 2)) return orig[1 - idx] || null;
+      if (type === 'poly') return orig[idx > 0 ? idx - 1 : 1] || null;
+      return null;
+    }
 
     function hitAt(x, y) {
       const sym = env.symbol(), w = env.plotWidth();
-      const sel = store.state.sel;
       const list = store.prefs().hideAll ? [] : store.list(sym).filter((d) => !d.hidden);
-      if (sel && sel.sym === sym) {
-        const d = list.find((q) => q.id === sel.id);
+      if (store.state.multi.length === 1 && store.state.sel && store.state.sel.sym === sym) {
+        const d = list.find((q) => q.id === store.state.sel.id);
         const P = d && toPx(d);
         if (P) {
           const hs = G.handlePoints(d, P, w);
@@ -281,6 +364,18 @@
       }
       return null;
     }
+    // Dibujos dentro del recuadro de selección.
+    function idsInRect(r) {
+      const sym = env.symbol();
+      if (store.prefs().hideAll) return [];
+      const out = [];
+      store.list(sym).forEach((d) => {
+        if (d.hidden) return;
+        const P = toPx(d);
+        if (P && G.inRect(d, P, r)) out.push(d.id);
+      });
+      return out;
+    }
 
     // ---------- Crear ----------
     function winOn(on) {
@@ -289,7 +384,7 @@
       f.call(window, 'mouseup', onWinUp, true);
     }
     function cancel() {
-      if (L.draft) { L.draft = null; L.press = null; winOn(false); repaint(); }
+      if (L.draft) { L.draft = null; L.press = null; if (!L.drag && !L.marquee) winOn(false); repaint(); }
       closeEditor();
     }
     function startDraft(type, pt, loc) {
@@ -320,7 +415,7 @@
       const d = L.draft;
       if (!d) return;
       const spec = D.TYPES[d.type];
-      L.draft = null; L.press = null; winOn(false);
+      L.draft = null; L.press = null; if (!L.drag && !L.marquee) winOn(false);
       if (spec.pts === 0 && d.pts.length < 2) { repaint(); return; }
       const obj = Object.assign({}, d); delete obj.cur;
       commit(obj);
@@ -377,21 +472,39 @@
       if (destroyed || e.button !== 0 || !env.active() || isUi(e.target)) return;
       const loc = local(e);
       if (!loc.inPane) return;
-      const tool = store.state.tool;
+      const tool = store.state.tool, sym = env.symbol();
       if (L.ruler) { L.ruler = null; repaint(); }
       if (tool || L.draft) {
         stop(e);
-        const pt = dataAt(loc.x, loc.y);
+        const ref = L.draft && e.shiftKey ? draftShiftRef(L.draft) : null;
+        const pt = dataAt(loc.x, loc.y, ref);
         if (!pt) return;
         if (L.draft) addPoint(pt); else startDraft(tool, pt, loc);
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.shiftKey) {
+        // Shift + arrastrar: recuadro de selección (con Ctrl también se conserva lo ya seleccionado)
+        stop(e);
+        L.marquee = { x1: loc.x, y1: loc.y, x2: loc.x, y2: loc.y, add: mod };
+        winOn(true);
+        repaint();
         return;
       }
       const hit = hitAt(loc.x, loc.y);
       if (hit) {
         stop(e);
-        store.select(env.symbol(), hit.d.id);
-        if (!hit.d.locked) {
-          L.drag = { id: hit.d.id, type: hit.d.type, handle: hit.handle, sx: loc.x, sy: loc.y, orig: JSON.parse(JSON.stringify(hit.d.pts)), moved: false };
+        if (mod) { store.select(sym, hit.d.id, 'toggle'); return; }       // Ctrl + clic: uno por uno
+        const group = store.isSelected(sym, hit.d.id) && store.state.multi.length > 1 && hit.handle === null;
+        if (!group) store.select(sym, hit.d.id);
+        const ids = (group ? store.state.multi.slice() : [hit.d.id]).filter((id) => { const q = store.get(sym, id); return q && !q.locked; });
+        if (ids.length) {
+          const origs = {};
+          ids.forEach((id) => { origs[id] = JSON.parse(JSON.stringify(store.get(sym, id).pts)); });
+          const first = store.get(sym, ids[0]);
+          const g = { ids, handle: group ? null : hit.handle, type: first.type, sx: loc.x, sy: loc.y, origs, moved: false };
+          if (g.handle !== null && first.type === 'rect') g.px = toPx(first);
+          L.drag = g;
           winOn(true);
         }
         return;
@@ -400,27 +513,49 @@
     }
     function onWinMove(e) {
       const loc = local(e);
+      if (L.marquee) { L.marquee.x2 = loc.x; L.marquee.y2 = loc.y; repaint(); return; }
       if (L.drag) {
         const g = L.drag, sym = env.symbol();
         const dx = loc.x - g.sx, dy = loc.y - g.sy;
         if (!g.moved) { if (Math.hypot(dx, dy) < 3) return; g.moved = true; store.begin(sym); }
-        let pts;
         if (g.handle !== null && g.handle !== undefined) {
-          const np = dataAt(loc.x, loc.y);
-          if (!np) return;
-          pts = g.orig.map((p, i) => (i === g.handle ? np : p));
+          const id = g.ids[0], orig = g.origs[id];
+          let pts;
+          if (g.type === 'rect') {
+            const np = dataAt(loc.x, loc.y);
+            if (!np || !g.px) return;
+            pts = G.resizeRectData(orig, g.px, g.handle, np);
+          } else {
+            const np = dataAt(loc.x, loc.y, e.shiftKey ? handleShiftRef(g.type, orig, g.handle) : null);
+            if (!np) return;
+            pts = orig.map((p, i) => (i === g.handle ? np : p));
+          }
+          store.move(sym, id, pts);
         } else {
-          pts = g.orig.map((p) => shiftPt(p, g.type === 'hline' ? 0 : dx, dy));
+          const map = {};
+          g.ids.forEach((id) => {
+            const q = store.get(sym, id);
+            map[id] = g.origs[id].map((p) => shiftPt(p, q && q.type === 'hline' ? 0 : dx, dy));
+          });
+          store.moveMany(sym, map);
         }
-        store.move(sym, g.id, pts);
         return;
       }
       if (L.draft) {
-        const pt = dataAt(loc.x, loc.y);
+        const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null);
         if (pt) { L.draft.cur = pt; repaint(); }
       }
     }
     function onWinUp(e) {
+      if (L.marquee) {
+        const m = L.marquee; L.marquee = null;
+        if (!L.draft && !L.drag) winOn(false);
+        const r = { x1: Math.min(m.x1, m.x2), x2: Math.max(m.x1, m.x2), y1: Math.min(m.y1, m.y2), y2: Math.max(m.y1, m.y2) };
+        if (r.x2 - r.x1 > 3 || r.y2 - r.y1 > 3) store.selectMany(env.symbol(), idsInRect(r), m.add);
+        else if (!m.add) store.select(null);
+        repaint();
+        return;
+      }
       if (L.drag) {
         const g = L.drag; L.drag = null;
         if (!L.draft) winOn(false);
@@ -430,12 +565,12 @@
       if (L.draft && L.press) {
         const loc = local(e), moved = Math.hypot(loc.x - L.press.x, loc.y - L.press.y);
         L.press = null;
-        if (moved > 6) { const pt = dataAt(loc.x, loc.y); if (pt) addPoint(pt); }
+        if (moved > 6) { const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null); if (pt) addPoint(pt); }
       }
     }
     // Pasar el ratón por encima: resalta el dibujo y cambia el cursor.
     function onHover(e) {
-      if (destroyed || L.drag || L.draft || store.state.tool || !env.active()) return;
+      if (destroyed || L.drag || L.draft || L.marquee || store.state.tool || !env.active()) return;
       const loc = local(e);
       const hit = loc.inPane && !isUi(e.target) ? hitAt(loc.x, loc.y) : null;
       const id = hit ? hit.d.id : null;
@@ -461,8 +596,9 @@
       const hit = hitAt(loc.x, loc.y);
       if (!hit) return;
       stop(e);
-      store.select(env.symbol(), hit.d.id);
-      store.emit('ctx', { x: e.clientX, y: e.clientY, sym: env.symbol(), id: hit.d.id });
+      const sym = env.symbol();
+      if (!store.isSelected(sym, hit.d.id)) store.select(sym, hit.d.id);
+      store.emit('ctx', { x: e.clientX, y: e.clientY, sym, id: hit.d.id });
     }
     host.addEventListener('mousedown', onDown, true);
     host.addEventListener('mousemove', onHover);
