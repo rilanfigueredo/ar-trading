@@ -31,7 +31,7 @@ with sync_playwright() as pw:
     r = page.request.post(URL + 'api/config', data=json.dumps(old))
     page.reload(); ready()
     n = ev('window.__tv.cfg')
-    check('config v0.6 migra a versión 6', n['version'] == 6)
+    check('config v0.6 migra a versión 7', n['version'] == 7)
     check('migración: dibujos vacíos y preferencias por defecto', n['drawings'] == {} and n['draw']['favs'] == ['trend', 'hline', 'fib', 'rect'] and n['draw']['magnet'] == 'off' and n['folders'] == {})
     check('migración: lo demás se conserva', n['charts'][0]['symbol'] == sym and n['theme'] == old['theme'] and n['palette'] == old['palette'])
 

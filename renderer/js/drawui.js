@@ -1,4 +1,4 @@
-// Ar_Trading - interfaz de las herramientas de dibujo (v0.8): barra lateral con menús (imán débil/fuerte, plantillas),
+// Ar_Trading - interfaz de las herramientas de dibujo (v0.9; base v0.8): barra lateral con menús (imán débil/fuerte, plantillas),
 // barra de favoritos movible, barra de selección (uno o varios dibujos), ventana de propiedades (Plantilla / Aceptar / Cancelar),
 // panel "Objetos" con carpetas y subcarpetas (barra derecha), menú de clic derecho y atajos.
 (function (root) {
@@ -31,6 +31,9 @@
     folderadd: '<path d="M3 6a1 1 0 011-1h5l2 2h9a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M12 10v6M9 13h6"/>',
     caret: '<path d="M9 6l6 6-6 6"/>',
     grip: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" stroke-width="3"/>',
+    table: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 15h18M10 5v14"/>',
+    zoom: '<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/><path d="M10 7v6M7 10h6"/>',
+    ind: '<path d="M3 17l5-6 4 3 5-8 4 5"/>',
     out: '<path d="M14 4h6v6M20 4l-9 9M10 6H5a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-5"/>',
   };
   const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -80,7 +83,7 @@
   function setPref(key, val) { prefs()[key] = val; X.saveCfg(); renderAll(); X.eachView((v) => v.draw && v.draw.repaint()); }
   const shiftFn = () => { const layer = layerNow(); return layer ? (pt) => layer.offsetPoint(pt, 26, 26) : null; };
   const selIds = () => store.selIds(symNow());
-  const unlocked = (sym, ids) => ids.filter((id) => { const d = store.get(sym, id); return d && !d.locked; });
+  const unlocked = (sym, ids) => ids.filter((id) => { const d = store.get(sym, id); return d && !store.isLocked(sym, d); });
   function deleteSel() {
     const sym = symNow(), ids = unlocked(sym, selIds());
     if (ids.length) store.removeMany(sym, ids);
@@ -246,6 +249,8 @@
       const tri = el('i', 'db-tri'); b.appendChild(tri);
       bar.appendChild(b);
     });
+    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo', () => selectTool('ruler'), 'tool:ruler'));
+    bar.appendChild(bigBtn('zoom', 'Acercar: arrastra un recuadro sobre el gráfico para ampliar esa zona (el botón Auto vuelve a la vista normal)', () => selectTool('zoom'), 'tool:zoom'));
     bar.appendChild(el('span', 'db-sep'));
     const mg = bigBtn('magnet', 'Imán (clic para elegir: apagado, débil o fuerte)', () => openMagnetMenu(mg), 'magnet');
     mg.appendChild(el('i', 'db-tri'));
@@ -273,6 +278,7 @@
       b.innerHTML = svg(lastTool[c.id], 20);
       if (tri) b.appendChild(tri);
     });
+    on(bar, 'tool:ruler', t === 'ruler'); on(bar, 'tool:zoom', t === 'zoom');
     on(bar, 'magnet', magnetMode() !== 'off');
     const mb = bar.querySelector('[data-k="magnet"]');
     if (mb) mb.title = `${MAGNET[magnetMode()]} (clic para cambiar)`;
@@ -282,11 +288,17 @@
     if (eyeBtn) eyeBtn.innerHTML = svg(prefs().hideAll ? 'eyeoff' : 'eye', 20);
   }
 
-  // ---------- Barra de favoritos (movible) ----------
-  function placeFav(free) {
-    const fb = X.$('favBar'), wrap = X.$('gridWrap');
+  // ---------- Barras movibles (favoritos y propiedades del dibujo) ----------
+  // Se arrastran desde el punto de agarre a cualquier borde: arriba/abajo = horizontal, izquierda/derecha = vertical.
+  const BARS = { favBar: { key: 'favPos', def: { edge: 'left', off: 0.2 } }, selBar: { key: 'selPos', def: { edge: 'top', off: 0.5 } } };
+  function nearestEdge(x, y, W, H) {
+    const d = { left: x, right: W - x, top: y, bottom: H - y };
+    return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
+  }
+  function placeBar(id, free) {
+    const fb = X.$(id), wrap = X.$('gridWrap'), cfg = BARS[id];
     if (fb.classList.contains('hidden')) return;
-    const pos = prefs().favPos || { edge: 'left', off: 0.2 };
+    const pos = prefs()[cfg.key] || cfg.def;
     const W = wrap.clientWidth, H = wrap.clientHeight, M = 8;
     let edge = pos.edge;
     if (free) edge = nearestEdge(free.x, free.y, W, H);
@@ -302,37 +314,33 @@
     fb.style.left = Math.max(4, Math.min(W - w - 4, x)) + 'px';
     fb.style.top = Math.max(4, Math.min(H - h - 4, y)) + 'px';
   }
-  function nearestEdge(x, y, W, H) {
-    const d = { left: x, right: W - x, top: y, bottom: H - y };
-    return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
-  }
-  function bindFavDrag(grip) {
+  function makeGrip(id) {
+    const grip = el('span', 'fav-grip'); grip.innerHTML = svg('grip', 16); grip.title = 'Arrastra para mover la barra a cualquier borde del gráfico';
     grip.onpointerdown = (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
       const wrap = X.$('gridWrap');
-      const move = (m) => { const r = wrap.getBoundingClientRect(); placeFav({ x: m.clientX - r.left, y: m.clientY - r.top }); };
+      const move = (m) => { const r = wrap.getBoundingClientRect(); placeBar(id, { x: m.clientX - r.left, y: m.clientY - r.top }); };
       const up = (m) => {
         window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerup', up, true);
         const r = wrap.getBoundingClientRect(), W = wrap.clientWidth, H = wrap.clientHeight;
         const x = m.clientX - r.left, y = m.clientY - r.top;
         const edge = nearestEdge(x, y, W, H);
         const off = edge === 'left' || edge === 'right' ? y / H : x / W;
-        prefs().favPos = { edge, off: Math.max(0.03, Math.min(0.97, Math.round(off * 1000) / 1000)) };
+        prefs()[BARS[id].key] = { edge, off: Math.max(0.03, Math.min(0.97, Math.round(off * 1000) / 1000)) };
         X.saveCfg();
-        placeFav();
+        placeBar(id);
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
     };
+    return grip;
   }
   function renderFav() {
     const fb = X.$('favBar');
     const favs = prefs().favs.map(parseFav).filter((f) => D.TYPES[f.type]);
     fb.classList.toggle('hidden', !prefs().favBar || !favs.length);
     fb.innerHTML = '';
-    const grip = el('span', 'fav-grip'); grip.innerHTML = svg('grip', 16); grip.title = 'Arrastra para mover la barra a cualquier borde del gráfico';
-    bindFavDrag(grip);
-    fb.appendChild(grip);
+    fb.appendChild(makeGrip('favBar'));
     favs.forEach((f) => {
       const tp = f.tpl ? store.templates(f.type).find((x) => x.id === f.tpl) : null;
       if (f.tpl && !tp) return;
@@ -343,7 +351,7 @@
       b.onclick = () => selectTool(f.type, tp ? tp.id : null);
       fb.appendChild(b);
     });
-    placeFav();
+    placeBar('favBar');
   }
 
   // ---------- Barra del objeto seleccionado ----------
@@ -362,6 +370,7 @@
     const key = many ? 'multi' : ids[0];
     if (sel.key !== key) {
       sel.key = key; bar.innerHTML = '';
+      bar.appendChild(makeGrip('selBar'));
       const r = {};
       r.title = el('span', 'sb-title');
       r.color = el('input'); r.color.type = 'color';
@@ -390,13 +399,14 @@
     if (document.activeElement !== r.color) r.color.value = hexOk(ds[0].color);
     r.width.value = String(Math.max(1, Math.min(5, Math.round(ds[0].width || 1))));
     r.dash.value = ds[0].dash || 'solid';
-    const onlyText = ds.every((d) => d.type === 'text');
+    const onlyText = ds.every((d) => d.type === 'text' || d.type === 'table');
     r.width.classList.toggle('hidden', onlyText);
     r.dash.classList.toggle('hidden', onlyText);
-    const allLocked = ds.every((d) => d.locked);
+    const allLocked = ds.every((d) => store.isLocked(sym, d));
     r.lock.classList.toggle('active', allLocked);
     r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 17);
     r.del.disabled = allLocked;
+    placeBar('selBar');
   }
 
   // ---------- Panel "Objetos" ----------
@@ -412,7 +422,9 @@
     if (p.classList.contains('hidden')) return;
     const sym = symNow(), list = store.list(sym), folders = store.folders(sym);
     const ids = selIds();
-    const sig = sym + '|' + ids.join(',') + '|' + prefs().hideAll + '|' + JSON.stringify(list.map((d) => [d.id, d.type, d.text, d.hidden, d.locked, d.color, d.folder])) + '|' + JSON.stringify(folders);
+    const vc = X.activeCfg();
+    const indSig = JSON.stringify([vc.ind, vc.maOn, vc.mas.map((m) => [m.id, m.period, m.visible, m.color])]);
+    const sig = sym + '|' + ids.join(',') + '|' + prefs().hideAll + '|' + JSON.stringify(list.map((d) => [d.id, d.type, d.text, d.hidden, d.locked, d.color, d.folder])) + '|' + JSON.stringify(folders) + '|' + indSig;
     if (!force && sig === treeSig) return;
     treeSig = sig;
     const keepScroll = p.scrollTop;
@@ -424,6 +436,7 @@
     nf.onclick = () => newFolder(ids, null);
     top.appendChild(nf);
     p.appendChild(top);
+    renderIndicatorRows(p, vc);
     if (!list.length && !folders.length) p.appendChild(el('p', 'hint', 'Todavía no hay dibujos en este activo. Elige una herramienta en la barra izquierda y dibuja en el gráfico. Para seleccionar varios: Shift + arrastrar (recuadro) o Ctrl + clic (uno por uno).'));
     const wrap = el('div', 'tree-root');
     wrap.ondragover = (e) => { if (dragData) { e.preventDefault(); wrap.classList.add('drop-root'); } };
@@ -434,7 +447,7 @@
     const fexists = (id) => !!id && !!store.folder(sym, id);
     const mkBtn = (row, icon, title, fn) => { const b = el('button', 'obj-btn'); b.innerHTML = svg(icon, 15); b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; row.appendChild(b); };
     function itemRow(d, depth) {
-      const row = el('div', 'obj-row' + (store.isSelected(sym, d.id) ? ' sel' : '') + (d.hidden ? ' off' : ''));
+      const row = el('div', 'obj-row' + (store.isSelected(sym, d.id) ? ' sel' : '') + (store.isHidden(sym, d) ? ' off' : ''));
       row.style.paddingLeft = 6 + depth * 16 + 'px';
       row.draggable = true;
       row.ondragstart = (e) => { dragData = { kind: 'items', ids: store.isSelected(sym, d.id) ? selIds() : [d.id] }; e.dataTransfer.setData('text/plain', d.id); e.dataTransfer.effectAllowed = 'move'; };
@@ -445,15 +458,14 @@
       mkBtn(row, d.locked ? 'lock' : 'unlock', d.locked ? 'Desbloquear' : 'Bloquear', () => store.patch(sym, d.id, { locked: !d.locked }));
       if (fexists(d.folder)) mkBtn(row, 'out', 'Sacar de la carpeta', () => store.moveToFolder(sym, [d.id], null));
       mkBtn(row, 'copy', 'Duplicar', () => store.duplicate(sym, d.id, shiftFn()));
-      mkBtn(row, 'trash', 'Eliminar', () => { if (!d.locked) store.remove(sym, d.id); });
+      mkBtn(row, 'trash', 'Eliminar', () => { if (!store.isLocked(sym, d)) store.remove(sym, d.id); });
       row.onclick = (e) => store.select(sym, d.id, e.ctrlKey || e.metaKey ? 'toggle' : undefined);
       row.ondblclick = () => openProps(sym, d.id);
       return row;
     }
     function folderRow(f, depth) {
       const items = store.folderItems(sym, f.id);
-      const allHidden = items.length && items.every((id) => store.get(sym, id).hidden);
-      const allLocked = items.length && items.every((id) => store.get(sym, id).locked);
+      const allHidden = !!f.hidden, allLocked = !!f.locked;
       const row = el('div', 'obj-row folder' + (allHidden ? ' off' : ''));
       row.style.paddingLeft = 6 + depth * 16 + 'px';
       row.dataset.folder = f.id;
@@ -479,8 +491,8 @@
         name.replaceWith(inp); inp.focus(); inp.select();
       };
       row.append(caret, ic, name);
-      mkBtn(row, allHidden ? 'eyeoff' : 'eye', allHidden ? 'Mostrar todo lo de la carpeta' : 'Ocultar todo lo de la carpeta', () => store.setFolderFlag(sym, f.id, 'hidden', !allHidden));
-      mkBtn(row, allLocked ? 'lock' : 'unlock', allLocked ? 'Desbloquear todo lo de la carpeta' : 'Bloquear todo lo de la carpeta', () => store.setFolderFlag(sym, f.id, 'locked', !allLocked));
+      mkBtn(row, allHidden ? 'eyeoff' : 'eye', allHidden ? 'Mostrar la carpeta (las subcarpetas ocultas a mano siguen ocultas)' : 'Ocultar la carpeta y todo lo que contiene', () => store.setFolderFlag(sym, f.id, 'hidden', !allHidden));
+      mkBtn(row, allLocked ? 'lock' : 'unlock', allLocked ? 'Desbloquear la carpeta' : 'Bloquear la carpeta y todo lo que contiene', () => store.setFolderFlag(sym, f.id, 'locked', !allLocked));
       mkBtn(row, 'folderadd', 'Crear una subcarpeta aquí (con los dibujos seleccionados, si hay)', () => newFolder(selIds(), f.id));
       mkBtn(row, 'trash', 'Quitar la carpeta (los dibujos se conservan)', () => store.removeFolder(sym, f.id));
       row.onclick = (e) => {
@@ -507,13 +519,37 @@
       const lockAll = el('button', 'btn secondary', list.every((d) => d.locked) ? 'Desbloquear todos' : 'Bloquear todos');
       lockAll.onclick = () => store.setAll(sym, 'locked', !list.every((d) => d.locked));
       const showAll = el('button', 'btn secondary', 'Mostrar todos');
-      showAll.onclick = () => { store.setAll(sym, 'hidden', false); if (prefs().hideAll) setPref('hideAll', false); };
+      showAll.onclick = () => { store.showAll(sym); if (prefs().hideAll) setPref('hideAll', false); };
       const delAll = el('button', 'btn secondary', 'Eliminar todos');
       delAll.onclick = confirmClear;
       act.append(lockAll, showAll, delAll);
       p.appendChild(act);
     }
     p.scrollTop = keepScroll;
+  }
+  // Indicadores activos del gráfico seleccionado, con ocultar (ojo) y eliminar (papelera).
+  function renderIndicatorRows(p, vc) {
+    const rows = [];
+    const ind = vc.ind;
+    if (ind.rsi && ind.rsi.on) rows.push({ name: `RSI (${ind.rsi.len})`, color: ind.rsi.color, hidden: !!ind.rsi.hide, toggle: () => { ind.rsi.hide = !ind.rsi.hide; }, remove: () => { ind.rsi.on = false; ind.rsi.hide = false; }, kind: 'ind' });
+    if (ind.stoch && ind.stoch.on) rows.push({ name: `Estocástico (${ind.stoch.k}, ${ind.stoch.sm}, ${ind.stoch.d})`, color: ind.stoch.kColor, hidden: !!ind.stoch.hide, toggle: () => { ind.stoch.hide = !ind.stoch.hide; }, remove: () => { ind.stoch.on = false; ind.stoch.hide = false; }, kind: 'ind' });
+    if (ind.pivots && ind.pivots.on) rows.push({ name: `Pivotes (${ind.pivots.type})`, color: '#ff9800', hidden: !!ind.pivots.hide, toggle: () => { ind.pivots.hide = !ind.pivots.hide; }, remove: () => { ind.pivots.on = false; ind.pivots.hide = false; }, kind: 'ind' });
+    vc.mas.forEach((ma) => {
+      if (!(vc.maOn || {})[ma.type]) return;
+      rows.push({ name: `${ma.type} ${ma.period}`, color: ma.color, hidden: !ma.visible, toggle: () => { ma.visible = !ma.visible; }, remove: () => { vc.mas = vc.mas.filter((m) => m !== ma); }, kind: 'ma' });
+    });
+    p.appendChild(el('h4', 'obj-head', 'Indicadores de este gráfico'));
+    if (!rows.length) { p.appendChild(el('p', 'hint small', 'No hay indicadores activos (se activan desde el botón Indicadores).')); return; }
+    rows.forEach((r) => {
+      const row = el('div', 'obj-row' + (r.hidden ? ' off' : ''));
+      const ic = el('span', 'obj-ic'); ic.innerHTML = svg('ind', 16); ic.style.color = hexOk(r.color);
+      row.append(ic, el('span', 'obj-name', r.name));
+      const apply = () => (r.kind === 'ma' ? X.refreshMas() : X.refreshInd());
+      const mk = (icon, title, fn) => { const b = el('button', 'obj-btn'); b.innerHTML = svg(icon, 15); b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); apply(); X.renderPanel(); }; row.appendChild(b); };
+      mk(r.hidden ? 'eyeoff' : 'eye', r.hidden ? 'Mostrar' : 'Ocultar', r.toggle);
+      mk('trash', 'Eliminar (se puede volver a activar desde Indicadores)', () => { r.remove(); X.refreshInd(); });
+      p.appendChild(row);
+    });
   }
   function dropOn(sym, folderId) {
     const dd = dragData; dragData = null;
@@ -616,9 +652,100 @@
         field('Color del texto', cw);
         field('Tamaño (px)', numIn(d.tSize || 12, 8, 60, 1, (v) => patch({ tSize: v })));
         field('Negrita', checkIn(d.tBold, (v) => patch({ tBold: v })));
-        field('Posición', selIn([['above', 'Por encima de la línea'], ['center', 'En el centro (sobre la línea)'], ['below', 'Por debajo de la línea']], d.tV || 'above', (v) => patch({ tV: v })));
+        field('Cursiva', checkIn(d.tItalic, (v) => patch({ tItalic: v })));
+        const posOpts = t === 'rect'
+          ? [['above', 'Arriba (dentro del rectángulo)'], ['center', 'En el centro'], ['below', 'Abajo (dentro del rectángulo)']]
+          : [['above', 'Por encima de la línea'], ['center', 'En el centro (sobre la línea)'], ['below', 'Por debajo de la línea']];
+        field('Posición', selIn(posOpts, d.tV || 'above', (v) => patch({ tV: v })));
         field('Lugar del texto', selIn([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']], d.tH || 'left', (v) => patch({ tH: v })));
       };
+
+      // ---- Editor de tabla: celdas, estilo de toda la tabla, contorno por celda (Shift + clic suma celdas) y estilo por columna ----
+      let tSel = new Set();
+      const keyOf = (r, c) => r + ',' + c;
+      function tableBlock(d) {
+        box.classList.add('wide');
+        const clone = (o) => JSON.parse(JSON.stringify(o));
+        const patchCells = (fn) => { const cells = clone(cur().cells); fn(cells); patch({ cells }); };
+        const patchCols = (fn) => { const cs = clone(cur().colStyles); fn(cs); patch({ colStyles: cs }); };
+        const resize = (rows, cols) => { const nd = { rows: rows || cur().rows, cols: cols || cur().cols, cells: clone(cur().cells), colStyles: clone(cur().colStyles) }; D.fixTable(nd); tSel = new Set(); patch({ rows: nd.rows, cols: nd.cols, cells: nd.cells, colStyles: nd.colStyles }); fill(); };
+        const numChange = (val, min, max, fn) => { const i = el('input'); i.type = 'number'; i.min = min; i.max = max; i.value = val; i.style.width = '80px'; i.onchange = () => { const v = parseInt(i.value, 10); if (isFinite(v)) fn(Math.max(min, Math.min(max, v))); }; return i; };
+        const alignSel = (val, fn) => selIn([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']], val || 'left', fn);
+        body.appendChild(el('h4', '', 'Forma de la tabla'));
+        field('Filas', numChange(d.rows, 1, 30, (v) => resize(v, null)));
+        field('Columnas', numChange(d.cols, 1, 30, (v) => resize(null, v)));
+        body.appendChild(el('h4', '', 'Estilo general (para toda la tabla)'));
+        field('Color del texto', colorIn(d.color, (v) => patch({ color: v })));
+        field('Tamaño (px)', numIn(d.size || 13, 8, 60, 1, (v) => patch({ size: v })));
+        field('Negrita', checkIn(d.bold, (v) => patch({ bold: v })));
+        field('Cursiva', checkIn(d.italic, (v) => patch({ italic: v })));
+        field('Alineación del texto', alignSel(d.align, (v) => patch({ align: v })));
+        field('Color del contorno de las celdas', colorIn(d.bColor, (v) => patch({ bColor: v })));
+        field('Grosor del contorno (0 = sin contorno)', numIn(d.bWidth == null ? 1 : d.bWidth, 0, 8, 1, (v) => patch({ bWidth: v })));
+        field('Fondo', checkIn(d.fill, (v) => patch({ fill: v })));
+        field('Color del fondo', colorIn(d.fillColor, (v) => patch({ fillColor: v })));
+        field('Opacidad del fondo', rangeIn(d.fillOpacity == null ? 10 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
+
+        body.appendChild(el('h4', '', 'Contenido y celdas'));
+        body.appendChild(el('p', 'hint small', 'Escribe en las celdas. Clic en una celda la selecciona; Shift + clic suma o quita celdas. Abajo cambias el contorno y el texto de las celdas elegidas.'));
+        const gridWrap = el('div', 'tbl-wrap');
+        const grid = el('div', 'tbl-grid');
+        grid.style.gridTemplateColumns = `repeat(${d.cols}, minmax(86px, 1fr))`;
+        const cellBox = el('div', 'tbl-cellbox');
+        const inputs = {};
+        const markSel = () => { Object.keys(inputs).forEach((k) => inputs[k].classList.toggle('sel', tSel.has(k))); drawCellBox(); };
+        for (let r = 0; r < d.rows; r++) {
+          for (let c = 0; c < d.cols; c++) {
+            const inp = el('input', 'tbl-cell'); inp.type = 'text'; inp.value = d.cells[r][c].text || '';
+            inp.oninput = () => patchCells((cells) => { cells[r][c].text = inp.value; });
+            inp.onmousedown = (e) => {
+              const k = keyOf(r, c);
+              if (e.shiftKey) { e.preventDefault(); if (tSel.has(k)) tSel.delete(k); else tSel.add(k); markSel(); }
+            };
+            inp.onfocus = () => { if (!(tSel.size > 1 && tSel.has(keyOf(r, c)))) { tSel = new Set([keyOf(r, c)]); markSel(); } };
+            inputs[keyOf(r, c)] = inp; grid.appendChild(inp);
+          }
+        }
+        gridWrap.appendChild(grid); body.appendChild(gridWrap); body.appendChild(cellBox);
+        function drawCellBox() {
+          cellBox.innerHTML = '';
+          const cells = [...tSel].map((k) => k.split(',').map(Number));
+          if (!cells.length) { cellBox.appendChild(el('p', 'hint small', 'Ninguna celda seleccionada.')); return; }
+          const cd = cur();
+          const [r0, c0] = cells[0];
+          const st = D.cellStyle(cd, r0, c0);
+          cellBox.appendChild(el('h4', '', `Celdas seleccionadas: ${cells.length}`));
+          const f2 = (label, ctrl) => { const f = el('div', 'field'); f.append(el('span', '', label), ctrl); cellBox.appendChild(f); };
+          const each = (fn) => patchCells((cs) => cells.forEach(([r, c]) => fn(cs[r][c])));
+          f2('Color del contorno', colorIn(st.bColor, (v) => each((x) => { x.bColor = v; })));
+          f2('Grosor del contorno', numIn(st.bWidth == null ? 1 : st.bWidth, 0, 8, 1, (v) => each((x) => { x.bWidth = v; })));
+          f2('Color del texto', colorIn(st.color, (v) => each((x) => { x.color = v; })));
+          f2('Negrita', checkIn(st.bold, (v) => each((x) => { x.bold = v; })));
+          f2('Cursiva', checkIn(st.italic, (v) => each((x) => { x.italic = v; })));
+          f2('Alineación', alignSel(st.align, (v) => each((x) => { x.align = v; })));
+          const reset = el('button', 'btn secondary', 'Quitar los ajustes propios de estas celdas');
+          reset.onclick = () => { each((x) => { ['bColor', 'bWidth', 'color', 'bold', 'italic', 'align', 'size'].forEach((k) => { delete x[k]; }); }); drawCellBox(); };
+          cellBox.appendChild(reset);
+          X.decoratePalette(cellBox);
+        }
+        drawCellBox();
+
+        body.appendChild(el('h4', '', 'Estilo por columna'));
+        body.appendChild(el('p', 'hint small', 'Cada columna puede tener su propio texto: por ejemplo la 1 solo en negrita y la 2 solo en cursiva y de otro color. Una celda con ajustes propios manda sobre su columna.'));
+        for (let c = 0; c < d.cols; c++) {
+          const cs = d.colStyles[c] || {};
+          const row = el('div', 'tbl-colrow');
+          row.appendChild(el('span', 'tbl-colname', `Columna ${c + 1}`));
+          row.appendChild(colorIn(cs.color || d.color, (v) => patchCols((a) => { a[c].color = v; })));
+          const lb = (txt, key) => { const l = el('label', 'tbl-chk'); const i = checkIn(cs[key] !== undefined && cs[key] !== null ? cs[key] : d[key], (v) => patchCols((a) => { a[c][key] = v; })); l.append(i, document.createTextNode(txt)); return l; };
+          row.append(lb('Negrita', 'bold'), lb('Cursiva', 'italic'));
+          row.appendChild(alignSel(cs.align || d.align, (v) => patchCols((a) => { a[c].align = v; })));
+          const x = el('button', 'btn secondary small', 'Quitar'); x.title = 'Quitar los ajustes propios de esta columna';
+          x.onclick = () => { patchCols((a) => { a[c] = {}; }); fill(); };
+          row.appendChild(x);
+          body.appendChild(row);
+        }
+      }
 
       function fill() {
         body.innerHTML = '';
@@ -631,6 +758,9 @@
           field('Color', colorIn(d.color, (v) => patch({ color: v })));
           field('Tamaño (px)', numIn(d.size || 14, 8, 80, 1, (v) => patch({ size: v })));
           field('Negrita', checkIn(d.bold, (v) => patch({ bold: v })));
+          field('Cursiva', checkIn(d.italic, (v) => patch({ italic: v })));
+        } else if (t === 'table') {
+          tableBlock(d);
         } else {
           field('Color de línea', colorIn(d.color, (v) => patch({ color: v })));
           field('Grosor', numIn(d.width || 1, 1, 8, 1, (v) => patch({ width: v })));
@@ -655,7 +785,7 @@
             field('Grosor de la línea central', numIn(d.cWidth || 1, 1, 8, 1, (v) => patch({ cWidth: v })));
           }
         }
-        if (t === 'trend' || t === 'hline' || t === 'hray') textBlock(d, true);
+        if (t === 'trend' || t === 'hline' || t === 'hray' || t === 'rect') textBlock(d, true);
         if (t === 'fib') {
           field('Línea de tendencia (punteada)', checkIn(d.trendLine, (v) => patch({ trendLine: v })));
           field('Mostrar el precio de cada nivel', checkIn(d.showPrice, (v) => patch({ showPrice: v })));
@@ -762,7 +892,7 @@
       renderSel(); renderTree();
     });
     document.addEventListener('keydown', onKey);
-    window.addEventListener('resize', () => placeFav());
+    window.addEventListener('resize', () => { placeBar('favBar'); placeBar('selBar'); });
     renderAll();
   }
 

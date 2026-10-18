@@ -1,10 +1,36 @@
-AR_TRADING - VERSION 0.8.0
+AR_TRADING - VERSION 0.9.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.8)
+NOVEDADES DE ESTA VERSION (v0.9)
+- RECTANGULO: al pasar el mouse por un tirador (esquina o lado) el cursor cambia a una flecha de dos
+  puntas, como en TradingView. Ahora tambien lleva TEXTO (contenido, color, tamano, negrita, cursiva,
+  posicion arriba/centro/abajo dentro del rectangulo y lugar izquierda/centro/derecha).
+- CURSIVA: opcion "Cursiva" en todas las herramientas con texto (tendencia, horizontal, rayo horizontal,
+  rectangulo, Fibonacci, texto libre y tabla).
+- BOTON AJUSTES FIJO: Estado, Indicadores y Ajustes quedan siempre arriba a la derecha; ya no bajan
+  de fila cuando mueves el grafico o cambia la ventana.
+- BARRA DE PROPIEDADES (color, grosor, tipo de linea...) ahora aparece arriba al centro y se mueve como
+  la barra de favoritos: arrastra los puntitos a cualquier borde (arriba/abajo = horizontal, izquierda/
+  derecha = vertical). Recuerda donde la dejaste.
+- LISTA DE OBJETOS: arriba muestra los INDICADORES activos del grafico (RSI, Estocastico, Pivotes y
+  medias EMA/SMA), cada uno con ojo (ocultar/mostrar) y papelera (eliminar; se reactiva desde Indicadores).
+- HERRAMIENTA TABLA (grupo Texto y tablas): un clic y se abre el editor. Filas y columnas, texto de cada
+  celda, estilo general (color, tamano, negrita, cursiva, alineacion, contorno y fondo). Clic en una
+  celda la selecciona y Shift + clic suma mas celdas: a las elegidas les cambias contorno (color y
+  grosor) y texto. Estilo por columna independiente (ej. columna 1 solo negrita; columna 2 solo
+  cursiva y de otro color). Una celda con ajustes propios manda sobre su columna. Doble clic sobre la
+  tabla la vuelve a editar; tambien se puede mover y guardar como plantilla.
+- BARRA IZQUIERDA: la REGLA es ahora un boton fijo (ya no esta dentro del grupo de texto) y hay una
+  herramienta ACERCAR (lupa): arrastra un recuadro y el grafico amplia esa zona en tiempo y precio.
+  El boton Auto vuelve a la vista normal.
+- CARPETAS: ocultar o bloquear una carpeta madre ya no cambia el estado de sus subcarpetas. Si ocultas a
+  mano HIJA 1 y HIJA 3, ocultas la MADRE y luego la muestras, solo se ve HIJA 2; las otras siguen
+  ocultas hasta que tu las muestres. "Mostrar todos" si muestra todo.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.8)
 - HISTORIAL EN TEMPORALIDADES GRANDES (urgente): antes, una temporalidad rara como 25-35 dias (o mayor de
   2 horas) casi no cargaba velas y aparecian una a una al mover el grafico. Ahora:
   * Carga mucho mas historial de golpe y sigue completando solo hasta tener unas 1500 velas (se ve

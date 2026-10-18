@@ -8,13 +8,16 @@
   const HANDLE_HIT = 9;     // distancia (px) para agarrar un tirador
   const MAGNET_WEAK_PX = 30; // imán débil: solo actúa si el precio de la vela está a menos de esto
   const ACCENT = '#2962ff';
+  // tiradores del rectángulo: 0 arriba-izq., 1 arriba-der., 2 abajo-der., 3 abajo-izq., 4 arriba, 5 derecha, 6 abajo, 7 izquierda
+  const RECT_CURSORS = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
   // Con Shift, el nuevo punto queda a la misma altura que el anterior (línea horizontal exacta).
   const SHIFT_TYPES = { trend: true, channel: true, poly: true, ruler: true };
 
   let measCtx = null;
-  function measure(text, size, bold) {
+  const font = (size, bold, italic) => `${italic ? 'italic ' : ''}${bold ? '700 ' : ''}${size}px sans-serif`;
+  function measure(text, size, bold, italic) {
     if (!measCtx) measCtx = document.createElement('canvas').getContext('2d');
-    measCtx.font = `${bold ? '700 ' : ''}${size}px sans-serif`;
+    measCtx.font = font(size, bold, italic);
     return measCtx.measureText(text).width;
   }
   function rgba(hex, op) {
@@ -73,14 +76,14 @@
       const ay = y1 + m * (ax - x1);
       ctx.save();
       ctx.setLineDash([]);
-      ctx.font = `${d.tBold ? '700 ' : ''}${size}px sans-serif`;
+      ctx.font = font(size, d.tBold, d.tItalic);
       ctx.textAlign = align;
       ctx.fillStyle = themed(d.tColor || d.color);
       const bg = env.bg();
       if (d.tV === 'below') { ctx.textBaseline = 'top'; haloText(ctx, d.text, ax, ay + 4, bg); }
       else if (d.tV === 'center') {
         ctx.textBaseline = 'middle';
-        const wd = measure(d.text, size, !!d.tBold);
+        const wd = measure(d.text, size, !!d.tBold, !!d.tItalic);
         const bx = align === 'left' ? ax - 3 : align === 'right' ? ax - wd - 3 : ax - wd / 2 - 3;
         ctx.save(); ctx.fillStyle = bg; ctx.fillRect(bx, ay - size / 2 - 1, wd + 6, size + 2); ctx.restore();
         ctx.fillText(d.text, ax, ay);
@@ -116,11 +119,13 @@
         case 'channel': drawChannel(ctx, d, P, w, color); break;
         case 'fib': if (P.length > 1) drawFib(ctx, d, P, w, o); break;
         case 'text': drawText(ctx, d, P); break;
+        case 'table': drawTable(ctx, d, P); break;
+        case 'zoom': if (P.length > 1) drawZoom(ctx, P); break;
         case 'ruler': if (P.length > 1) drawRuler(ctx, d, P, w, h); break;
         default: break;
       }
       ctx.setLineDash([]);
-      if (o && ((o.selected && o.single) || o.draft)) drawHandles(ctx, d, P, w);
+      if (o && ((o.selected && o.single) || (o.draft && d.type !== 'zoom'))) drawHandles(ctx, d, P, w);
     }
 
     function drawRect(ctx, d, P, w, color) {
@@ -134,6 +139,7 @@
       if (!d.extL) { ctx.moveTo(xl, r.y1); ctx.lineTo(xl, r.y2); }
       if (!d.extR) { ctx.moveTo(xr, r.y1); ctx.lineTo(xr, r.y2); }
       ctx.stroke();
+      drawBoxText(ctx, d, xl, xr, r.y1, r.y2, w);
       if (d.center) {
         ctx.save();
         ctx.strokeStyle = themed(d.cColor || d.color); ctx.lineWidth = d.cWidth || 1; ctx.setLineDash(D.DASHES[d.cDash] || []);
@@ -141,6 +147,64 @@
         seg(ctx, [xl, my, xr, my]);
         ctx.restore();
       }
+    }
+
+    // Texto dentro del rectángulo: arriba / centro / abajo y izquierda / centro / derecha.
+    function drawBoxText(ctx, d, xl, xr, y1, y2, w) {
+      if (!d.text) return;
+      const size = d.tSize || 12, pad = 6;
+      const a = Math.max(xl, 0), b = Math.min(xr, w);
+      if (b <= a) return;
+      let ax, align;
+      if (d.tH === 'right') { ax = b - pad; align = 'right'; } else if (d.tH === 'center') { ax = (a + b) / 2; align = 'center'; } else { ax = a + pad; align = 'left'; }
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.font = font(size, d.tBold, d.tItalic);
+      ctx.textAlign = align; ctx.fillStyle = themed(d.tColor || d.color);
+      let ay;
+      if (d.tV === 'above') { ctx.textBaseline = 'top'; ay = y1 + 4; } else if (d.tV === 'below') { ctx.textBaseline = 'bottom'; ay = y2 - 4; } else { ctx.textBaseline = 'middle'; ay = (y1 + y2) / 2; }
+      haloText(ctx, d.text, ax, ay, env.bg());
+      ctx.restore();
+    }
+
+    function drawTable(ctx, d, P) {
+      const t = D.tableDims(d, measure);
+      const x0 = P[0].x, y0 = P[0].y;
+      if (d.fill) { ctx.fillStyle = rgba(d.fillColor || '#2962ff', (d.fillOpacity == null ? 10 : d.fillOpacity) / 100); ctx.fillRect(x0, y0, t.w, t.h); }
+      const cells = [];
+      let y = y0;
+      for (let r = 0; r < d.rows; r++) {
+        let x = x0;
+        for (let c = 0; c < d.cols; c++) {
+          cells.push({ x, y, w: t.colW[c], h: t.rowH[r], st: D.cellStyle(d, r, c) });
+          x += t.colW[c];
+        }
+        y += t.rowH[r];
+      }
+      ctx.save();
+      ctx.setLineDash([]); ctx.textBaseline = 'middle';
+      // los contornos más gruesos se pintan al final para que no los tape el borde de la celda vecina
+      cells.slice().sort((a, b) => (a.st.bWidth || 0) - (b.st.bWidth || 0)).forEach((k) => {
+        if (k.st.bWidth > 0) { ctx.strokeStyle = themed(k.st.bColor); ctx.lineWidth = k.st.bWidth; ctx.strokeRect(k.x, k.y, k.w, k.h); }
+      });
+      cells.forEach((k) => {
+        if (!k.st.text) return;
+        ctx.font = font(k.st.size, k.st.bold, k.st.italic);
+        ctx.fillStyle = themed(k.st.color);
+        let ax; const al = k.st.align;
+        if (al === 'right') { ctx.textAlign = 'right'; ax = k.x + k.w - 6; } else if (al === 'center') { ctx.textAlign = 'center'; ax = k.x + k.w / 2; } else { ctx.textAlign = 'left'; ax = k.x + 6; }
+        ctx.fillText(k.st.text, ax, k.y + k.h / 2);
+      });
+      ctx.restore();
+    }
+
+    function drawZoom(ctx, P) {
+      const r = G.rectOf(P);
+      ctx.save();
+      ctx.fillStyle = 'rgba(41,98,255,0.12)'; ctx.strokeStyle = ACCENT; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+      ctx.fillRect(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1);
+      ctx.strokeRect(r.x1 + 0.5, r.y1 + 0.5, r.x2 - r.x1, r.y2 - r.y1);
+      ctx.restore();
     }
 
     function drawChannel(ctx, d, P, w, color) {
@@ -177,7 +241,7 @@
         }
       }
       const size = d.tSize || 11;
-      ctx.font = `${d.tBold ? '700 ' : ''}${size}px sans-serif`;
+      ctx.font = font(size, d.tBold, d.tItalic);
       ctx.lineWidth = (d.width || 1) + (o && (o.hover || o.selected) ? 0.5 : 0);
       const vxl = Math.max(xl, 0), vxr = Math.min(xr, w), bg = env.bg();
       lv.forEach((l) => {
@@ -191,7 +255,7 @@
         if (d.tV === 'below') { ctx.textBaseline = 'top'; haloText(ctx, label, ax, l.y + 3, bg); }
         else if (d.tV === 'center') {
           ctx.textBaseline = 'middle';
-          const wd = measure(label, size, !!d.tBold);
+          const wd = measure(label, size, !!d.tBold, !!d.tItalic);
           const bx = align === 'left' ? ax - 3 : align === 'right' ? ax - wd - 3 : ax - wd / 2 - 3;
           ctx.save(); ctx.fillStyle = bg; ctx.fillRect(bx, l.y - size / 2 - 1, wd + 6, size + 2); ctx.restore();
           ctx.fillText(label, ax, l.y);
@@ -205,7 +269,7 @@
 
     function drawText(ctx, d, P) {
       const size = d.size || 14;
-      ctx.font = `${d.bold ? '700 ' : ''}${size}px sans-serif`;
+      ctx.font = font(size, d.bold, d.italic);
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
       ctx.fillStyle = themed(d.color);
       haloText(ctx, d.text || 'Texto', P[0].x, P[0].y, env.bg());
@@ -262,7 +326,7 @@
       ctx.save();
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       store.list(sym).forEach((d) => {
-        if (d.hidden || store.prefs().hideAll) return;
+        if (store.isHidden(sym, d) || store.prefs().hideAll) return;
         drawOne(ctx, d, w, h, { selected: store.isSelected(sym, d.id), single, hover: L.hoverId === d.id });
       });
       if (L.draft) drawOne(ctx, Object.assign({}, L.draft, { pts: L.draft.pts.concat(L.draft.cur ? [L.draft.cur] : []) }), w, h, { draft: true });
@@ -288,7 +352,7 @@
         const out = [];
         if (!env.active() || store.prefs().hideAll) return out;
         store.list(env.symbol()).forEach((d) => {
-          if ((d.type !== 'hline' && d.type !== 'hray') || d.hidden || !d.pts[0]) return;
+          if ((d.type !== 'hline' && d.type !== 'hray') || store.isHidden(env.symbol(), d) || !d.pts[0]) return;
           out.push({
             coordinate: () => { const y = env.yOfPrice(d.pts[0].p); return num(y) ? y : -100; },
             text: () => env.fmtPrice(d.pts[0].p),
@@ -313,7 +377,7 @@
       let t = env.timeOfX(x), p = env.priceOfY(y);
       if (!num(t) || !num(p)) return null;
       if (shiftRef) return { t, p: shiftRef.p };
-      const mode = magnetMode();
+      const mode = store.state.tool === 'zoom' || (L.draft && L.draft.type === 'zoom') ? 'off' : magnetMode();
       if (mode !== 'off') {
         const bars = env.bars(), lg = env.logicalOfX(x);
         if (num(lg)) {
@@ -348,7 +412,7 @@
 
     function hitAt(x, y) {
       const sym = env.symbol(), w = env.plotWidth();
-      const list = store.prefs().hideAll ? [] : store.list(sym).filter((d) => !d.hidden);
+      const list = store.prefs().hideAll ? [] : store.list(sym).filter((d) => !store.isHidden(sym, d));
       if (store.state.multi.length === 1 && store.state.sel && store.state.sel.sym === sym) {
         const d = list.find((q) => q.id === store.state.sel.id);
         const P = d && toPx(d);
@@ -370,7 +434,7 @@
       if (store.prefs().hideAll) return [];
       const out = [];
       store.list(sym).forEach((d) => {
-        if (d.hidden) return;
+        if (store.isHidden(sym, d)) return;
         const P = toPx(d);
         if (P && G.inRect(d, P, r)) out.push(d.id);
       });
@@ -423,6 +487,19 @@
     function commit(obj) {
       const sym = env.symbol();
       if (obj.type === 'ruler') { L.ruler = obj; store.setTool(null); repaint(); return; }
+      if (obj.type === 'zoom') {
+        store.setTool(null);
+        if (env.zoomTo && obj.pts.length > 1) env.zoomTo(obj.pts[0].t, obj.pts[1].t, obj.pts[0].p, obj.pts[1].p);
+        repaint(); return;
+      }
+      if (obj.type === 'table') {
+        // la tabla nace con 3x2 celdas vacías y abre su editor para escribir enseguida
+        const t = store.add(sym, obj);
+        if (!store.prefs().keep) store.setTool(null);
+        repaint();
+        store.emit('props', { sym, id: t.id });
+        return;
+      }
       if (obj.type === 'text') { openEditor(obj, true); return; }
       store.add(sym, obj);
       if (!store.prefs().keep) store.setTool(null);
@@ -497,7 +574,7 @@
         if (mod) { store.select(sym, hit.d.id, 'toggle'); return; }       // Ctrl + clic: uno por uno
         const group = store.isSelected(sym, hit.d.id) && store.state.multi.length > 1 && hit.handle === null;
         if (!group) store.select(sym, hit.d.id);
-        const ids = (group ? store.state.multi.slice() : [hit.d.id]).filter((id) => { const q = store.get(sym, id); return q && !q.locked; });
+        const ids = (group ? store.state.multi.slice() : [hit.d.id]).filter((id) => { const q = store.get(sym, id); return q && !store.isLocked(sym, q); });
         if (ids.length) {
           const origs = {};
           ids.forEach((id) => { origs[id] = JSON.parse(JSON.stringify(store.get(sym, id).pts)); });
@@ -574,6 +651,9 @@
       const loc = local(e);
       const hit = loc.inPane && !isUi(e.target) ? hitAt(loc.x, loc.y) : null;
       const id = hit ? hit.d.id : null;
+      // Flecha de dos puntas al pasar por un tirador del rectángulo (como en TradingView)
+      const cur = hit && hit.handle !== null && hit.d.type === 'rect' ? RECT_CURSORS[hit.handle] : '';
+      if (cur !== (host.dataset.cur || '')) { if (cur) host.dataset.cur = cur; else delete host.dataset.cur; }
       if (id !== L.hoverId) { L.hoverId = id; host.classList.toggle('draw-over', !!id); repaint(); }
     }
     function onDbl(e) {
@@ -604,14 +684,15 @@
     host.addEventListener('mousemove', onHover);
     host.addEventListener('dblclick', onDbl, true);
     host.addEventListener('contextmenu', onCtx, true);
-    host.addEventListener('mouseleave', () => { if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
+    host.addEventListener('mouseleave', () => { delete host.dataset.cur; if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
 
     // Cambios en el almacén (de este u otro gráfico): repintar y ajustar el cursor.
     const off = store.on((kind) => {
       if (kind === 'tool') {
         if (L.draft && store.state.tool !== L.draft.type) cancel();
         host.classList.toggle('draw-tool', !!store.state.tool);
-        if (store.state.tool) { host.classList.remove('draw-over'); L.hoverId = null; }
+        host.classList.toggle('draw-zoom', store.state.tool === 'zoom');
+        if (store.state.tool) { host.classList.remove('draw-over'); L.hoverId = null; delete host.dataset.cur; }
       }
       repaint();
     });

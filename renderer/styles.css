@@ -11,7 +11,10 @@ body[data-theme="light"] {
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; display: flex; flex-direction: column; overflow: hidden; }
 
-#toolbar { display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+#toolbar { display: flex; align-items: flex-start; gap: 8px; padding: 5px 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
+/* Lo de la izquierda puede pasar a otra fila; Estado, Indicadores y Ajustes quedan siempre fijos arriba a la derecha. */
+.tb-left { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.tb-right { display: flex; align-items: center; gap: 4px; flex: none; margin-left: auto; min-height: 32px; }
 .group { display: flex; gap: 2px; flex-wrap: wrap; }
 .sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
 .spacer { flex: 1; }
@@ -208,13 +211,15 @@ input[type=color]:disabled { cursor: not-allowed; }
 .fav-star.on { color: #ff9800; }
 .fav-star.on svg { fill: #ff9800; }
 
-#favBar, #selBar { position: absolute; left: 50%; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 3px; padding: 3px 5px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+#favBar, #selBar { position: absolute; left: 0; top: 0; z-index: 12; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 3px 5px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
 #favBar { top: 96px; left: 8px; transform: none; flex-direction: column; padding: 4px 3px; }
 #favBar.horiz { flex-direction: row; padding: 3px 4px; }
 .fav-grip { display: inline-flex; justify-content: center; align-items: center; color: var(--muted); cursor: grab; touch-action: none; padding: 2px; }
 .fav-grip:active { cursor: grabbing; }
 .db-btn.tpl::after { content: ''; position: absolute; right: 3px; top: 3px; width: 6px; height: 6px; border-radius: 50%; background: #ff9800; }
-#selBar { bottom: 44px; }
+#selBar { padding: 3px 4px; max-width: calc(100% - 16px); }
+#selBar.horiz { flex-direction: row; }
+#selBar:not(.horiz) .sb-title { margin: 2px 0; }
 #selBar select { font-size: 12px; padding: 2px 4px; }
 #selBar .sb-title { font-size: 12px; color: var(--muted); margin: 0 6px 0 4px; white-space: nowrap; }
 
@@ -254,3 +259,20 @@ input[type=color]:disabled { cursor: not-allowed; }
 .tree-root { min-height: 80px; padding-bottom: 20px; border-radius: 4px; }
 .tree-root.drop-root { outline: 1px dashed var(--active); }
 .tree-hint { font-size: 11px; color: var(--muted); padding: 8px 4px; }
+
+/* v0.9 */
+#grid .cell[data-cur="nwse-resize"], #grid .cell[data-cur="nwse-resize"] * { cursor: nwse-resize !important; }
+#grid .cell[data-cur="nesw-resize"], #grid .cell[data-cur="nesw-resize"] * { cursor: nesw-resize !important; }
+#grid .cell[data-cur="ns-resize"], #grid .cell[data-cur="ns-resize"] * { cursor: ns-resize !important; }
+#grid .cell[data-cur="ew-resize"], #grid .cell[data-cur="ew-resize"] * { cursor: ew-resize !important; }
+#grid .cell.draw-zoom, #grid .cell.draw-zoom * { cursor: zoom-in !important; }
+.obj-head { margin: 12px 0 4px; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.modal-box.wide .tbl-wrap { overflow: auto; max-width: 100%; padding-bottom: 4px; }
+.tbl-wrap { overflow: auto; max-width: 100%; }
+.tbl-grid { display: grid; gap: 3px; }
+.tbl-cell { min-width: 0; width: 100%; padding: 4px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input, var(--bg)); color: var(--text); font: inherit; }
+.tbl-cell.sel { outline: 2px solid var(--active); outline-offset: -1px; background: color-mix(in srgb, var(--active) 14%, var(--bg)); }
+.tbl-cellbox { margin-top: 6px; padding: 4px 8px; border: 1px dashed var(--border); border-radius: 6px; }
+.tbl-colrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; flex-wrap: wrap; }
+.tbl-colname { width: 78px; font-weight: 600; }
+.tbl-chk { display: inline-flex; align-items: center; gap: 4px; }

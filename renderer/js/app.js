@@ -66,14 +66,14 @@
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
   function defaultDraw() {
-    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: 'off', keep: false, favBar: true, favPos: { edge: 'left', off: 0.2 }, hideAll: false, styles: {}, templates: {} };
+    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: 'off', keep: false, favBar: true, favPos: { edge: 'left', off: 0.2 }, selPos: { edge: 'top', off: 0.5 }, hideAll: false, styles: {}, templates: {} };
   }
   function defaultCharts(symbol) {
     return ['m:60', 'm:240', 'd:1', 'm:15'].map((tf) => newChart(symbol, tf));
   }
   function defaultConfig() {
     return {
-      version: 6, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
+      version: 7, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       favorites: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT'],
@@ -117,6 +117,7 @@
       saveCfg();
       view.refreshIndicators();
       if (!$('panel').classList.contains('hidden') && view.index === A.cfg.active) renderPanel();
+      if (window.TVDrawUI) window.TVDrawUI.refresh();
     },
     symbolInfo(sym) { return (A.symbols || []).find((x) => x.symbol === sym) || null; },
     onPaneSize() { saveCfg(); },
@@ -780,8 +781,8 @@
   }
 
   // ---------- Panel de indicadores ----------
-  const refreshInd = () => { saveCfg(); activeView().refreshIndicators(); };
-  const refreshMas = () => { saveCfg(); activeView().refreshMas(); };
+  const refreshInd = () => { saveCfg(); activeView().refreshIndicators(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
+  const refreshMas = () => { saveCfg(); activeView().refreshMas(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
 
   // Fila de un indicador: casilla de mostrar + parámetros.
   function indBlock(parent, title, key, fields, hintText) {
@@ -1047,7 +1048,7 @@
     cfg.drawings = cleanDrawings(saved.drawings);
     cfg.draw = cleanDrawPrefs(saved.draw);
     cfg.folders = cleanFolders(saved.folders, cfg.drawings);
-    cfg.version = 6;
+    cfg.version = 7;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
@@ -1063,7 +1064,7 @@
         return d;
       }).filter((d) => {
         const spec = d && window.TVDraw.TYPES[d.type];
-        if (!spec || !Array.isArray(d.pts) || !d.pts.length) return false;
+        if (!spec || spec.ephemeral || !Array.isArray(d.pts) || !d.pts.length) return false;
         if (!d.pts.every((p) => p && ok(p.t) && ok(p.p))) return false;
         if (spec.pts && d.pts.length < spec.pts) return false;
         return true;
@@ -1072,6 +1073,7 @@
         if (!o.id) o.id = 'm' + Date.now().toString(36) + i;
         o.locked = !!o.locked; o.hidden = !!o.hidden;
         if (o.type === 'fib' && !Array.isArray(o.levels)) o.levels = window.TVDraw.fibLevels();
+        if (o.type === 'table') window.TVDraw.fixTable(o);
         return o;
       });
       if (list.length) out[sym] = list;
@@ -1101,9 +1103,10 @@
       const arr = Array.isArray(d.templates[t]) ? d.templates[t].filter((x) => x && typeof x.id === 'string' && isObj(x.style)) : [];
       if (types[t] && arr.length) d.templates[t] = arr.map((x) => ({ id: x.id, name: String(x.name || 'Plantilla'), style: x.style })); else delete d.templates[t];
     });
-    const fp = d.favPos;
-    d.favPos = isObj(fp) && ['left', 'right', 'top', 'bottom'].includes(fp.edge) && typeof fp.off === 'number' && isFinite(fp.off)
-      ? { edge: fp.edge, off: Math.max(0, Math.min(1, fp.off)) } : { edge: 'left', off: 0.2 };
+    const okPos = (fp, def) => (isObj(fp) && ['left', 'right', 'top', 'bottom'].includes(fp.edge) && typeof fp.off === 'number' && isFinite(fp.off)
+      ? { edge: fp.edge, off: Math.max(0, Math.min(1, fp.off)) } : def);
+    d.favPos = okPos(d.favPos, { edge: 'left', off: 0.2 });
+    d.selPos = okPos(d.selPos, { edge: 'top', off: 0.5 });
     return d;
   }
   // Carpetas de dibujos (por activo). Se descartan las dañadas, los ciclos y las referencias a carpetas que no existen.
@@ -1114,7 +1117,7 @@
         if (!Array.isArray(src[sym])) return;
         const seen = new Set();
         let fs = src[sym].filter((f) => f && typeof f.id === 'string' && f.id && !seen.has(f.id) && seen.add(f.id))
-          .map((f) => ({ id: f.id, name: String(f.name || 'Carpeta'), parent: typeof f.parent === 'string' ? f.parent : null, open: f.open !== false }));
+          .map((f) => ({ id: f.id, name: String(f.name || 'Carpeta'), parent: typeof f.parent === 'string' ? f.parent : null, open: f.open !== false, hidden: !!f.hidden, locked: !!f.locked }));
         const ids = new Set(fs.map((f) => f.id));
         fs.forEach((f) => { if (f.parent && (!ids.has(f.parent) || f.parent === f.id)) f.parent = null; });
         // ciclos: si siguiendo los padres se vuelve a la misma carpeta, se corta
@@ -1147,10 +1150,11 @@
     (A.cfg.charts || []).forEach((c) => { if (String(c.tf).startsWith('v:')) c.tf = 'm:60'; });
     // Dibujos: el almacén se crea antes que los gráficos (cada gráfico se engancha a él).
     G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg, () => A.cfg.folders);
+    A.drawStore = G.drawStore; // para depuración (F12)
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
     applyLayout();
-    window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg });
+    window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
     API.symbols().then((s) => { A.symbols = s; eachView((v) => v.applyLook()); }).catch(() => {});
   }
 

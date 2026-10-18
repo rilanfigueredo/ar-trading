@@ -192,7 +192,7 @@ console.log('draw.test.js OK');
   assert.strictEqual(st.moveFolder(S, f1.id, f2.id), false);        // no se puede meter una carpeta en su hija
   assert.strictEqual(st.moveFolder(S, f3.id, f2.id), true);
   st.setFolderFlag(S, f1.id, 'hidden', true);
-  assert.ok(st.get(S, a.id).hidden && st.get(S, b.id).hidden && !st.get(S, c.id).hidden);
+  assert.ok(st.isHidden(S, st.get(S, a.id)) && st.isHidden(S, st.get(S, b.id)) && !st.isHidden(S, st.get(S, c.id)));
   st.removeFolder(S, f2.id);                                         // los dibujos suben de nivel
   assert.strictEqual(st.get(S, a.id).folder, f1.id);
   st.undo(S);
@@ -220,3 +220,66 @@ console.log('draw.test.js OK');
   assert.strictEqual(st.get(S, a.id).color, before);
 }
 console.log('draw.test.js v0.8 OK');
+
+// ---------- v0.9 ----------
+{
+  // carpetas: ocultar la madre y volver a mostrarla NO destapa las subcarpetas que se ocultaron a mano
+  const root = {}, fol = {}, prefs = { favs: [], styles: {}, templates: {} };
+  const st = D.createStore(() => root, () => prefs, () => {}, () => fol);
+  const S = 'Y';
+  const mk = () => st.add(S, Object.assign(D.defaults('hline'), { type: 'hline', pts: [{ t: 1, p: 1 }] }));
+  const ds = [mk(), mk(), mk()];
+  const madre = st.addFolder(S, { name: 'MADRE' });
+  const h = [1, 2, 3].map((n, i) => st.addFolder(S, { name: 'HIJA ' + n, parent: madre.id, ids: [ds[i].id] }));
+  const hid = (d) => st.isHidden(S, st.get(S, d.id));
+  st.setFolderFlag(S, h[0].id, 'hidden', true);
+  st.setFolderFlag(S, h[2].id, 'hidden', true);
+  assert.deepStrictEqual(ds.map(hid), [true, false, true]);
+  st.setFolderFlag(S, madre.id, 'hidden', true);
+  assert.deepStrictEqual(ds.map(hid), [true, true, true]);
+  st.setFolderFlag(S, madre.id, 'hidden', false);
+  assert.deepStrictEqual(ds.map(hid), [true, false, true], 'solo se muestra la subcarpeta que no estaba oculta');
+  // bloqueo heredado
+  st.setFolderFlag(S, madre.id, 'locked', true);
+  assert.ok(st.isLocked(S, st.get(S, ds[1].id)));
+  st.setFolderFlag(S, madre.id, 'locked', false);
+  assert.ok(!st.isLocked(S, st.get(S, ds[1].id)));
+  // quitar una carpeta oculta no cambia lo que se ve
+  st.setFolderFlag(S, h[1].id, 'hidden', true);
+  st.removeFolder(S, h[1].id);
+  assert.ok(hid(ds[1]));
+  // mostrar todo
+  st.showAll(S);
+  assert.deepStrictEqual(ds.map(hid), [false, false, false]);
+  // deshacer devuelve el estado anterior
+  st.undo(S);
+  assert.ok(ds.some(hid));
+}
+{
+  // tabla: normalización, estilo por celda > columna > tabla, tamaño por texto
+  const t = D.defaults('table');
+  assert.strictEqual(t.cells.length, 3); assert.strictEqual(t.cells[0].length, 2); assert.strictEqual(t.colStyles.length, 2);
+  t.cols = 4; t.rows = 2; D.fixTable(t);
+  assert.strictEqual(t.cells.length, 2); assert.strictEqual(t.cells[1].length, 4);
+  const bad = { rows: 'x', cols: 999, cells: [[null, 5]], colStyles: 'no' };
+  D.fixTable(bad);
+  assert.strictEqual(bad.rows, 3); assert.strictEqual(bad.cols, 30); assert.strictEqual(bad.cells[0][0].text, '');
+  t.bold = false; t.colStyles[1] = { bold: true, color: '#ff0000' }; t.cells[0][1] = { text: 'hola', color: '#00ff00' };
+  assert.strictEqual(D.cellStyle(t, 0, 0).bold, false);
+  assert.strictEqual(D.cellStyle(t, 1, 1).bold, true);
+  assert.strictEqual(D.cellStyle(t, 1, 1).color, '#ff0000');
+  assert.strictEqual(D.cellStyle(t, 0, 1).color, '#00ff00');   // la celda manda sobre la columna
+  t.cells[0][2] = { text: 'x', bColor: '#123456', bWidth: 3 };
+  assert.strictEqual(D.cellStyle(t, 0, 2).bWidth, 3); assert.strictEqual(D.cellStyle(t, 0, 3).bWidth, t.bWidth);
+  const dims = D.tableDims(t, (txt, size) => txt.length * 10);
+  assert.strictEqual(dims.colW.length, 4); assert.ok(dims.colW[1] >= 4 * 10 + 12); assert.strictEqual(dims.w, dims.colW.reduce((a, b) => a + b, 0));
+  const P = [{ x: 100, y: 100 }];
+  assert.strictEqual(D.geom.hitDistance(Object.assign({ type: 'table' }, t), P, 110, 110, 800, { measure: () => 20 }), 0);
+  assert.ok(D.geom.hitDistance(Object.assign({ type: 'table' }, t), P, 5, 5, 800, { measure: () => 20 }) > 50);
+  // tipos efímeros y grupos de la barra
+  assert.ok(D.TYPES.ruler.ephemeral && D.TYPES.zoom.ephemeral && !D.TYPES.table.ephemeral);
+  assert.ok(!D.CATS.some((c) => c.tools.includes('ruler')));
+  assert.ok(D.CATS.find((c) => c.id === 'text').tools.includes('table'));
+  assert.ok('tItalic' in D.defaults('rect') && D.TYPES.rect.text && 'italic' in D.defaults('text') && 'tItalic' in D.defaults('trend'));
+}
+console.log('draw.test.js v0.9 OK');

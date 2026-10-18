@@ -458,6 +458,22 @@
       chartType: () => vcfg.chartType,
       theme: () => themeName(),
       bg: () => lookVars().bg,
+      // Herramienta "Acercar": ajusta el tiempo y el precio visibles al recuadro dibujado (precio: no en escala de porcentaje).
+      zoomTo(t1, t2, p1, p2) {
+        if (!s.chart || !s.series) return;
+        let a = logicalAtTime(Math.min(t1, t2)), b = logicalAtTime(Math.max(t1, t2));
+        if (a === null || b === null) return;
+        if (b - a < 3) { const m = (a + b) / 2; a = m - 1.5; b = m + 1.5; }
+        s.chart.timeScale().setVisibleLogicalRange({ from: a, to: b });
+        const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
+        if (!(hi > lo) || lo <= 0 || vcfg.scale === 'percent') return;
+        const ps = mainScale(), log = vcfg.scale === 'log';
+        const toInternal = (v) => (log ? Math.log10(Math.pow(10, v) + 0.0001) + 4 : v);
+        ps.setAutoScale(false);
+        ps.setVisibleRange({ from: toInternal(log ? Math.log10(lo) : lo), to: toInternal(log ? Math.log10(hi) : hi) });
+        const chk = ps.getVisibleRange();
+        if (!chk || !isFinite(chk.from) || !isFinite(chk.to) || !(chk.to > chk.from)) ps.applyOptions({ autoScale: true });
+      },
     };
     view.draw = G.drawStore && window.TVDraw && window.TVDraw.createLayer ? window.TVDraw.createLayer(drawEnv, G.drawStore) : null;
     // Alturas de los paneles: las que el usuario deja al arrastrar los separadores se guardan y no se vuelven a tocar.
@@ -531,7 +547,7 @@
       if (sub.legendEl && sub.legendEl.parentNode) sub.legendEl.parentNode.removeChild(sub.legendEl);
       delete s.sub[name];
     }
-    const subOn = (n) => vcfg.ind[n].on && !s.subsHidden;
+    const subOn = (n) => vcfg.ind[n].on && !vcfg.ind[n].hide && !s.subsHidden;
 
     // Crea/quita paneles y pivotes según la configuración. full = recalcular y volver a cargar todos los datos.
     function syncIndicators(full, tailStart) {
@@ -584,7 +600,7 @@
       // Pivotes
       const tf = tfNow();
       const pc = ind.pivots;
-      if (!pc.on) {
+      if (!pc.on || pc.hide) {
         if (s.pivot) { try { s.series.detachPrimitive(s.pivot); } catch (e) { /* ok */ } s.pivot = null; }
         s.pivotNote = '';
       } else {

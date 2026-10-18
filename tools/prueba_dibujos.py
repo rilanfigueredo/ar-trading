@@ -94,7 +94,7 @@ with sync_playwright() as pw:
 
     # 9) regla (no se guarda)
     n_before = len(drawings())
-    pick('text', 'Regla'); drag((0.62, 0.45), (0.80, 0.55))
+    page.click('#drawBar [data-k="tool:ruler"]'); page.wait_for_timeout(80); drag((0.62, 0.45), (0.80, 0.55))
     page.screenshot(path=f'{OUT}/02_todas_con_regla.png')
     check('la regla no se guarda como dibujo', len(drawings()) == n_before)
     page.keyboard.press('Escape')

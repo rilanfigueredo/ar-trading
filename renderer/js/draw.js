@@ -11,16 +11,19 @@
     channel: { label: 'Canal paralelo', pts: 3, cat: 'lines' },
     poly: { label: 'Polilínea', pts: 0, cat: 'lines' },
     fib: { label: 'Retroceso de Fibonacci', pts: 2, cat: 'fib' },
-    rect: { label: 'Rectángulo', pts: 2, cat: 'shapes' },
+    rect: { label: 'Rectángulo', pts: 2, cat: 'shapes', text: true },
     text: { label: 'Texto', pts: 1, cat: 'text' },
-    ruler: { label: 'Regla', pts: 2, cat: 'text' },
+    table: { label: 'Tabla', pts: 1, cat: 'text' },
+    // Herramientas que no guardan nada: la regla mide y el zoom acerca una parte del gráfico
+    ruler: { label: 'Regla', pts: 2, cat: 'ruler', ephemeral: true },
+    zoom: { label: 'Acercar', pts: 2, cat: 'zoom', ephemeral: true },
   };
-  const TOOL_ORDER = ['trend', 'hline', 'hray', 'channel', 'poly', 'fib', 'rect', 'text', 'ruler'];
+  const TOOL_ORDER = ['trend', 'hline', 'hray', 'channel', 'poly', 'fib', 'rect', 'text', 'table', 'ruler', 'zoom'];
   const CATS = [
     { id: 'lines', label: 'Líneas', tools: ['trend', 'hline', 'hray', 'channel', 'poly'] },
     { id: 'fib', label: 'Fibonacci', tools: ['fib'] },
     { id: 'shapes', label: 'Formas', tools: ['rect'] },
-    { id: 'text', label: 'Texto y medidas', tools: ['text', 'ruler'] },
+    { id: 'text', label: 'Texto y tablas', tools: ['text', 'table'] },
   ];
   const DASHES = { solid: [], dashed: [8, 6], dotted: [2, 4] };
 
@@ -33,7 +36,7 @@
 
   // Texto sobre una línea: contenido, color (null = el de la línea), tamaño, negrita, posición vertical
   // (above/center/below) y lugar horizontal (left/center/right).
-  const textOpts = (h) => ({ text: '', tColor: null, tSize: 12, tBold: false, tH: h || 'left', tV: 'above' });
+  const textOpts = (h) => ({ text: '', tColor: null, tSize: 12, tBold: false, tItalic: false, tH: h || 'left', tV: 'above' });
 
   function defaults(type) {
     const base = { color: '#2962ff', width: 2, dash: 'solid' };
@@ -45,22 +48,73 @@
       case 'poly': return base;
       case 'fib': return {
         color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true,
-        levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tH: 'left', tV: 'above',
+        levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',
       };
       case 'rect': return Object.assign(base, {
         width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
+      }, textOpts('center'), { tV: 'center' });
+      case 'text': return { color: '#2962ff', size: 14, bold: false, italic: false, text: '' };
+      case 'table': return fixTable({
+        color: '#ffffff', size: 13, bold: false, italic: false, align: 'left', bColor: '#787b86', bWidth: 1,
+        fill: true, fillColor: '#2962ff', fillOpacity: 10, rows: 3, cols: 2, cells: [], colStyles: [],
       });
-      case 'text': return { color: '#2962ff', size: 14, bold: false, text: '' };
       case 'ruler': return { color: '#2962ff', width: 1, dash: 'dashed' };
       default: return base;
     }
   }
   // Claves de estilo que se recuerdan como "valor por defecto" para los siguientes dibujos del mismo tipo.
-  const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'showPrice', 'trendLine', 'levels',
-    'tColor', 'tSize', 'tBold', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash'];
-  // Una plantilla guarda el estilo y también el texto.
-  const TEMPLATE_KEYS = STYLE_KEYS.concat(['text']);
+  const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'levels',
+    'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth'];
+  // Una plantilla guarda el estilo y también el texto (y, en tablas, su forma y el contenido de las celdas).
+  const TEMPLATE_KEYS = STYLE_KEYS.concat(['text', 'rows', 'cols', 'cells', 'colStyles']);
   const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  // ---------- Tablas ----------
+  // Normaliza una tabla: filas/columnas enteras (1-30), matriz de celdas completa y un estilo por columna.
+  function fixTable(d) {
+    const clampN = (v, def) => { v = Math.round(Number(v)); return isFinite(v) ? Math.max(1, Math.min(30, v)) : def; };
+    d.rows = clampN(d.rows, 3); d.cols = clampN(d.cols, 2);
+    const old = Array.isArray(d.cells) ? d.cells : [];
+    d.cells = [];
+    for (let r = 0; r < d.rows; r++) {
+      const row = [];
+      for (let c = 0; c < d.cols; c++) {
+        const o = old[r] && old[r][c];
+        row.push(o && typeof o === 'object' ? o : { text: '' });
+        if (typeof row[c].text !== 'string') row[c].text = '';
+      }
+      d.cells.push(row);
+    }
+    const oc = Array.isArray(d.colStyles) ? d.colStyles : [];
+    d.colStyles = [];
+    for (let c = 0; c < d.cols; c++) d.colStyles.push(oc[c] && typeof oc[c] === 'object' ? oc[c] : {});
+    return d;
+  }
+  // Estilo final de una celda: la propia celda manda sobre su columna y la columna sobre la tabla.
+  function cellStyle(d, r, c) {
+    const cell = (d.cells[r] && d.cells[r][c]) || {};
+    const col = (d.colStyles && d.colStyles[c]) || {};
+    const pick = (k, def) => (cell[k] !== undefined && cell[k] !== null ? cell[k] : col[k] !== undefined && col[k] !== null ? col[k] : d[k] !== undefined && d[k] !== null ? d[k] : def);
+    return {
+      text: cell.text || '', size: pick('size', 13), bold: !!pick('bold', false), italic: !!pick('italic', false), color: pick('color', '#ffffff'), align: pick('align', 'left'),
+      bColor: cell.bColor || d.bColor, bWidth: cell.bWidth != null ? cell.bWidth : d.bWidth,
+    };
+  }
+  const TABLE_PAD = 6;
+  // Tamaño de cada columna y fila según el texto (measure(texto, tamaño, negrita, cursiva) -> ancho en px).
+  function tableDims(d, measure) {
+    const colW = [], rowH = [];
+    for (let c = 0; c < d.cols; c++) colW.push(36);
+    for (let r = 0; r < d.rows; r++) {
+      rowH.push(0);
+      for (let c = 0; c < d.cols; c++) {
+        const st = cellStyle(d, r, c);
+        colW[c] = Math.max(colW[c], measure(st.text || ' ', st.size, st.bold, st.italic) + TABLE_PAD * 2);
+        rowH[r] = Math.max(rowH[r], st.size + TABLE_PAD * 2);
+      }
+    }
+    return { colW, rowH, w: colW.reduce((a, b) => a + b, 0), h: rowH.reduce((a, b) => a + b, 0) };
+  }
 
   // ---------- Geometría (en píxeles) ----------
   function distPointSeg(px, py, x1, y1, x2, y2) {
@@ -188,6 +242,10 @@
         }
         return best;
       }
+      case 'table': {
+        const t = tableDims(d, env.measure);
+        return x >= P[0].x - 3 && x <= P[0].x + t.w + 3 && y >= P[0].y - 3 && y <= P[0].y + t.h + 3 ? 0 : 1e9;
+      }
       case 'text': {
         const b = textBox(d, P, env.measure);
         return x >= b.x1 - 4 && x <= b.x2 + 4 && y >= b.y1 - 4 && y <= b.y2 + 4 ? 0 : 1e9;
@@ -240,6 +298,12 @@
     const find = (sym, id) => list(sym).find((d) => d.id === id) || null;
     const findF = (sym, id) => folders(sym).find((f) => f.id === id) || null;
     const changed = () => { save(); emit('change'); };
+    // Una carpeta oculta o bloqueada vale para todo lo que contiene (subcarpetas incluidas), pero cada una conserva su propio estado.
+    const inherited = (sym, d, key) => {
+      let id = d.folder, guard = 0;
+      while (id && guard++ < 50) { const f = findF(sym, id); if (!f) break; if (f[key]) return true; id = f.parent; }
+      return false;
+    };
     const fixSel = (sym) => {
       if (!st.sel || st.sel.sym !== sym) return;
       st.multi = st.multi.filter((id) => !!find(sym, id));
@@ -270,6 +334,8 @@
       on(f) { subs.add(f); return () => subs.delete(f); },
       emit,
       list, get: find, folders, folder: findF,
+      isHidden: (sym, d) => !!d.hidden || inherited(sym, d, 'hidden'),
+      isLocked: (sym, d) => !!d.locked || inherited(sym, d, 'locked'),
       prefs: () => getPrefs(),
       typeDefaults(type) {
         const d = defaults(type);
@@ -408,8 +474,9 @@
         const f = findF(sym, id);
         if (!f) return;
         snap(sym);
-        folders(sym).forEach((x) => { if (x.parent === id) x.parent = f.parent || null; });
-        list(sym).forEach((d) => { if (d.folder === id) { if (f.parent) d.folder = f.parent; else delete d.folder; } });
+        // lo que contenía hereda su estado de oculto/bloqueado para no cambiar lo que se ve
+        folders(sym).forEach((x) => { if (x.parent === id) { x.parent = f.parent || null; if (f.hidden) x.hidden = true; if (f.locked) x.locked = true; } });
+        list(sym).forEach((d) => { if (d.folder === id) { if (f.hidden) d.hidden = true; if (f.locked) d.locked = true; if (f.parent) d.folder = f.parent; else delete d.folder; } });
         setFolders(sym, folders(sym).filter((x) => x.id !== id));
         changed();
       },
@@ -430,11 +497,20 @@
         const set = descendants(sym, id);
         return list(sym).filter((d) => d.folder && set.has(d.folder)).map((d) => d.id);
       },
+      // Oculta/bloquea la carpeta entera. No toca el estado de lo que hay dentro: al volver a mostrarla, cada subcarpeta
+      // y cada dibujo siguen como los dejaste a mano.
       setFolderFlag(sym, id, key, val) {
-        const ids = store.folderItems(sym, id);
-        if (!ids.length) return;
+        const f = findF(sym, id);
+        if (!f || (key !== 'hidden' && key !== 'locked')) return;
         snap(sym);
-        list(sym).forEach((d) => { if (ids.includes(d.id)) d[key] = !!val; });
+        f[key] = !!val;
+        changed();
+      },
+      // Muestra todo: dibujos y carpetas.
+      showAll(sym) {
+        snap(sym);
+        list(sym).forEach((d) => { d.hidden = false; });
+        folders(sym).forEach((f) => { f.hidden = false; });
         changed();
       },
 
@@ -494,7 +570,7 @@
   }
 
   const api = {
-    TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore,
+    TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
     geom: { distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

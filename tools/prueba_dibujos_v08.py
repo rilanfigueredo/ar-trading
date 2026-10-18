@@ -35,7 +35,7 @@ with sync_playwright() as pw:
     page.request.post(URL + 'api/config', data=json.dumps(old))
     page.reload(); ready()
     n = ev('JSON.parse(JSON.stringify(window.__tv.cfg))')
-    check('v0.7 migra a versión 6', n['version'] == 6)
+    check('v0.7 migra a versión 7', n['version'] == 7)
     check('el rayo antiguo pasa a rayo horizontal con un punto', n['drawings'][sym][0]['type'] == 'hray' and len(n['drawings'][sym][0]['pts']) == 1)
     check('imán sí → débil; favoritos y estilos migran', n['draw']['magnet'] == 'weak' and n['draw']['favs'] == ['hray', 'trend'] and 'hray' in n['draw']['styles'] and 'ray' not in n['draw']['styles'])
     check('hay preferencias nuevas (plantillas, posición de favoritos, carpetas)', n['draw']['templates'] == {} and n['draw']['favPos']['edge'] == 'left' and n['folders'] == {})
@@ -241,10 +241,10 @@ with sync_playwright() as pw:
     page.locator('#objPanel .obj-row:not(.folder)', has_text='').filter(has=page.locator('.obj-btn[title^="Sacar"]')).first.locator('.obj-btn[title^="Sacar"]').first.click(); page.wait_for_timeout(150)
     check('"Sacar de la carpeta" funciona', sum(1 for d in drawings() if d.get('folder')) <= 2)
     # ocultar carpeta madre oculta todo su contenido
-    page.locator('#objPanel .obj-row.folder').first.locator('.obj-btn[title^="Ocultar todo"]').click(); page.wait_for_timeout(150)
+    page.locator('#objPanel .obj-row.folder').first.locator('.obj-btn[title^="Ocultar la carpeta"]').click(); page.wait_for_timeout(150)
     madre = fl[0]['id']
-    check('ocultar la carpeta oculta sus dibujos', all(d['hidden'] for d in drawings() if d.get('folder') == madre))
-    page.locator('#objPanel .obj-row.folder').first.locator('.obj-btn[title^="Mostrar todo"]').click(); page.wait_for_timeout(150)
+    check('ocultar la carpeta queda marcado en la carpeta', [f for f in folders() if f['id'] == madre][0].get('hidden') is True)
+    page.locator('#objPanel .obj-row.folder').first.locator('.obj-btn[title^="Mostrar la carpeta"]').click(); page.wait_for_timeout(150)
     # persistencia de carpetas
     page.wait_for_timeout(900); page.reload(); ready(); page.wait_for_timeout(500)
     check('las carpetas sobreviven al recargar', len(folders()) == 2)

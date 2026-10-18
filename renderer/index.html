@@ -9,6 +9,7 @@
 </head>
 <body data-theme="dark">
   <header id="toolbar">
+  <div class="tb-left">
     <img class="brand-logo" id="brandLogo" src="assets/logo-h-dark.png" alt="Ar_Trading">
     <span class="sep"></span>
     <button id="btnSymbol" class="tb-btn symbol" title="Cambiar activo (clic)">BTCUSDT</button>
@@ -33,10 +34,12 @@
       <button id="syncCross" class="tb-btn" title="Sincronizar la cruz entre gráficos">Cruz</button>
       <button id="syncTime" class="tb-btn" title="Sincronizar el tiempo entre gráficos">Tiempo</button>
     </div>
-    <span class="spacer"></span>
+  </div>
+  <div class="tb-right">
     <span id="status" class="status"></span>
     <button id="btnIndicators" class="tb-btn">Indicadores</button>
     <button id="btnSettings" class="tb-btn">Ajustes</button>
+  </div>
   </header>
 
   <main id="main">
