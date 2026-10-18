@@ -165,9 +165,7 @@ with sync_playwright() as pw:
     check('plantilla guardada (con el texto)', tp and tp[0]['name'] == 'Liquidez roja' and tp[0]['style']['text'] == 'LIQUIDEZ')
     page.locator('.props-actions button', has_text='Aceptar').click(); page.wait_for_timeout(100)
     # herramienta con plantilla desde el menú
-    page.click('#drawBar [data-k="cat:lines"]'); page.wait_for_timeout(80)
-    check('el menú de líneas lista la plantilla', page.locator('.db-fly .db-tpl', has_text='Liquidez roja').count() == 1)
-    page.locator('.db-fly .db-tpl', has_text='Liquidez roja').click(); page.wait_for_timeout(80)
+    ev("window.__tv.drawStore.setTool('hray', window.__tv.cfg.draw.templates.hray[0].id)"); page.wait_for_timeout(80)   # (desde v0.10 las plantillas ya no están en el menú de la barra izquierda)
     click(0.15, 0.85)
     d = [d for d in drawings() if d['type'] == 'hray'][-1]
     check('un dibujo nuevo nace con la plantilla', d['text'] == 'LIQUIDEZ' and d['tV'] == 'below' and d['tH'] == 'right')

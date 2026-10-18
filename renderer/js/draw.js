@@ -55,7 +55,7 @@
       }, textOpts('center'), { tV: 'center' });
       case 'text': return { color: '#2962ff', size: 14, bold: false, italic: false, text: '' };
       case 'table': return fixTable({
-        color: '#ffffff', size: 13, bold: false, italic: false, align: 'left', bColor: '#787b86', bWidth: 1,
+        color: '#ffffff', size: 13, bold: false, italic: false, align: 'left', bColor: '#787b86', bWidth: 1, pin: 'none', pinDx: 12,
         fill: true, fillColor: '#2962ff', fillOpacity: 10, rows: 3, cols: 2, cells: [], colStyles: [],
       });
       case 'ruler': return { color: '#2962ff', width: 1, dash: 'dashed' };
@@ -64,7 +64,7 @@
   }
   // Claves de estilo que se recuerdan como "valor por defecto" para los siguientes dibujos del mismo tipo.
   const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'levels',
-    'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth'];
+    'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx'];
   // Una plantilla guarda el estilo y también el texto (y, en tablas, su forma y el contenido de las celdas).
   const TEMPLATE_KEYS = STYLE_KEYS.concat(['text', 'rows', 'cols', 'cells', 'colStyles']);
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -257,6 +257,7 @@
   // Dónde se dibujan los tiradores (círculos) de un dibujo seleccionado.
   function handlePoints(d, P, w) {
     if (d.type === 'rect') return P.length > 1 ? rectHandles(P) : P.slice();
+    if (d.type === 'table' && d.pin && d.pin !== 'none') return [];
     if (d.type === 'hline' || d.type === 'hray') return P.length ? [{ x: Math.max(14, Math.min(w - 14, P[0].x)), y: P[0].y }] : [];
     return P.slice();
   }
@@ -505,6 +506,24 @@
         snap(sym);
         f[key] = !!val;
         changed();
+      },
+      folderHasLocked(sym, id) {
+        if (inherited(sym, { folder: id }, 'locked')) return true;
+        const set = descendants(sym, id);
+        if (folders(sym).some((f) => set.has(f.id) && f.locked)) return true;
+        return list(sym).some((d) => d.folder && set.has(d.folder) && d.locked);
+      },
+      // Elimina la carpeta con TODO lo que contiene (subcarpetas y dibujos).
+      deleteFolder(sym, id) {
+        if (!findF(sym, id)) return 0;
+        snap(sym);
+        const set = descendants(sym, id);
+        const before = list(sym).length;
+        setList(sym, list(sym).filter((d) => !(d.folder && set.has(d.folder))));
+        setFolders(sym, folders(sym).filter((f) => !set.has(f.id)));
+        fixSel(sym);
+        changed(); emit('select');
+        return before - list(sym).length;
       },
       // Muestra todo: dibujos y carpetas.
       showAll(sym) {

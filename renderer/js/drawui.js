@@ -1,4 +1,4 @@
-// Ar_Trading - interfaz de las herramientas de dibujo (v0.9; base v0.8): barra lateral con menús (imán débil/fuerte, plantillas),
+// Ar_Trading - interfaz de las herramientas de dibujo (v0.10; base v0.8): barra lateral con menús (imán débil/fuerte, plantillas),
 // barra de favoritos movible, barra de selección (uno o varios dibujos), ventana de propiedades (Plantilla / Aceptar / Cancelar),
 // panel "Objetos" con carpetas y subcarpetas (barra derecha), menú de clic derecho y atajos.
 (function (root) {
@@ -33,6 +33,7 @@
     grip: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" stroke-width="3"/>',
     table: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 15h18M10 5v14"/>',
     zoom: '<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/><path d="M10 7v6M7 10h6"/>',
+    zoomout: '<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/><path d="M7 10h6"/>',
     ind: '<path d="M3 17l5-6 4 3 5-8 4 5"/>',
     out: '<path d="M14 4h6v6M20 4l-9 9M10 6H5a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-5"/>',
   };
@@ -188,7 +189,6 @@
         m.appendChild(b);
       };
       row(D.TYPES[t].label, SHORTCUT[t], null, '', t);
-      store.templates(t).forEach((tp) => row('Plantilla: ' + tp.name, '', tp.id, 'db-tpl', `${t}:${tp.id}`));
     });
     placeMenu(m, anchor, 'right');
     flyout = m;
@@ -221,6 +221,37 @@
       m.appendChild(b);
     };
     if (!many) item('Propiedades…', () => openProps(sym, id));
+    // Plantillas: al pasar el mouse se despliegan las guardadas para esta herramienta
+    {
+      const wrap = el('div', 'ctx-wrap');
+      const head = el('button', 'ctx-item');
+      head.append(el('span', 'ctx-check', ''), el('span', '', 'Plantillas'), el('span', 'ctx-arrow', '▸'));
+      wrap.appendChild(head);
+      const sub = el('div', 'ctx-menu ctx-sub');
+      const tpls = store.templates(d.type);
+      if (!tpls.length) { const e0 = el('div', 'ctx-item ctx-empty', 'Aún no hay plantillas de esta herramienta'); sub.appendChild(e0); }
+      tpls.forEach((tp) => {
+        const b = el('button', 'ctx-item');
+        b.append(el('span', 'ctx-check', ''), el('span', '', tp.name));
+        b.onclick = () => {
+          closeFly();
+          store.begin(sym);
+          ids.filter((i) => { const q = store.get(sym, i); return q && q.type === d.type; }).forEach((i) => store.applyTemplate(sym, i, tp.id));
+          store.end();
+        };
+        sub.appendChild(b);
+      });
+      const sv = el('button', 'ctx-item ctx-save');
+      sv.append(el('span', 'ctx-check', ''), el('span', '', 'Guardar el estilo de este dibujo como plantilla…'));
+      sv.onclick = () => { closeFly(); askName('Guardar como plantilla', 'Mi plantilla', { ok: 'Guardar' }, (name) => { const cur = store.get(sym, id); if (cur) store.saveTemplate(cur.type, name, cur); }); };
+      sub.appendChild(sv);
+      wrap.appendChild(sub);
+      wrap.onmouseenter = () => {
+        const r = m.getBoundingClientRect();
+        sub.classList.toggle('left', r.right + 260 > window.innerWidth);
+      };
+      m.appendChild(wrap);
+    }
     item(many ? `Duplicar (${ids.length})` : 'Duplicar', duplicateSel);
     item(many ? 'Agrupar en carpeta…' : 'Meter en una carpeta…', () => newFolder(ids, null));
     if (d.folder) item('Sacar de la carpeta', () => store.moveToFolder(sym, ids, null));
@@ -251,6 +282,9 @@
     });
     bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo', () => selectTool('ruler'), 'tool:ruler'));
     bar.appendChild(bigBtn('zoom', 'Acercar: arrastra un recuadro sobre el gráfico para ampliar esa zona (el botón Auto vuelve a la vista normal)', () => selectTool('zoom'), 'tool:zoom'));
+    const zo = bigBtn('zoomout', 'Alejar: vuelve a la vista de antes del último zoom (solo aparece cuando el gráfico tiene zoom)', () => { const v = X.activeView(); if (v) v.zoomOut(); renderBar(); }, 'tool:zoomout');
+    zo.classList.add('hidden');
+    bar.appendChild(zo);
     bar.appendChild(el('span', 'db-sep'));
     const mg = bigBtn('magnet', 'Imán (clic para elegir: apagado, débil o fuerte)', () => openMagnetMenu(mg), 'magnet');
     mg.appendChild(el('i', 'db-tri'));
@@ -265,6 +299,12 @@
     rb.innerHTML = '';
     rb.appendChild(bigBtn('list', 'Objetos: ver todos los dibujos (clic otra vez para cerrar)', toggleObjects, 'objects'));
   }
+  // El botón de alejar solo se ve cuando el gráfico activo tiene zoom
+  function updateZoomOut() {
+    const b = X.$('drawBar').querySelector('[data-k="tool:zoomout"]');
+    const v = X.activeView();
+    if (b) b.classList.toggle('hidden', !(v && v.canZoomOut && v.canZoomOut()));
+  }
   function renderBar() {
     const bar = X.$('drawBar'), rb = X.$('rightBar');
     const t = store.state.tool;
@@ -278,6 +318,7 @@
       b.innerHTML = svg(lastTool[c.id], 20);
       if (tri) b.appendChild(tri);
     });
+    updateZoomOut();
     on(bar, 'tool:ruler', t === 'ruler'); on(bar, 'tool:zoom', t === 'zoom');
     on(bar, 'magnet', magnetMode() !== 'off');
     const mb = bar.querySelector('[data-k="magnet"]');
@@ -357,7 +398,7 @@
   // ---------- Barra del objeto seleccionado ----------
   function iconBtn(icon, title, fn) {
     const b = el('button', 'db-btn small');
-    b.innerHTML = svg(icon, 17); b.title = title; b.onclick = fn;
+    b.innerHTML = svg(icon, 20); b.title = title; b.onclick = fn;
     return b;
   }
   function renderSel() {
@@ -404,7 +445,7 @@
     r.dash.classList.toggle('hidden', onlyText);
     const allLocked = ds.every((d) => store.isLocked(sym, d));
     r.lock.classList.toggle('active', allLocked);
-    r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 17);
+    r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 20);
     r.del.disabled = allLocked;
     placeBar('selBar');
   }
@@ -435,8 +476,9 @@
     const nf = el('button', 'btn secondary', ids.length ? `Agrupar (${ids.length}) en carpeta` : '+ Nueva carpeta');
     nf.onclick = () => newFolder(ids, null);
     top.appendChild(nf);
-    p.appendChild(top);
     renderIndicatorRows(p, vc);
+    p.appendChild(el('h4', 'obj-head', `Dibujos de ${sym}`));
+    p.appendChild(top);
     if (!list.length && !folders.length) p.appendChild(el('p', 'hint', 'Todavía no hay dibujos en este activo. Elige una herramienta en la barra izquierda y dibuja en el gráfico. Para seleccionar varios: Shift + arrastrar (recuadro) o Ctrl + clic (uno por uno).'));
     const wrap = el('div', 'tree-root');
     wrap.ondragover = (e) => { if (dragData) { e.preventDefault(); wrap.classList.add('drop-root'); } };
@@ -494,7 +536,7 @@
       mkBtn(row, allHidden ? 'eyeoff' : 'eye', allHidden ? 'Mostrar la carpeta (las subcarpetas ocultas a mano siguen ocultas)' : 'Ocultar la carpeta y todo lo que contiene', () => store.setFolderFlag(sym, f.id, 'hidden', !allHidden));
       mkBtn(row, allLocked ? 'lock' : 'unlock', allLocked ? 'Desbloquear la carpeta' : 'Bloquear la carpeta y todo lo que contiene', () => store.setFolderFlag(sym, f.id, 'locked', !allLocked));
       mkBtn(row, 'folderadd', 'Crear una subcarpeta aquí (con los dibujos seleccionados, si hay)', () => newFolder(selIds(), f.id));
-      mkBtn(row, 'trash', 'Quitar la carpeta (los dibujos se conservan)', () => store.removeFolder(sym, f.id));
+      mkBtn(row, 'trash', 'Eliminar la carpeta y todo lo que contiene', () => confirmDeleteFolder(sym, f));
       row.onclick = (e) => {
         const all = store.folderItems(sym, f.id);
         if (e.ctrlKey || e.metaKey) store.selectMany(sym, all, true); else store.selectMany(sym, all, false);
@@ -549,6 +591,26 @@
       mk(r.hidden ? 'eyeoff' : 'eye', r.hidden ? 'Mostrar' : 'Ocultar', r.toggle);
       mk('trash', 'Eliminar (se puede volver a activar desde Indicadores)', () => { r.remove(); X.refreshInd(); });
       p.appendChild(row);
+    });
+  }
+  function confirmDeleteFolder(sym, f) {
+    const items = store.folderItems(sym, f.id).length;
+    const subs = store.folders(sym).filter((x) => x.parent === f.id).length;
+    X.openModal((box) => {
+      box.appendChild(el('h3', '', `Eliminar la carpeta "${f.name}"`));
+      if (store.folderHasLocked(sym, f.id)) {
+        box.appendChild(el('p', 'hint', 'Hay elementos o carpetas bloqueados dentro. Desbloquéalos antes de eliminarla.'));
+        const row = el('div', 'row-actions'); const no = el('button', 'btn', 'Cerrar'); no.onclick = () => X.closeModal(); row.appendChild(no); box.appendChild(row);
+        return;
+      }
+      box.appendChild(el('p', 'hint', `Se eliminará la carpeta con sus ${items} dibujos${subs ? ` y ${subs} subcarpeta${subs > 1 ? 's' : ''}` : ''}. Puedes deshacerlo con Ctrl+Z.`));
+      const row = el('div', 'row-actions');
+      const all = el('button', 'btn', 'Eliminar todo');
+      all.onclick = () => { store.deleteFolder(sym, f.id); X.closeModal(); };
+      const only = el('button', 'btn secondary', 'Solo quitar la carpeta');
+      only.title = 'Los dibujos se conservan'; only.onclick = () => { store.removeFolder(sym, f.id); X.closeModal(); };
+      const no = el('button', 'btn secondary', 'Cancelar'); no.onclick = () => X.closeModal();
+      row.append(all, only, no); box.appendChild(row);
     });
   }
   function dropOn(sym, folderId) {
@@ -654,7 +716,7 @@
         field('Negrita', checkIn(d.tBold, (v) => patch({ tBold: v })));
         field('Cursiva', checkIn(d.tItalic, (v) => patch({ tItalic: v })));
         const posOpts = t === 'rect'
-          ? [['above', 'Arriba (dentro del rectángulo)'], ['center', 'En el centro'], ['below', 'Abajo (dentro del rectángulo)']]
+          ? [['center', 'Interior'], ['above', 'Superior (por encima de la línea de arriba)'], ['below', 'Inferior (por debajo de la línea de abajo)']]
           : [['above', 'Por encima de la línea'], ['center', 'En el centro (sobre la línea)'], ['below', 'Por debajo de la línea']];
         field('Posición', selIn(posOpts, d.tV || 'above', (v) => patch({ tV: v })));
         field('Lugar del texto', selIn([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']], d.tH || 'left', (v) => patch({ tH: v })));
@@ -674,6 +736,8 @@
         body.appendChild(el('h4', '', 'Forma de la tabla'));
         field('Filas', numChange(d.rows, 1, 30, (v) => resize(v, null)));
         field('Columnas', numChange(d.cols, 1, 30, (v) => resize(null, v)));
+        field('Fijar la tabla al borde del gráfico', selIn([['none', 'No (se mueve con el gráfico)'], ['left', 'A la izquierda'], ['right', 'A la derecha']], d.pin || 'none', (v) => patch({ pin: v })));
+        body.appendChild(el('p', 'hint small', 'Fijada, la tabla no se mueve al ampliar o desplazar el gráfico (como el texto de una línea horizontal): solo sigue la altura (precio) donde la pusiste. Arrástrala para cambiar su altura y su distancia al borde.'));
         body.appendChild(el('h4', '', 'Estilo general (para toda la tabla)'));
         field('Color del texto', colorIn(d.color, (v) => patch({ color: v })));
         field('Tamaño (px)', numIn(d.size || 13, 8, 60, 1, (v) => patch({ size: v })));
@@ -687,7 +751,7 @@
         field('Opacidad del fondo', rangeIn(d.fillOpacity == null ? 10 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
 
         body.appendChild(el('h4', '', 'Contenido y celdas'));
-        body.appendChild(el('p', 'hint small', 'Escribe en las celdas. Clic en una celda la selecciona; Shift + clic suma o quita celdas. Abajo cambias el contorno y el texto de las celdas elegidas.'));
+        body.appendChild(el('p', 'hint small', 'Escribe en las celdas o pega desde Excel (copia las celdas en Excel y pega en la celda donde empieza). Clic en una celda la selecciona; Shift + clic suma o quita celdas. Abajo cambias el contorno y el texto de las celdas elegidas.'));
         const gridWrap = el('div', 'tbl-wrap');
         const grid = el('div', 'tbl-grid');
         grid.style.gridTemplateColumns = `repeat(${d.cols}, minmax(86px, 1fr))`;
@@ -701,6 +765,18 @@
             inp.onmousedown = (e) => {
               const k = keyOf(r, c);
               if (e.shiftKey) { e.preventDefault(); if (tSel.has(k)) tSel.delete(k); else tSel.add(k); markSel(); }
+            };
+            // Pegar desde Excel: varias celdas separadas por tabuladores / saltos de línea llenan la tabla desde esta celda
+            inp.onpaste = (e) => {
+              const txt = ((e.clipboardData || window.clipboardData).getData('text') || '');
+              if (!/[\t\n]/.test(txt.replace(/\n$/, ''))) return;
+              e.preventDefault();
+              const grid2 = txt.replace(/\r/g, '').replace(/\n+$/, '').split('\n').map((l) => l.split('\t'));
+              const nd = { rows: Math.max(cur().rows, Math.min(30, r + grid2.length)), cols: Math.max(cur().cols, Math.min(30, c + Math.max(...grid2.map((x) => x.length)))), cells: clone(cur().cells), colStyles: clone(cur().colStyles) };
+              D.fixTable(nd);
+              grid2.forEach((cs, i) => cs.forEach((v, j) => { if (r + i < nd.rows && c + j < nd.cols) nd.cells[r + i][c + j].text = v.replace(/^"(.*)"$/, '$1').trim(); }));
+              patch({ rows: nd.rows, cols: nd.cols, cells: nd.cells, colStyles: nd.colStyles });
+              fill();
             };
             inp.onfocus = () => { if (!(tSel.size > 1 && tSel.has(keyOf(r, c)))) { tSel = new Set([keyOf(r, c)]); markSel(); } };
             inputs[keyOf(r, c)] = inp; grid.appendChild(inp);
@@ -854,7 +930,13 @@
   // ---------- Atajos de teclado ----------
   function onKey(e) {
     const tag = (e.target && e.target.tagName) || '';
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    const itype = (e.target && e.target.type) || '';
+    const isText = tag === 'TEXTAREA' || (tag === 'INPUT' && !['color', 'checkbox', 'range', 'button', 'radio'].includes(itype));
+    if (isText) return;                                     // ahí manda el deshacer del propio campo
+    const inCtl = tag === 'SELECT' || tag === 'INPUT';      // listas, colores...: solo se atienden deshacer/rehacer
+    const key = (e.key || '').toLowerCase();
+    const isZ = key === 'z' || e.code === 'KeyZ', isY = key === 'y' || e.code === 'KeyY';
+    if (inCtl && !((e.ctrlKey || e.metaKey) && !e.altKey && (isZ || isY))) return;
     const sym = symNow(), layer = layerNow(), ids = selIds();
     const k = e.key;
     if (k === 'Escape') {
@@ -869,8 +951,12 @@
     if ((k === 'Delete' || k === 'Backspace') && ids.length) { e.preventDefault(); deleteSel(); return; }
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       const low = k.toLowerCase();
-      if (low === 'z' && !e.shiftKey) { e.preventDefault(); store.undo(sym); return; }
-      if (low === 'y' || (low === 'z' && e.shiftKey)) { e.preventDefault(); store.redo(sym); return; }
+      if (isZ || isY) {
+        if (props && !props.done) return;                   // con la ventana de propiedades abierta se usa Cancelar
+        e.preventDefault();
+        if (isZ && !e.shiftKey) { if (!(layer && layer.undoPoint())) store.undo(sym); } else store.redo(sym);
+        return;
+      }
       if (low === 'd' && ids.length) { e.preventDefault(); duplicateSel(); return; }
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
@@ -888,11 +974,13 @@
     store.on((kind, info) => {
       if (kind === 'props') { openProps(info.sym, info.id); return; }
       if (kind === 'ctx') { showCtx(info.x, info.y, info.sym, info.id); return; }
+      if (kind === 'zoom') { updateZoomOut(); return; }
       if (kind === 'tool' || kind === 'templates') { renderBar(); renderFav(); return; }
       renderSel(); renderTree();
     });
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', () => { placeBar('favBar'); placeBar('selBar'); });
+    setInterval(updateZoomOut, 500);
     renderAll();
   }
 

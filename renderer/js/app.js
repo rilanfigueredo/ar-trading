@@ -289,6 +289,7 @@
     box.innerHTML = '';
     box.classList.remove('wide');
     $('modal').classList.toggle('floating', floating);
+    delete box.dataset.kind;
     box.style.left = box.style.top = '';
     build(box);
     $('modal').classList.remove('hidden');
@@ -369,6 +370,11 @@
     palEl = pop;
   }
   document.addEventListener('mousedown', (e) => { if (palEl && !palEl.contains(e.target) && !e.target.classList.contains('pal-btn')) closePalette(); }, true);
+  // Icono de la paleta: un cuadrado con muchos colores, para que se entienda que ahí se abre la paleta
+  const PAL_ICON = (() => {
+    const cols = ['#f23645', '#ff9800', '#ffeb3b', '#4caf50', '#00bcd4', '#2962ff', '#7e57c2', '#e91e63', '#9e9e9e'];
+    return '<svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">' + cols.map((c, i) => `<rect x="${1 + (i % 3) * 5.4}" y="${1 + Math.floor(i / 3) * 5.4}" width="4.6" height="4.6" rx="1" fill="${c}"/>`).join('') + '</svg>';
+  })();
   function decoratePalette(root) {
     root.querySelectorAll('input[type=color]').forEach((inp) => {
       if (inp.dataset.pal) return;
@@ -377,7 +383,7 @@
       wrap.className = 'cwrap';
       inp.before(wrap); wrap.appendChild(inp);
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'pal-btn'; b.textContent = '▾'; b.title = 'Elegir de mi paleta';
+      b.type = 'button'; b.className = 'pal-btn'; b.innerHTML = PAL_ICON; b.title = 'Elegir un color de mi paleta';
       b.onclick = (e) => { e.stopPropagation(); if (palEl) closePalette(); else openPalette(inp, b); };
       wrap.appendChild(b);
     });
@@ -588,6 +594,7 @@
 
   function openSettings() {
     openModal((box) => {
+      box.dataset.kind = 'settings';
       box.classList.add('wide');
       const ac = activeCfg();
       const av = activeView();
@@ -954,7 +961,7 @@
     document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { b.onclick = () => setChartType(b.dataset.type); });
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.onclick = () => setScale(b.dataset.scale); });
     $('btnSymbol').onclick = openSymbolPicker;
-    $('btnAuto').onclick = () => activeView().autoScale();
+    $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
     $('syncCross').onclick = () => {
       A.cfg.sync.cross = !A.cfg.sync.cross;
@@ -969,7 +976,7 @@
         if (t !== null) { syncLockUntil = performance.now() + 200; A.views.forEach((v) => { if (v !== activeView()) v.setRightEdgeTime(t); }); }
       }
     };
-    $('btnSettings').onclick = openSettings;
+    $('btnSettings').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'settings') closeModal(); else openSettings(); };
     $('btnIndicators').onclick = togglePanel;
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };
     document.addEventListener('keydown', (e) => {
@@ -1157,6 +1164,15 @@
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
     API.symbols().then((s) => { A.symbols = s; eachView((v) => v.applyLook()); }).catch(() => {});
   }
+
+  // Las ventanas flotantes (Ajustes, propiedades de dibujos...) se cierran al hacer clic fuera de ellas
+  document.addEventListener('mousedown', (e) => {
+    const m = $('modal');
+    if (m.classList.contains('hidden') || !m.classList.contains('floating')) return;
+    const t = e.target;
+    if (t.closest && (t.closest('#modalBox') || t.closest('.pal-pop') || t.closest('.ctx-menu') || t.closest('.tpl-menu') || t.closest('#btnSettings'))) return;
+    closeModal();
+  }, true);
 
   window.__tv = A; // para depuración (F12)
   init();

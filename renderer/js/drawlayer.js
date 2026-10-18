@@ -46,6 +46,14 @@
     const magnetMode = () => { const m = store.prefs().magnet; return m === true ? 'weak' : (m === 'weak' || m === 'strong' ? m : 'off'); };
 
     function toPx(d) {
+      // Tabla fijada a un borde: su posición horizontal no depende del tiempo (queda pegada a la izquierda o derecha);
+      // la vertical sí sigue al precio donde se puso, como el texto de una línea horizontal.
+      if (d.type === 'table' && d.pin && d.pin !== 'none') {
+        const y = env.yOfPrice(d.pts[0].p);
+        if (!num(y)) return null;
+        const w = D.tableDims(d, measure).w, dx = num(d.pinDx) ? d.pinDx : 12;
+        return [{ x: d.pin === 'left' ? dx : env.plotWidth() - w - dx, y }];
+      }
       const out = [];
       for (const pt of d.pts) {
         const x = env.xOfTime(pt.t), y = env.yOfPrice(pt.p);
@@ -162,7 +170,8 @@
       ctx.font = font(size, d.tBold, d.tItalic);
       ctx.textAlign = align; ctx.fillStyle = themed(d.tColor || d.color);
       let ay;
-      if (d.tV === 'above') { ctx.textBaseline = 'top'; ay = y1 + 4; } else if (d.tV === 'below') { ctx.textBaseline = 'bottom'; ay = y2 - 4; } else { ctx.textBaseline = 'middle'; ay = (y1 + y2) / 2; }
+      // Superior = por encima del borde de arriba, Inferior = por debajo del borde de abajo, Interior = dentro (centrado)
+      if (d.tV === 'above') { ctx.textBaseline = 'bottom'; ay = y1 - 4; } else if (d.tV === 'below') { ctx.textBaseline = 'top'; ay = y2 + 4; } else { ctx.textBaseline = 'middle'; ay = (y1 + y2) / 2; }
       haloText(ctx, d.text, ax, ay, env.bg());
       ctx.restore();
     }
@@ -490,6 +499,7 @@
       if (obj.type === 'zoom') {
         store.setTool(null);
         if (env.zoomTo && obj.pts.length > 1) env.zoomTo(obj.pts[0].t, obj.pts[1].t, obj.pts[0].p, obj.pts[1].p);
+        store.emit('zoom');
         repaint(); return;
       }
       if (obj.type === 'table') {
@@ -579,7 +589,8 @@
           const origs = {};
           ids.forEach((id) => { origs[id] = JSON.parse(JSON.stringify(store.get(sym, id).pts)); });
           const first = store.get(sym, ids[0]);
-          const g = { ids, handle: group ? null : hit.handle, type: first.type, sx: loc.x, sy: loc.y, origs, moved: false };
+          const g = { ids, handle: group ? null : hit.handle, type: first.type, sx: loc.x, sy: loc.y, origs, moved: false, dx0: {} };
+          ids.forEach((id) => { g.dx0[id] = store.get(sym, id).pinDx; });
           if (g.handle !== null && first.type === 'rect') g.px = toPx(first);
           L.drag = g;
           winOn(true);
@@ -612,7 +623,9 @@
           const map = {};
           g.ids.forEach((id) => {
             const q = store.get(sym, id);
-            map[id] = g.origs[id].map((p) => shiftPt(p, q && q.type === 'hline' ? 0 : dx, dy));
+            const pinned = q && q.type === 'table' && q.pin && q.pin !== 'none';
+            if (pinned) q.pinDx = Math.max(0, Math.round((num(g.dx0[id]) ? g.dx0[id] : 12) + (q.pin === 'left' ? dx : -dx)));
+            map[id] = g.origs[id].map((p) => shiftPt(p, q && (q.type === 'hline' || pinned) ? 0 : dx, dy));
           });
           store.moveMany(sym, map);
         }
@@ -708,6 +721,12 @@
       detach() { if (attachedTo) { try { attachedTo.detachPrimitive(prim); } catch (e) { /* ya quitado */ } attachedTo = null; } },
       repaint, cancel, finish,
       hasDraft: () => !!L.draft,
+      // Ctrl+Z mientras se dibuja: quita el último punto puesto (o cancela si solo hay uno)
+      undoPoint() {
+        if (!L.draft) return false;
+        if (L.draft.pts.length > 1) { L.draft.pts.pop(); L.draft.cur = L.draft.pts[L.draft.pts.length - 1]; repaint(); } else cancel();
+        return true;
+      },
       editText(id) { const d = store.get(env.symbol(), id); if (d) openEditor(d, false); },
       clearRuler() { if (L.ruler) { L.ruler = null; repaint(); } },
       // Desplazamiento (en píxeles) de un punto, para duplicar un dibujo sin taparlo.

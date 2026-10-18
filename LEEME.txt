@@ -1,10 +1,37 @@
-AR_TRADING - VERSION 0.9.0
+AR_TRADING - VERSION 0.10.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.9)
+NOVEDADES DE ESTA VERSION (v0.10)
+- CTRL+Z / CTRL+Y: deshacer y rehacer varios pasos (crear, mover, cambiar color/grosor, plantillas, borrar,
+  carpetas). Funciona tambien con el foco en una lista o color de la barra de propiedades. Mientras
+  dibujas una polilinea, Ctrl+Z quita el ultimo punto. (Ctrl+Shift+Z tambien rehace.)
+- CLIC DERECHO sobre un dibujo: la 2a opcion es "Plantillas"; al pasar el mouse se despliegan las
+  plantillas guardadas de esa herramienta y al elegir una se aplica al dibujo (o a los seleccionados).
+  Tambien permite guardar el estilo del dibujo como plantilla nueva.
+- Icono de la paleta: ahora es un cuadrado de muchos colores (junto a cada selector de color); un clic abre
+  tu paleta.
+- RECTANGULO, posicion del texto: Interior, Superior (por encima de la linea de arriba) e Inferior
+  (por debajo de la linea de abajo). El lugar (izquierda/centro/derecha) sigue igual.
+- CARPETAS: el boton de la papelera de una carpeta ahora la elimina CON TODO lo que contiene (pide
+  confirmacion, se puede deshacer con Ctrl+Z; si hay algo bloqueado dentro avisa). Tambien ofrece
+  "Solo quitar la carpeta" para conservar los dibujos.
+- BARRA IZQUIERDA: los menus de herramientas muestran solo las herramientas (sin plantillas).
+- BARRA DE PROPIEDADES del dibujo: textos y botones mas grandes y un contorno fino turquesa (color del logo).
+- VENTANA DE AJUSTES (y las demas ventanas flotantes): ocupa como maximo 3/4 del ancho de la pantalla y se
+  cierra al hacer clic fuera de ella. El boton Ajustes tambien la abre y cierra.
+- LISTA DE OBJETOS: dos grupos con titulo, "Indicadores de este grafico" y "Dibujos de (activo)".
+- TABLA: nueva opcion "Fijar la tabla al borde del grafico" (izquierda o derecha): no se mueve al ampliar o
+  desplazar el grafico; solo sigue la altura (precio) donde la pusiste, como el texto de una linea
+  horizontal (si ese precio sale de la pantalla, no se ve). Arrastrala para cambiar su altura y su
+  distancia al borde. Tambien puedes PEGAR DESDE EXCEL: copia celdas en Excel y pega (Ctrl+V) sobre la
+  celda donde quieres que empiece; la tabla crece sola.
+- LUPA DE ALEJAR (debajo de la de acercar): solo aparece cuando el grafico tiene zoom. Cada clic vuelve a la
+  vista anterior al ultimo zoom; el boton Auto tambien la oculta.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.9)
 - RECTANGULO: al pasar el mouse por un tirador (esquina o lado) el cursor cambia a una flecha de dos
   puntas, como en TradingView. Ahora tambien lleva TEXTO (contenido, color, tamano, negrita, cursiva,
   posicion arriba/centro/abajo dentro del rectangulo y lugar izquierda/centro/derecha).

@@ -441,6 +441,9 @@
 
     // ---------- Dibujos (v0.7): la capa pinta sobre el panel de precios y usa estas conversiones tiempo/precio <-> píxel ----------
     const num = (v) => typeof v === 'number' && isFinite(v);
+    // Historial de zooms hechos con la lupa (para poder alejar paso a paso)
+    const zoomStack = [];
+    const priceInternal = (v, log) => (log ? Math.log10(Math.pow(10, Math.log10(v)) + 0.0001) + 4 : v);
     const drawEnv = {
       host, chartEl,
       series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol,
@@ -464,6 +467,12 @@
         let a = logicalAtTime(Math.min(t1, t2)), b = logicalAtTime(Math.max(t1, t2));
         if (a === null || b === null) return;
         if (b - a < 3) { const m = (a + b) / 2; a = m - 1.5; b = m + 1.5; }
+        { // guarda cómo estaba la vista para poder alejar
+          const ps0 = mainScale();
+          let po = null; try { po = ps0.getVisibleRange(); } catch (e) { /* sin rango */ }
+          zoomStack.push({ range: s.chart.timeScale().getVisibleLogicalRange(), auto: ps0.options().autoScale, prange: po, log: vcfg.scale === 'log' });
+          if (zoomStack.length > 30) zoomStack.shift();
+        }
         s.chart.timeScale().setVisibleLogicalRange({ from: a, to: b });
         const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
         if (!(hi > lo) || lo <= 0 || vcfg.scale === 'percent') return;
@@ -1041,6 +1050,7 @@
     const okText = () => (s.reachedStart ? 'En vivo · historial completo' : 'En vivo');
 
     async function load() {
+      zoomStack.length = 0;
       if (tfNow().kind === 'vol') return loadVol();
       const token = ++s.token;
       stopPolling();
@@ -1301,7 +1311,20 @@
         }
       },
       setScale(sc) { vcfg.scale = sc; applyScaleMode(); },
-      autoScale() { mainScale().applyOptions({ autoScale: true }); },
+      autoScale() { zoomStack.length = 0; mainScale().applyOptions({ autoScale: true }); },
+      // ¿hay un zoom hecho con la lupa o la escala vertical está fija? (muestra el botón "Alejar")
+      canZoomOut() { try { return zoomStack.length > 0 || !!(s.series && mainScale().options().autoScale === false); } catch (e) { return false; } },
+      // Alejar: vuelve a la vista anterior al último zoom; sin historial, solo devuelve la escala vertical a automática
+      zoomOut() {
+        if (!s.chart || !s.series) return;
+        const z = zoomStack.pop();
+        const ps = mainScale();
+        if (!z) { ps.applyOptions({ autoScale: true }); return; }
+        if (z.range) s.chart.timeScale().setVisibleLogicalRange(z.range);
+        if (z.auto || !z.prange) { ps.applyOptions({ autoScale: true }); return; }
+        ps.setAutoScale(false);
+        ps.setVisibleRange({ from: priceInternal(z.prange.from, z.log), to: priceInternal(z.prange.to, z.log) });
+      },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
       setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
       applyTheme() { applyLook(); },
