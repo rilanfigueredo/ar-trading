@@ -589,7 +589,7 @@
           current = tf;
           let msg = `Será "${tf.label}". ${L.describe(tf)}`;
           if (tf.note) msg += ' ' + tf.note;
-          if (L.ratioOf(tf) > 150) {
+          if (L.ratioOf(tf) > 150 && L.ratioOf(tf) <= L.MAX_RATIO) {
             msg += ' Aviso: es una temporalidad poco común y al inicio cargará pocas barras; el historial se amplía al desplazarte hacia la izquierda.';
             preview.className = 'tf-preview warn';
           }

@@ -157,10 +157,14 @@ console.log('Todas las pruebas pasaron');
 
 // ---- v0.8: duraciones "raras" se ajustan para no armarlas con miles de velas de 1 minuto / 1 segundo
 {
-  const a = L.makeTf('d', 30.1);               // 30 d 2 h 24 m -> 30 d (velas de 1 día)
-  eq(a.id, 'd:30'); eq(a.base, '1d'); assert.ok(/ajust/i.test(a.note));
+  const a = L.makeTf('d', 30.1);               // 30 d 2 h 24 m: v0.12 respeta la duración exacta (14448 velas de 3 m por barra)
+  eq(a.base, '3m'); eq(a.sec, 2600640); eq(a.ratio, 14448); assert.ok(/exacta/i.test(a.note));
   const b = L.makeTf('d', 29.53);
-  eq(b.id, 'd:30');
+  eq(b.id, 'd:30');                            // 29,53 d necesitaría 42523 velas de 1 m por barra: se ajusta
+  const x = L.makeTf('s', 1200000);             // 13 d 21 h 20 m: exacta con velas de 5 m (4000 por barra)
+  eq(x.sec, 1200000); eq(x.base, '5m'); eq(x.ratio, 4000); eq(x.kind, 'fixed'); assert.ok(/exacta/i.test(x.note));
+  eq(L.bucketStart(x, 1200000 * 3 + 5), 1200000 * 3);  // cada barra dura exactamente 1.200.000 s
+  eq(L.makeTf('s', 1200001).id, 'w:2');         // con velas de 1 s no se puede: se ajusta (y se avisa)
   const c = L.makeTf('s', 3601);                // 1 h 1 s -> 1 h
   eq(c.id, 'm:60'); assert.ok(c.note.length > 0);
   const d = L.makeTf('h', 5.0083);              // 5 h 30 s -> 5 h
@@ -169,10 +173,11 @@ console.log('Todas las pruebas pasaron');
   eq(e.id, 'm:137'); eq(e.base, '1m'); eq(e.ratio, 137);
   const f = L.makeTf('d', 25.5);                // 25 d 12 h se arma con velas de 12 h
   eq(f.base, '12h'); eq(f.sec, 25.5 * 86400); eq(f.label, '25d 12h');
-  // ninguna temporalidad sale con más de MAX_RATIO velas base por barra
+  // con velas base de 1 s nunca más de MAX_RATIO por barra; en general nunca más de MAX_EXACT_RATIO
   for (const [u, v] of [['d', 33.3], ['d', 27.77], ['h', 71.3], ['w', 4.3], ['h', 9.99], ['m', 1234], ['s', 100001]]) {
     const t = L.makeTf(u, v);
-    assert.ok(t.ratio <= L.MAX_RATIO, `${u}${v} -> ratio ${t.ratio}`);
+    assert.ok(t.ratio <= L.MAX_EXACT_RATIO, `${u}${v} -> ratio ${t.ratio}`);
+    if (t.base === '1s') assert.ok(t.ratio <= L.MAX_RATIO, `${u}${v} -> ratio ${t.ratio}`);
   }
   eq(L.labelDur(2600640), '30 d 2 h 24 m');
 }

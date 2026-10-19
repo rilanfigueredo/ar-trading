@@ -41,6 +41,8 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Más exchanges (v0.11):** Binance, Bybit y KuCoin (spot, API públicas). `vcfg.exchange` por gráfico; `core.klines/symbols/tickers({exchange})`; `L.EXCHANGES` y `L.tfFor(tf, exchange)` adaptan la temporalidad base al exchange o la marcan `unavailable` (aviso en pantalla). Formato normalizado `[tMs,o,h,l,c,v]`. Caché IndexedDB de otros exchanges con prefijo `ex:` (Binance conserva sus claves). Anclas (d/w/mes) fuera de Binance = `L.GENESIS_SEC`. Símbolos por exchange: `A.symbolsBy[ex]`, `loadSymbols(ex)`.
 - **Listas de seguimiento (v0.11):** `renderer/js/watch.js` (`TVWatch`), panel `#watchPanel` excluyente con `#panel` y `#objPanel`. `cfg.lists=[{id,name,items:[{s,x}]}]`, `cfg.listActive`; `favorites` migra a la lista "Favoritos" (`cleanLists` en app.js). Tickers cada 5 s (`API.tickers`), errores visibles. `cfg.version` = 8. Dibujos siguen por símbolo (no por exchange).
 
+- **Duraciones exactas (v0.11.1):** `makeTf` respeta la duración exacta si la vela base es ≥ 1 min y hacen falta ≤ `L.MAX_EXACT_RATIO` (20000) velas por barra (antes se ajustaba a ≤ 300). Barras tipo `fixed` alineadas a época UTC (inicio no necesariamente 00:00). Carga pesada (`ratio > MAX_RATIO`): primera carga hasta 24 bloques, `autoFill` objetivo 120 barras / 600 bloques, `warmBack` hasta 300 bloques en segundo plano. La caché IndexedDB es por vela base (5m se comparte entre todas las temporalidades que la usan).
+
 ## 4. Decisiones de diseño tomadas
 - Un gráfico = un objeto de configuración independiente; nada global salvo tema, zona horaria, temporizador, paleta, plantillas y sincronización.
 - Defaults de TradingView en indicadores. Rejilla y marca de agua apagadas por defecto.
@@ -82,6 +84,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.9: cursor de tiradores, texto y cursiva en rectángulo/todo, Ajustes fijo, barra de propiedades movible, indicadores en la lista de objetos, tabla, regla fija + zoom, carpetas con estado propio. `cfg.version` = 7.
 - v0.10: Ctrl+Z/Y fiable, plantillas en clic derecho, icono de paleta, texto del rectángulo interior/superior/inferior, eliminar carpeta con contenido, barra de propiedades grande, Ajustes 3/4 y cierre al clic fuera, objetos en dos grupos, tabla fijada + pegar desde Excel, lupa de alejar.
 - v0.11: listas de seguimiento múltiples, Bybit y KuCoin, selector de exchange en el buscador. `cfg.version` = 8.
+- v0.11.1: duraciones personalizadas exactas (p. ej. 1.200.000 s con velas de 5 m), carga progresiva y precarga en segundo plano.
 - v0.11: Listas + Bybit + KuCoin. Se probó con datos simulados y con `fetch` falso (test/exchanges.test.js, `npm test`). Sin probar con datos reales: formato de velas/tickers de Bybit y KuCoin (alineación diaria/semanal de KuCoin, límites de peticiones), ni en Windows/Electron. Pendiente ver: las anclas con GENESIS_SEC pueden no coincidir con las de TradingView.
 
 ## 9. Pendientes conocidos
@@ -92,4 +95,5 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.8: probado solo en el navegador con datos simulados. Sin probar: Binance real (carga de historial en 25-35 d y > 2 h, imán), Windows/Electron, arrastrar y soltar en el panel de objetos dentro de Electron. Idea: botón para elegir si el redondeo de duraciones raras se hace o no.
 - v0.9: probado solo en el navegador con datos simulados. Sin probar: Windows/Electron, zoom con Binance real y escala logarítmica en uso real. Ideas: tabla con celdas combinadas, copiar/pegar tablas desde Excel, tamaño de columna manual.
 - v0.10: probado solo en el navegador con datos simulados (el pegado de Excel se simuló con un evento `paste`; falta probar con el portapapeles real y en Windows/Electron). Ideas: tabla con celdas combinadas y ancho de columna manual; la lupa de alejar solo cuenta zooms hechos con la lupa o escala vertical fija.
+- v0.11.1: probado con datos simulados (barras de exactamente 1.200.000 s). Sin probar con Binance real: tiempo de la primera carga y de la descarga en segundo plano (cientos de peticiones de 5 m), peso de la caché con historial largo.
 - Fase 4 restante: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto.

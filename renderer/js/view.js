@@ -1078,7 +1078,7 @@
           }
         }
         // Primera carga corta (se ve enseguida); el resto del historial se completa solo en segundo plano (autoFill).
-        const pages = Math.min(16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
+        const pages = Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 24 : 16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
         const res = await fetchBack(undefined, pages, token);
         if (!res) return;
         if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en ${exName()}.`);
@@ -1115,7 +1115,7 @@
     function warmBack(token) {
       const tf = tfNow();
       if (!window.TVHistory || !TVHistory.supported(tf.base) || !s.base.length || s.reachedStart) return;
-      const blocks = Math.max(4, Math.min(40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
+      const blocks = Math.max(4, Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 300 : 40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
     async function loadMore(pagesOverride) {
@@ -1154,9 +1154,10 @@
     // Completa el historial sin que haya que mover el gráfico: sigue pidiendo velas anteriores hasta tener
     // unas 1.500 barras (o todo el historial disponible), con un tope de bloques por seguridad.
     async function autoFill(token) {
-      const TARGET = 1500, MAX_BLOCKS = 150;
-      let used = 0;
       const tf = tfNow();
+      const heavy = L.ratioOf(tf) > L.MAX_RATIO; // barras exactas muy pesadas: menos barras objetivo, más bloques de tope
+      const TARGET = heavy ? 120 : 1500, MAX_BLOCKS = heavy ? 600 : 150;
+      let used = 0;
       const pages = Math.max(4, Math.min(16, Math.ceil((300 * L.ratioOf(tf)) / 1000)));
       while (token === s.token && !s.destroyed && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
         if (s.loadingMore) { await new Promise((r) => setTimeout(r, 150)); continue; }

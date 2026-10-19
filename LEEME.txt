@@ -1,10 +1,19 @@
-AR_TRADING - VERSION 0.11.0
+AR_TRADING - VERSION 0.11.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.11)
+NOVEDADES DE ESTA VERSION (v0.11.1)
+- DURACIONES EXACTAS: si escribes una temporalidad personalizada (por ejemplo 1.200.000 segundos = 13d 21h 20m),
+  cada vela dura EXACTAMENTE eso (ya no se redondea a 2W). Se arma con velas de 5 m (4000 por barra).
+  Carga poco a poco: primero lo mas reciente y luego va completando hacia atras (unas 120 barras sin tocar
+  nada; al desplazarte a la izquierda carga mas). Lo descargado se guarda en tu equipo: la proxima vez
+  que abras esa temporalidad sale mucho mas rapido, y en segundo plano sigue guardando historial anterior.
+  Limites: con velas base de 1 s o si hicieran falta mas de 20.000 velas por barra, se sigue ajustando
+  (y se avisa; usa un multiplo de 5 minutos para mantenerla exacta).
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.11)
 - LISTAS DE SEGUIMIENTO: boton "Listas" (arriba a la derecha). Puedes tener varias listas con nombre
   (crear, renombrar, borrar). Cada activo muestra precio y % de 24 h (verde/rojo) y se actualiza cada
   5 s mientras el panel esta abierto. Clic en un activo = lo abre en el grafico activo. Al pasar el

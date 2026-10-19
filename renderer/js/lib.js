@@ -60,6 +60,8 @@
   // 1 minuto o 1 segundo, el historial tardaría muchísimo y casi no se vería nada: se ajusta a la duración más
   // cercana que se pueda armar con velas más grandes (y se avisa con una nota).
   const MAX_RATIO = 300;
+  // Con velas base de 1 minuto o más, hasta este número de velas por barra se respeta la duración EXACTA aunque sea pesada (se carga poco a poco y se guarda en el equipo).
+  const MAX_EXACT_RATIO = 20000;
 
   // Crea una temporalidad a partir de una unidad (m, h, d, w, M) y un valor (acepta decimales).
   // Devuelve { id, label, base, kind, sec, ratio, n?, note? }
@@ -113,7 +115,10 @@
     if (S % 86400 === 0) { const t = makeTf('d', S / 86400); t.note = note || t.note; return t; }
     const base = BASES.find((b) => b.sec <= S && S % b.sec === 0);
     const ratio = S / base.sec;
-    if (ratio > MAX_RATIO) {
+    if (ratio > MAX_RATIO && ratio <= MAX_EXACT_RATIO && base.sec >= 60) {
+      // Duración exacta: cada barra se arma con muchas velas base. Se avisa de lo que implica.
+      note = `Duración exacta: cada barra se arma con ${ratio} velas de ${base.id}. El historial se va cargando poco a poco y se guarda en tu equipo, así la próxima vez abre más rápido.` + (note ? ' ' + note : '');
+    } else if (ratio > MAX_RATIO) {
       const grains = [{ sec: 86400 }].concat(BASES); // de la más gruesa a la más fina
       let best = null;
       for (const g of grains) {
@@ -125,7 +130,7 @@
       }
       if (best && best.S2 !== S) {
         const t = makeTf('s', best.S2);
-        t.note = `Se ajustó de ${labelDur(S)} a ${labelDur(best.S2)} para que el historial cargue rápido y completo (con la duración exacta habría que armar cada barra con miles de velas de ${base.id}).` + (note ? ' ' + note : '');
+        t.note = `Se ajustó de ${labelDur(S)} a ${labelDur(best.S2)} porque con la duración exacta habría que armar cada barra con ${ratio} velas de ${base.id}. Para mantenerla exacta usa un múltiplo de 5 minutos.` + (note ? ' ' + note : '');
         return t;
       }
     }
@@ -612,7 +617,7 @@
     return Object.assign({}, tf, { base: b.id, ratio, kind: ratio === 1 ? 'native' : 'fixed', adapted: true });
   }
 
-  const lib = { EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  const lib = { EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);
