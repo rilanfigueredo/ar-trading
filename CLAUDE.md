@@ -29,4 +29,4 @@ Programa: app de escritorio personal tipo TradingView (Electron + modo navegador
 - Depuración en el navegador: `window.__tv` (`cfg`, `views[i].bars/chart/cfg`).
 
 ## Hoja de ruta
-Hecho: fases 1–3 (v0.1–v0.10) y de la fase 4: listas de seguimiento y más exchanges (Bybit, KuCoin) en v0.11. **Fase 4 restante**: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto. Descartado: alertas. Aplazado: velas por volumen.
+Hecho: fases 1–3 (v0.1–v0.10) y de la fase 4: listas de seguimiento y más exchanges (Bybit, KuCoin en v0.11; Bitstamp en v0.12). **Fase 4 restante**: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto. Descartado: alertas. Aplazado: velas por volumen.

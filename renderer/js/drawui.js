@@ -18,6 +18,7 @@
     ruler: '<rect x="2" y="9" width="20" height="7" rx="1"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/>',
     magnet: '<path d="M6 3v8a6 6 0 0012 0V3h-4v8a2 2 0 01-4 0V3z"/>',
     keep: '<path d="M12 17v5M8 3h8l-1 7 3 3v2H6v-2l3-3z"/>',
+    share: '<rect x="3" y="4" width="11" height="9" rx="1.5"/><rect x="10" y="11" width="11" height="9" rx="1.5"/>',
     eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeoff: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
@@ -60,6 +61,9 @@
 
   const prefs = () => store.prefs();
   const symNow = () => X.activeCfg().symbol;
+  const chartNow = () => X.activeCfg().id;
+  // Solo cuentan los dibujos visibles en el gráfico activo (los de otro gráfico del mismo activo no aparecen ni se seleccionan aquí).
+  const visNow = (sym, id) => { const d = store.get(sym, id); return !!d && store.visibleIn(d, chartNow()); };
   const layerNow = () => { const v = X.activeView(); return v && v.draw; };
   const catOf = (type) => D.TYPES[type].cat;
   const parseFav = (f) => { const i = String(f).indexOf(':'); return i < 0 ? { type: f, tpl: null } : { type: f.slice(0, i), tpl: f.slice(i + 1) }; };
@@ -83,7 +87,15 @@
   }
   function setPref(key, val) { prefs()[key] = val; X.saveCfg(); renderAll(); X.eachView((v) => v.draw && v.draw.repaint()); }
   const shiftFn = () => { const layer = layerNow(); return layer ? (pt) => layer.offsetPoint(pt, 26, 26) : null; };
-  const selIds = () => store.selIds(symNow());
+  const selIds = () => store.selIds(symNow()).filter((id) => visNow(symNow(), id));
+  // Compartir / dejar de compartir con los demás gráficos del mismo activo. Al dejar de compartir, el dibujo se queda en el gráfico activo.
+  function toggleShare(sym, ids) {
+    const ds = ids.map((id) => store.get(sym, id)).filter(Boolean);
+    if (!ds.length) return;
+    const all = ds.every((d) => d.shared);
+    store.patchMany(sym, ids, all ? { shared: false, chart: chartNow() } : { shared: true });
+    X.eachView((v) => v.draw && v.draw.repaint());
+  }
   const unlocked = (sym, ids) => ids.filter((id) => { const d = store.get(sym, id); return d && !store.isLocked(sym, d); });
   function deleteSel() {
     const sym = symNow(), ids = unlocked(sym, selIds());
@@ -94,7 +106,7 @@
     if (ids.length) store.duplicateMany(sym, ids, shiftFn());
   }
   function confirmClear() {
-    const sym = symNow(), n = store.list(sym).length;
+    const sym = symNow(), n = store.listFor(sym, chartNow()).length;
     if (!n) return;
     X.openModal((box) => {
       box.appendChild(el('h3', '', 'Eliminar todos los dibujos'));
@@ -256,6 +268,7 @@
     item(many ? 'Agrupar en carpeta…' : 'Meter en una carpeta…', () => newFolder(ids, null));
     if (d.folder) item('Sacar de la carpeta', () => store.moveToFolder(sym, ids, null));
     item(d.locked ? 'Desbloquear' : 'Bloquear', () => store.patchMany(sym, ids, { locked: !d.locked }));
+    item(ids.every((i) => (store.get(sym, i) || {}).shared) ? 'Dejar de mostrar en los demás gráficos' : 'Mostrar también en los demás gráficos del activo', () => toggleShare(sym, ids));
     item('Ocultar', () => store.patchMany(sym, ids, { hidden: true }));
     item(many ? `Eliminar (${ids.length})` : 'Eliminar', deleteSel);
     document.body.appendChild(m);
@@ -290,6 +303,7 @@
     mg.appendChild(el('i', 'db-tri'));
     bar.appendChild(mg);
     bar.appendChild(bigBtn('keep', 'Mantener la herramienta activa después de dibujar', () => setPref('keep', !prefs().keep), 'keep'));
+    bar.appendChild(bigBtn('share', 'Los dibujos NUEVOS también se ven en los demás gráficos del mismo activo (apagado: cada dibujo queda solo en su gráfico)', () => setPref('shareNew', !prefs().shareNew), 'shareNew'));
     bar.appendChild(bigBtn('eye', 'Ocultar / mostrar todos los dibujos del gráfico', () => setPref('hideAll', !prefs().hideAll), 'hideAll'));
     bar.appendChild(bigBtn('trash', 'Eliminar todos los dibujos de este activo', confirmClear, 'clear'));
     bar.appendChild(el('span', 'db-sep'));
@@ -323,7 +337,7 @@
     on(bar, 'magnet', magnetMode() !== 'off');
     const mb = bar.querySelector('[data-k="magnet"]');
     if (mb) mb.title = `${MAGNET[magnetMode()]} (clic para cambiar)`;
-    on(bar, 'keep', prefs().keep); on(bar, 'hideAll', prefs().hideAll); on(bar, 'favBar', prefs().favBar);
+    on(bar, 'keep', prefs().keep); on(bar, 'shareNew', prefs().shareNew); on(bar, 'hideAll', prefs().hideAll); on(bar, 'favBar', prefs().favBar);
     on(rb, 'objects', !X.$('objPanel').classList.contains('hidden'));
     const eyeBtn = bar.querySelector('[data-k="hideAll"]');
     if (eyeBtn) eyeBtn.innerHTML = svg(prefs().hideAll ? 'eyeoff' : 'eye', 20);
@@ -423,12 +437,13 @@
       [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; r.dash.appendChild(o); });
       r.dash.onchange = () => store.patchMany(sym, selIds(), { dash: r.dash.value });
       r.lock = iconBtn('lock', 'Bloquear / desbloquear', () => { const all = selIds().every((id) => (store.get(sym, id) || {}).locked); store.patchMany(sym, selIds(), { locked: !all }); });
+      r.share = iconBtn('share', 'Mostrar este dibujo también en los demás gráficos del mismo activo', () => toggleShare(sym, selIds()));
       r.eye = iconBtn('eyeoff', 'Ocultar (se vuelve a mostrar desde el panel de objetos)', () => store.patchMany(sym, selIds(), { hidden: true }));
       const dup = iconBtn('copy', 'Duplicar (Ctrl+D)', duplicateSel);
       const grp = iconBtn('folderadd', 'Agrupar en una carpeta', () => newFolder(selIds(), null));
       r.cfg = iconBtn('gear', 'Propiedades (doble clic sobre el dibujo)', () => { const i = selIds(); if (i.length === 1) openProps(sym, i[0]); });
       r.del = iconBtn('trash', 'Eliminar (Supr)', deleteSel);
-      bar.append(r.title, r.color, r.width, r.dash, r.lock, r.eye, dup, grp);
+      bar.append(r.title, r.color, r.width, r.dash, r.lock, r.share, r.eye, dup, grp);
       if (!many) bar.appendChild(r.cfg);
       bar.appendChild(r.del);
       sel.refs = r;
@@ -446,6 +461,7 @@
     const allLocked = ds.every((d) => store.isLocked(sym, d));
     r.lock.classList.toggle('active', allLocked);
     r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 20);
+    r.share.classList.toggle('active', ds.every((d) => d.shared));
     r.del.disabled = allLocked;
     placeBar('selBar');
   }
@@ -461,11 +477,11 @@
   function renderTree(force) {
     const p = X.$('objPanel');
     if (p.classList.contains('hidden')) return;
-    const sym = symNow(), list = store.list(sym), folders = store.folders(sym);
+    const sym = symNow(), list = store.listFor(sym, chartNow()), folders = store.folders(sym);
     const ids = selIds();
     const vc = X.activeCfg();
     const indSig = JSON.stringify([vc.ind, vc.maOn, vc.mas.map((m) => [m.id, m.period, m.visible, m.color])]);
-    const sig = sym + '|' + ids.join(',') + '|' + prefs().hideAll + '|' + JSON.stringify(list.map((d) => [d.id, d.type, d.text, d.hidden, d.locked, d.color, d.folder])) + '|' + JSON.stringify(folders) + '|' + indSig;
+    const sig = sym + '|' + ids.join(',') + '|' + prefs().hideAll + '|' + JSON.stringify(list.map((d) => [d.id, d.type, d.text, d.hidden, d.locked, d.color, d.folder, d.shared])) + '|' + chartNow() + '|' + JSON.stringify(folders) + '|' + indSig;
     if (!force && sig === treeSig) return;
     treeSig = sig;
     const keepScroll = p.scrollTop;

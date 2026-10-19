@@ -53,6 +53,21 @@ global.fetch = async (url) => {
   const t3 = await core.tickers({ exchange: 'binance', symbols: ['ETHUSDT'] });
   assert.ok(Math.abs(t3.ETHUSDT.pct - 10) < 1e-9);
 
+  // Bitstamp: símbolos, velas y precios
+  answers = [[{ name: 'BTC/USD', url_symbol: 'btcusd', trading: 'Enabled' }, { name: 'ETH/EUR', url_symbol: 'etheur', trading: 'Enabled' }, { name: 'OLD/USD', url_symbol: 'oldusd', trading: 'Disabled' }]];
+  const bs = await core.symbols({ exchange: 'bitstamp' });
+  assert.deepStrictEqual(bs.map((x) => x.symbol), ['BTCUSD', 'ETHEUR']); eq(bs[0].native, 'btcusd'); eq(bs[1].quote, 'EUR');
+  calls.length = 0;
+  answers = [{ data: { pair: 'BTC/USD', ohlc: [{ timestamp: '2000', open: '2', high: '4', low: '1', close: '3', volume: '10' }, { timestamp: '1000', open: '1', high: '3', low: '0.5', close: '2', volume: '5' }] } }];
+  const bk = await core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '1h', startTime: 1000000, limit: 2 });
+  assert.deepStrictEqual(bk, [[1000000, '1', '3', '0.5', '2', '5'], [2000000, '2', '4', '1', '3', '10']]);
+  assert.ok(calls[0].startsWith('https://www.bitstamp.net/api/v2/ohlc/btcusd/?') && calls[0].includes('step=3600') && calls[0].includes('start=1000') && calls[0].includes('end=8200') && calls[0].includes('limit=2'), calls[0]);
+  await assert.rejects(core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '1w', limit: 2 }), /Bitstamp no ofrece/);
+  await assert.rejects(async () => core.parseBitstampKlines({ code: 'x', errors: ['mal'] }), /Bitstamp/);
+  answers = [{ last: '100', percent_change_24: '2.5', open_24: '97' }];
+  const bt = await core.tickers({ exchange: 'bitstamp', symbols: ['BTCUSD'] });
+  eq(bt.BTCUSD.price, 100); eq(bt.BTCUSD.pct, 2.5);
+
   // fallo de red: el mensaje nombra al exchange
   global.fetch = async () => { throw new Error('caído'); };
   await assert.rejects(core.tickers({ exchange: 'bybit', symbols: ['BTCUSDT', 'SOLUSDT'] }), /Bybit/);
@@ -66,5 +81,13 @@ global.fetch = async (url) => {
   assert.ok(!x.unavailable); eq(x.base, '4h');
   eq(L.tfFor(t('m:480'), 'kucoin').base, '8h');
   eq(L.exchangeName('kucoin'), 'KuCoin');
+  // Bitstamp no tiene 1 s, 8 h, 1 semana ni 1 mes
+  assert.ok(L.tfFor(t('s:30'), 'bitstamp').unavailable);
+  eq(L.tfFor(t('m:480'), 'bitstamp').base, '4h');
+  const wk = L.tfFor(t('w:1'), 'bitstamp'); eq(wk.base, '1d'); eq(wk.kind, 'anchor'); eq(wk.sec, 604800);
+  eq(new Date(L.bucketStart(wk, L.GENESIS_SEC + 3 * 86400 + 5, L.GENESIS_SEC) * 1000).getUTCDay(), 1); // las semanas empiezan en lunes
+  const mo = L.tfFor(t('M:1'), 'bitstamp'); eq(mo.base, '1d'); eq(mo.kind, 'months'); eq(mo.n, 1);
+  eq(L.tfFor(t('M:4'), 'bitstamp').n, 4);
+  eq(L.tfFor(t('w:1'), 'bybit').base, '1w');
   console.log('exchanges.test.js OK');
 })().catch((e) => { console.error(e); process.exit(1); });

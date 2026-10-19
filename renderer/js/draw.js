@@ -335,6 +335,10 @@
       on(f) { subs.add(f); return () => subs.delete(f); },
       emit,
       list, get: find, folders, folder: findF,
+      // v0.12: cada dibujo pertenece al gráfico donde se creó (d.chart). Solo se ve en los demás gráficos del mismo activo si d.shared.
+      // Los dibujos antiguos (sin d.chart) se siguen viendo en todos.
+      visibleIn: (d, chartId) => !!d.shared || !d.chart || !chartId || d.chart === chartId,
+      listFor: (sym, chartId) => list(sym).filter((d) => store.visibleIn(d, chartId)),
       isHidden: (sym, d) => !!d.hidden || inherited(sym, d, 'hidden'),
       isLocked: (sym, d) => !!d.locked || inherited(sym, d, 'locked'),
       prefs: () => getPrefs(),

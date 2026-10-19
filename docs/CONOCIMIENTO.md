@@ -22,7 +22,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.11)
+## 3. Funciones actuales (v0.12)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -42,6 +42,11 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Listas de seguimiento (v0.11):** `renderer/js/watch.js` (`TVWatch`), panel `#watchPanel` excluyente con `#panel` y `#objPanel`. `cfg.lists=[{id,name,items:[{s,x}]}]`, `cfg.listActive`; `favorites` migra a la lista "Favoritos" (`cleanLists` en app.js). Tickers cada 5 s (`API.tickers`), errores visibles. `cfg.version` = 8. Dibujos siguen por símbolo (no por exchange).
 
 - **Duraciones exactas (v0.11.1):** `makeTf` respeta la duración exacta si la vela base es ≥ 1 min y hacen falta ≤ `L.MAX_EXACT_RATIO` (20000) velas por barra (antes se ajustaba a ≤ 300). Barras tipo `fixed` alineadas a época UTC (inicio no necesariamente 00:00). Carga pesada (`ratio > MAX_RATIO`): primera carga hasta 24 bloques, `autoFill` objetivo 120 barras / 600 bloques, `warmBack` hasta 300 bloques en segundo plano. La caché IndexedDB es por vela base (5m se comparte entre todas las temporalidades que la usan).
+
+- **Bitstamp (v0.12):** `GET /api/v2/ohlc/{par}/?step&limit&start&end` (step en s: 60…86400; siempre se pide ventana de `limit` velas), `/api/v2/trading-pairs-info/` (símbolos, `url_symbol` en `native`), `/api/v2/ticker/{par}/` (uno por activo; `percent_change_24`). Sin 1s/8h/1w/1M: `tfFor` arma semanas (`anchor` desde `GENESIS_SEC`, ahora el LUNES 14-ago-2017) y meses (`months`) desde `1d`.
+- **Dibujos por gráfico (v0.12):** `vcfg.id` = `c1..c4`; cada dibujo lleva `chart` (gráfico propietario) y `shared`. `store.visibleIn/listFor(sym, chartId)`; la capa y el panel de objetos solo usan los visibles. Dibujos antiguos (sin `chart`) = `shared:true` en `cleanDrawings`. Preferencia `draw.shareNew` (botón en la barra izquierda). `cfg.version` = 9. La clave de almacenamiento sigue siendo el símbolo (y el deshacer sigue siendo por símbolo).
+- **Listas — buscador (v0.12):** `openAdd()` en watch.js (búsqueda con ranking, pestañas por exchange, teclado). Iconos: jsDelivr (spothq/cryptocurrency-icons) → CoinCap → letra; permitidos en la CSP de index.html (`img-src`).
+- **Fallo de indicadores que "desaparecían" (v0.12):** el doble clic sobre las flechas del panel llegaba al gráfico (el botón se redibuja) y `toggleSubs` ocultaba todos los indicadores. Ahora se ignora el doble clic sobre `.pane-legend` y justo después de pulsar una flecha (`s.lastLegendClick`).
 
 ## 4. Decisiones de diseño tomadas
 - Un gráfico = un objeto de configuración independiente; nada global salvo tema, zona horaria, temporizador, paleta, plantillas y sincronización.
@@ -85,6 +90,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.10: Ctrl+Z/Y fiable, plantillas en clic derecho, icono de paleta, texto del rectángulo interior/superior/inferior, eliminar carpeta con contenido, barra de propiedades grande, Ajustes 3/4 y cierre al clic fuera, objetos en dos grupos, tabla fijada + pegar desde Excel, lupa de alejar.
 - v0.11: listas de seguimiento múltiples, Bybit y KuCoin, selector de exchange en el buscador. `cfg.version` = 8.
 - v0.11.1: duraciones personalizadas exactas (p. ej. 1.200.000 s con velas de 5 m), carga progresiva y precarga en segundo plano.
+- v0.12: Bitstamp, dibujos por gráfico (compartir opcional), arreglo del doble clic en flechas de indicadores, buscador "Añadir símbolo" con iconos, botón Diseño turquesa. `cfg.version` = 9.
 - v0.11: Listas + Bybit + KuCoin. Se probó con datos simulados y con `fetch` falso (test/exchanges.test.js, `npm test`). Sin probar con datos reales: formato de velas/tickers de Bybit y KuCoin (alineación diaria/semanal de KuCoin, límites de peticiones), ni en Windows/Electron. Pendiente ver: las anclas con GENESIS_SEC pueden no coincidir con las de TradingView.
 
 ## 9. Pendientes conocidos
@@ -96,4 +102,5 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.9: probado solo en el navegador con datos simulados. Sin probar: Windows/Electron, zoom con Binance real y escala logarítmica en uso real. Ideas: tabla con celdas combinadas, copiar/pegar tablas desde Excel, tamaño de columna manual.
 - v0.10: probado solo en el navegador con datos simulados (el pegado de Excel se simuló con un evento `paste`; falta probar con el portapapeles real y en Windows/Electron). Ideas: tabla con celdas combinadas y ancho de columna manual; la lupa de alejar solo cuenta zooms hechos con la lupa o escala vertical fija.
 - v0.11.1: probado con datos simulados (barras de exactamente 1.200.000 s). Sin probar con Binance real: tiempo de la primera carga y de la descarga en segundo plano (cientos de peticiones de 5 m), peso de la caché con historial largo.
+- v0.12: probado con datos simulados y `fetch` falso. Sin probar con datos reales: Bitstamp (formato/límites de ohlc, alineación diaria, ticker `percent_change_24`/`open_24`), descarga de iconos de internet (en pruebas solo salió la letra), Windows/Electron. Los dibujos antiguos siguen compartidos hasta que el usuario los deje en un solo gráfico. Deshacer (Ctrl+Z) sigue siendo por símbolo, no por gráfico.
 - Fase 4 restante: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto.

@@ -118,8 +118,9 @@ input[type=color]:disabled { cursor: not-allowed; }
 #syncGroup .tb-btn { padding: 4px 6px; }
 
 /* Botón de diseño con fondo para distinguirlo */
-#btnLayout { background: var(--hover); border-color: var(--border); }
-#btnLayout:hover { background: var(--active); color: var(--active-text); border-color: var(--active); }
+/* v0.12: contorno turquesa fijo (mismo tono que la barra de propiedades de los dibujos, un poco más grueso) */
+#btnLayout { background: var(--hover); border: 2px solid #00e5ee; box-shadow: 0 0 0 1px rgba(0,229,238,.18); padding: 3px 5px; }
+#btnLayout:hover { background: var(--active); color: var(--active-text); border-color: #00e5ee; }
 #toolbar { gap: 2px; padding: 4px 6px; }
 .status { margin-right: 4px; }
 
@@ -319,3 +320,15 @@ input[type=color]:disabled { cursor: not-allowed; }
 .wl-b:hover:not(:disabled) { color: var(--text, #fff); }
 .wl-b:disabled { opacity: .3; cursor: default; }
 .ex-tabs { margin-bottom: 8px; }
+
+/* v0.12: botón Añadir, iconos y buscador de símbolos de las listas */
+.wl-addbtn { width: 100%; margin-bottom: 6px; }
+.wl-name { display: flex; align-items: center; gap: 7px; }
+.wl-icon { width: 20px; height: 20px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; font-size: 11px; font-weight: 700; color: #fff; }
+.wl-icon img { width: 20px; height: 20px; display: block; }
+.wl-res { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 8px; }
+.wl-res-l, .wl-res-r { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wl-res-l b { font-weight: 700; }
+.wl-state { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--muted); font-weight: 700; }
+.wl-state.on { background: #00e5ee; border-color: #00e5ee; color: #03282b; }
+.wl-results { max-height: 52vh; }

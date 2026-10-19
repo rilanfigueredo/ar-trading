@@ -66,14 +66,14 @@
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
   function defaultDraw() {
-    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: 'off', keep: false, favBar: true, favPos: { edge: 'left', off: 0.2 }, selPos: { edge: 'top', off: 0.5 }, hideAll: false, styles: {}, templates: {} };
+    return { favs: ['trend', 'hline', 'fib', 'rect'], magnet: 'off', keep: false, favBar: true, favPos: { edge: 'left', off: 0.2 }, selPos: { edge: 'top', off: 0.5 }, hideAll: false, shareNew: false, styles: {}, templates: {} };
   }
   function defaultCharts(symbol) {
-    return ['m:60', 'm:240', 'd:1', 'm:15'].map((tf) => newChart(symbol, tf));
+    return ['m:60', 'm:240', 'd:1', 'm:15'].map((tf, i) => Object.assign(newChart(symbol, tf), { id: 'c' + (i + 1) }));
   }
   function defaultConfig() {
     return {
-      version: 8, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
+      version: 9, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       lists: defaultLists(), listActive: 'l1',
@@ -1089,6 +1089,7 @@
       const d = newChart(cfg.charts[0].symbol, defaultCharts()[i].tf);
       const out = Object.assign({}, d, c);
       out.tf = L.normalizeId(out.tf);
+      out.id = 'c' + (i + 1);
       if (!L.EXCHANGES[out.exchange]) out.exchange = 'binance';
       if (!['candles', 'line', 'area'].includes(out.chartType)) out.chartType = 'candles';
       if (!['normal', 'log', 'percent'].includes(out.scale)) out.scale = 'normal';
@@ -1127,7 +1128,7 @@
     cfg.lists = cleanLists(saved.lists, saved.favorites);
     delete cfg.favorites;
     if (!cfg.lists.some((l) => l.id === cfg.listActive)) cfg.listActive = cfg.lists[0].id;
-    cfg.version = 8;
+    cfg.version = 9;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
@@ -1151,6 +1152,8 @@
         const o = Object.assign(window.TVDraw.defaults(d.type), d);
         if (!o.id) o.id = 'm' + Date.now().toString(36) + i;
         o.locked = !!o.locked; o.hidden = !!o.hidden;
+        // v0.12: los dibujos antiguos (sin gráfico propio) se siguen viendo en todos los gráficos del activo; los nuevos son de su gráfico
+        if (typeof o.chart !== 'string' || !/^c[1-4]$/.test(o.chart)) { delete o.chart; o.shared = true; } else o.shared = !!o.shared;
         if (o.type === 'fib' && !Array.isArray(o.levels)) o.levels = window.TVDraw.fibLevels();
         if (o.type === 'table') window.TVDraw.fixTable(o);
         return o;
@@ -1174,7 +1177,7 @@
     d.favs = favs;
     // Imán: antes sí/no; ahora apagado / débil / fuerte
     d.magnet = d.magnet === 'weak' || d.magnet === 'strong' ? d.magnet : d.magnet === true || d.magnet === 1 ? 'weak' : 'off';
-    ['keep', 'favBar', 'hideAll'].forEach((k) => { d[k] = !!d[k]; });
+    ['keep', 'favBar', 'hideAll', 'shareNew'].forEach((k) => { d[k] = !!d[k]; });
     d.styles = isObj(d.styles) ? d.styles : {};
     if (d.styles.ray) { if (!d.styles.hray) d.styles.hray = d.styles.ray; delete d.styles.ray; }
     d.templates = isObj(d.templates) ? d.templates : {};

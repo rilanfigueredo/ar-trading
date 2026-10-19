@@ -23,11 +23,14 @@ const FUTURES_HOSTS = ['https://fapi.binance.com'];
 
 // ---------- Otros exchanges (v0.11): Bybit y KuCoin, solo spot ----------
 // Todos devuelven las velas en el mismo formato de Binance: [tiempoMs, apertura, máximo, mínimo, cierre, volumen].
-const EXCHANGE_IDS = ['binance', 'bybit', 'kucoin'];
+const EXCHANGE_IDS = ['binance', 'bybit', 'kucoin', 'bitstamp'];
 const EX_HOSTS = {
   bybit: ['https://api.bybit.com', 'https://api.bytick.com'],
   kucoin: ['https://api.kucoin.com'],
+  bitstamp: ['https://www.bitstamp.net'],
 };
+// Bitstamp (v0.12): velas por "step" en segundos; no tiene 1 s, 8 h, 1 semana ni 1 mes (se arman desde las de 1 día o menores).
+const BITSTAMP_STEP = { '1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '12h': 43200, '1d': 86400 };
 const BYBIT_IV = { '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W', '1M': 'M' };
 const KUCOIN_IV = { '1m': '1min', '3m': '3min', '5m': '5min', '15m': '15min', '30m': '30min', '1h': '1hour', '2h': '2hour', '4h': '4hour', '6h': '6hour', '8h': '8hour', '12h': '12hour', '1d': '1day', '1w': '1week', '1M': '1month' };
 const MONTH_MS = 31 * 86400000;
@@ -38,6 +41,14 @@ function parseBybitKlines(json) {
   if (!json || Number(json.retCode) !== 0) throw new Error('Bybit: ' + ((json && json.retMsg) || 'respuesta no válida'));
   const list = (json.result && json.result.list) || [];
   return list.map((r) => [Number(r[0]), r[1], r[2], r[3], r[4], r[5]]).sort((a, b) => a[0] - b[0]);
+}
+// Bitstamp: { data: { pair, ohlc: [{ timestamp (s), open, high, low, close, volume }] } } en orden ascendente.
+function parseBitstampKlines(json) {
+  if (!json || !json.data || !Array.isArray(json.data.ohlc)) {
+    const why = json && (json.reason || (json.errors && JSON.stringify(json.errors)) || json.message);
+    throw new Error('Bitstamp: ' + (why || 'respuesta no válida'));
+  }
+  return json.data.ohlc.map((r) => [Number(r.timestamp) * 1000, r.open, r.high, r.low, r.close, r.volume]).sort((a, b) => a[0] - b[0]);
 }
 // KuCoin: lista en orden descendente de [segundos, apertura, CIERRE, máximo, mínimo, volumen, turnover] (ojo: el cierre va antes que el máximo).
 function parseKucoinKlines(json) {
@@ -54,7 +65,7 @@ async function httpGet(path, params, hosts) {
       const timer = setTimeout(() => ctrl.abort(), 12000);
       const res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal });
       clearTimeout(timer);
-      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : 'Binance';
+      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : 'Binance';
       if (res.status === 429 || res.status === 418) {
         throw new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
       }
@@ -65,7 +76,7 @@ async function httpGet(path, params, hosts) {
     }
   }
   const hs = (hosts || HOSTS)[0] || '';
-  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
 }
 
 // ---------- Datos simulados (solo para pruebas sin internet) ----------
@@ -236,6 +247,21 @@ async function klinesKucoin({ symbol, interval, startTime, endTime, limit }) {
   return hasVal(startTime) ? rows.slice(0, lim) : rows.slice(-lim);
 }
 
+async function klinesBitstamp({ symbol, interval, startTime, endTime, limit }) {
+  const step = BITSTAMP_STEP[interval];
+  if (!step) throw new Error(`Bitstamp no ofrece velas de ${interval}.`);
+  const lim = Math.min(Number(limit) || 500, 1000);
+  const native = await nativeSymbol('bitstamp', symbol);
+  // Bitstamp trabaja en segundos; se pide una ventana de exactamente "limit" velas.
+  let a, b;
+  if (hasVal(startTime)) { a = Math.ceil(Number(startTime) / 1000); b = hasVal(endTime) ? Math.floor(Number(endTime) / 1000) : a + lim * step; }
+  else { b = hasVal(endTime) ? Math.floor(Number(endTime) / 1000) : Math.floor(Date.now() / 1000); a = b - lim * step; }
+  const p = { step: String(step), limit: String(lim), start: String(Math.max(0, a)), end: String(b) };
+  const json = await httpGet(`/api/v2/ohlc/${native}/`, p, EX_HOSTS.bitstamp);
+  const rows = parseBitstampKlines(json);
+  return hasVal(startTime) ? rows.slice(0, lim) : rows.slice(-lim);
+}
+
 async function klines({ exchange, symbol, interval, startTime, endTime, limit }) {
   const ex = exchange || 'binance';
   if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
@@ -244,6 +270,7 @@ async function klines({ exchange, symbol, interval, startTime, endTime, limit })
   if (MOCK()) return mockKlines({ symbol, interval, startTime, endTime, limit });
   if (ex === 'bybit') return klinesBybit({ symbol, interval, startTime, endTime, limit });
   if (ex === 'kucoin') return klinesKucoin({ symbol, interval, startTime, endTime, limit });
+  if (ex === 'bitstamp') return klinesBitstamp({ symbol, interval, startTime, endTime, limit });
   const p = { symbol, interval, limit: String(Math.min(Number(limit) || 500, 1000)) };
   if (hasVal(startTime)) p.startTime = String(Math.floor(Number(startTime)));
   if (hasVal(endTime)) p.endTime = String(Math.floor(Number(endTime)));
@@ -256,6 +283,7 @@ async function symbols(arg) {
   if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
   if (symbolCache[ex]) return symbolCache[ex];
   if (MOCK()) {
+    if (ex === 'bitstamp') return (symbolCache[ex] = ['BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'LTCUSD', 'ADAUSD', 'DOGEUSD', 'LINKUSD', 'ETHBTC', 'BTCEUR'].map((s) => ({ symbol: s, base: s.slice(0, -3), quote: s.slice(-3), native: s.toLowerCase() })));
     const list = MOCK_SYMBOLS.filter((s) => !(ex === 'bybit' && s === 'RAYUSDT') && !(ex === 'kucoin' && s === 'BNBUSDT'));
     return (symbolCache[ex] = list.map((s) => ({ symbol: s, base: s.replace('USDT', ''), quote: 'USDT' })));
   }
@@ -272,6 +300,11 @@ async function symbols(arg) {
       cursor = json.result.nextPageCursor || '';
       if (!cursor) break;
     }
+  } else if (ex === 'bitstamp') {
+    const json = await httpGet('/api/v2/trading-pairs-info/', {}, EX_HOSTS.bitstamp);
+    if (!Array.isArray(json)) throw new Error('Bitstamp: ' + ((json && (json.reason || json.message)) || 'respuesta no válida'));
+    list = json.filter((x) => x.trading === 'Enabled' && /^[A-Za-z0-9]+\/[A-Za-z0-9]+$/.test(String(x.name)))
+      .map((x) => { const [b2, q2] = x.name.split('/'); return { symbol: (b2 + q2).toUpperCase(), base: b2.toUpperCase(), quote: q2.toUpperCase(), native: x.url_symbol }; });
   } else if (ex === 'kucoin') {
     const json = await httpGet('/api/v2/symbols', {}, EX_HOSTS.kucoin);
     if (String(json.code) !== '200000') throw new Error('KuCoin: ' + (json.msg || 'respuesta no válida'));
@@ -286,10 +319,10 @@ async function symbols(arg) {
 }
 // Nombre de un símbolo en el formato del exchange (KuCoin usa BTC-USDT).
 async function nativeSymbol(ex, symbol) {
-  if (ex !== 'kucoin') return symbol;
-  const list = await symbols({ exchange: 'kucoin' });
+  if (ex !== 'kucoin' && ex !== 'bitstamp') return symbol;
+  const list = await symbols({ exchange: ex });
   const f = list.find((x) => x.symbol === symbol);
-  if (!f) throw new Error(`KuCoin no tiene el activo ${symbol}.`);
+  if (!f) throw new Error(`${ex === 'kucoin' ? 'KuCoin' : 'Bitstamp'} no tiene el activo ${symbol}.`);
   return f.native;
 }
 
@@ -329,6 +362,17 @@ async function tickers({ exchange, symbols: syms }) {
     if (Number(json.retCode) !== 0) throw new Error('Bybit: ' + json.retMsg);
     const set = new Set(want);
     json.result.list.forEach((r) => { if (set.has(r.symbol)) out[r.symbol] = { price: parseFloat(r.lastPrice), pct: parseFloat(r.price24hPcnt) * 100 }; });
+  } else if (ex === 'bitstamp') {
+    // Un pedido por activo (Bitstamp no tiene una lista general fiable); los que no existan se omiten.
+    await Promise.all(want.slice(0, 40).map(async (s) => {
+      let native;
+      try { native = await nativeSymbol('bitstamp', s); } catch (e) { return; }
+      const r = await httpGet(`/api/v2/ticker/${native}/`, {}, EX_HOSTS.bitstamp);
+      const last = parseFloat(r.last);
+      let pct = parseFloat(r.percent_change_24);
+      if (!isFinite(pct)) { const o = parseFloat(r.open_24 !== undefined ? r.open_24 : r.open); pct = o ? ((last - o) / o) * 100 : 0; }
+      out[s] = { price: last, pct };
+    }));
   } else {
     const json = await httpGet('/api/v1/market/allTickers', {}, EX_HOSTS.kucoin);
     if (String(json.code) !== '200000') throw new Error('KuCoin: ' + (json.msg || 'respuesta no válida'));
@@ -343,4 +387,4 @@ async function tickers({ exchange, symbols: syms }) {
   return out;
 }
 
-module.exports = { klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, EXCHANGE_IDS };
+module.exports = { klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

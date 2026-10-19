@@ -603,14 +603,18 @@
     binance: { id: 'binance', name: 'Binance', bases: ALL_BASES },
     bybit: { id: 'bybit', name: 'Bybit', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w', '1M'] },
     kucoin: { id: 'kucoin', name: 'KuCoin', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w', '1M'] },
+    bitstamp: { id: 'bitstamp', name: 'Bitstamp', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d'] },
   };
   const exchangeName = (id) => (EXCHANGES[id] || EXCHANGES.binance).name;
-  // Inicio de Binance (17-ago-2017, en segundos): en otros exchanges los bloques de N días/semanas/meses se cuentan desde aquí.
-  const GENESIS_SEC = Date.UTC(2017, 7, 17) / 1000;
+  // Lunes 14-ago-2017 (semana del inicio de Binance), en segundos: en otros exchanges los bloques de N días/semanas/meses se cuentan desde aquí (lunes, como las semanas de los exchanges).
+  const GENESIS_SEC = Date.UTC(2017, 7, 14) / 1000;
   // Adapta una temporalidad a un exchange. Si no se puede armar con sus velas devuelve una copia con unavailable = true y un motivo.
   function tfFor(tf, exchange) {
     const ex = EXCHANGES[exchange || 'binance'] || EXCHANGES.binance;
     if (tf.kind === 'vol' || ex.bases.includes(tf.base)) return tf;
+    // Sin velas de semana ni de mes: se arman desde las de 1 día (semanas en bloques de lunes a domingo; meses naturales).
+    if (tf.base === '1w' && ex.bases.includes('1d')) return Object.assign({}, tf, { base: '1d', ratio: tf.sec / DAY, kind: 'anchor', adapted: true });
+    if (tf.base === '1M' && ex.bases.includes('1d')) { const n = tf.n || 1; return Object.assign({}, tf, { base: '1d', kind: 'months', n, ratio: 30 * n, adapted: true }); }
     const b = BASES.filter((x) => ex.bases.includes(x.id) && x.sec <= tf.sec && tf.sec % x.sec === 0)[0];
     if (!b) return Object.assign({}, tf, { unavailable: true, why: `${ex.name} no ofrece velas de ${tf.base === '1s' ? '1 segundo' : tf.base}, así que no puede armar la temporalidad ${tf.label}. Usa otra temporalidad o cambia de exchange.` });
     const ratio = tf.sec / b.sec;

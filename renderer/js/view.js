@@ -449,7 +449,7 @@
     const priceInternal = (v, log) => (log ? Math.log10(Math.pow(10, Math.log10(v)) + 0.0001) + 4 : v);
     const drawEnv = {
       host, chartEl,
-      series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol,
+      series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol, chart: () => vcfg.id,
       active: () => !!(s.chart && s.series && s.bars.length && !s.loading && !isVol()),
       xOfTime(t) { const lg = logicalAtTime(t); return lg === null ? null : xOfLogical(lg); },
       timeOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? timeAtLogical(lg) : null; },
@@ -649,7 +649,7 @@
           b.title = title;
           b.onmousedown = (e) => e.stopPropagation();
           b.ondblclick = (e) => e.stopPropagation();
-          b.onclick = (e) => { e.stopPropagation(); G.indAction(view, name, action); };
+          b.onclick = (e) => { e.stopPropagation(); s.lastLegendClick = Date.now(); G.indAction(view, name, action); };
           sub.btnEl.appendChild(b);
         };
         if (at > 0) mk('▲', 'Mover el panel hacia arriba', 'up');
@@ -1288,7 +1288,10 @@
       if (overAxis(e)) return;
       const rect = chartEl.getBoundingClientRect();
       if (e.clientY > rect.bottom - (s.chart.timeScale().height() || 0)) return;
-      if (e.target && e.target.closest && e.target.closest('.pl-btns')) return;
+      if (e.target && e.target.closest && (e.target.closest('.pl-btns') || e.target.closest('.pane-legend'))) return;
+      // Al hacer clic dos veces seguidas en una flecha del panel, el botón se vuelve a dibujar y el doble clic llega al gráfico: no debe ocultar los indicadores.
+      if (e.target && !chartEl.contains(e.target)) return;
+      if (Date.now() - (s.lastLegendClick || 0) < 900) return;
       G.onDoubleClick(view);
     });
 

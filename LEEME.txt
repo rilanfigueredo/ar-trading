@@ -1,10 +1,27 @@
-AR_TRADING - VERSION 0.11.1
+AR_TRADING - VERSION 0.12.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.11.1)
+NOVEDADES DE ESTA VERSION (v0.12)
+- BITSTAMP: cuarto exchange (spot, datos publicos). Aparece como pestana en el buscador de activos y en las
+  listas. Simbolos tipo BTCUSD / ETHEUR. No tiene 1 s, 8 h, 1 semana ni 1 mes: las semanas (lunes a domingo) y los
+  meses se arman con velas de 1 dia; 1 s no esta disponible y el grafico lo avisa. IMPORTANTE: solo se probo con
+  respuestas de ejemplo; falta probarlo con datos reales.
+- DIBUJOS POR GRAFICO: cada dibujo se queda SOLO en el grafico donde lo hiciste (aunque otro grafico muestre el
+  mismo activo). Para verlo tambien en los demas: boton "compartir" (dos cuadrados) en la barra de propiedades
+  del dibujo, o clic derecho > "Mostrar tambien en los demas graficos del activo". En la barra izquierda hay un
+  boton para que los dibujos NUEVOS se compartan siempre (apagado por defecto). Los dibujos que ya tenias
+  siguen viendose en todos los graficos; puedes dejarlos solo en uno con el mismo boton.
+- RSI / ESTOCASTICO ARRIBA: al pulsar rapido las flechas del panel, el doble clic ocultaba TODOS los indicadores
+  ("desaparecian"). Corregido: las flechas ya no activan ese doble clic.
+- LISTAS: el boton "+ Anadir simbolo" abre un buscador con sugerencias mientras escribes, pestanas
+  Todos / Binance / Bybit / KuCoin / Bitstamp, flechas + Enter para elegir, y marca los ya anadidos (clic otra vez
+  los quita). Cada activo muestra su icono (si no hay icono o no hay internet, un circulo con la letra).
+- BOTON "DISENO": contorno turquesa fijo, un poco mas grueso que el de la barra de propiedades de dibujos.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.11.1)
 - DURACIONES EXACTAS: si escribes una temporalidad personalizada (por ejemplo 1.200.000 segundos = 13d 21h 20m),
   cada vela dura EXACTAMENTE eso (ya no se redondea a 2W). Se arma con velas de 5 m (4000 por barra).
   Carga poco a poco: primero lo mas reciente y luego va completando hacia atras (unas 120 barras sin tocar

@@ -328,13 +328,14 @@
       ctx.restore();
     }
 
+    const cid = () => (env.chart ? env.chart() : null);
     function paint(ctx, w, h) {
       if (!env.active()) return;
       const sym = env.symbol();
       const single = store.state.multi.length === 1;
       ctx.save();
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      store.list(sym).forEach((d) => {
+      store.listFor(sym, cid()).forEach((d) => {
         if (store.isHidden(sym, d) || store.prefs().hideAll) return;
         drawOne(ctx, d, w, h, { selected: store.isSelected(sym, d.id), single, hover: L.hoverId === d.id });
       });
@@ -360,7 +361,7 @@
       priceAxisViews() {
         const out = [];
         if (!env.active() || store.prefs().hideAll) return out;
-        store.list(env.symbol()).forEach((d) => {
+        store.listFor(env.symbol(), cid()).forEach((d) => {
           if ((d.type !== 'hline' && d.type !== 'hray') || store.isHidden(env.symbol(), d) || !d.pts[0]) return;
           out.push({
             coordinate: () => { const y = env.yOfPrice(d.pts[0].p); return num(y) ? y : -100; },
@@ -421,7 +422,7 @@
 
     function hitAt(x, y) {
       const sym = env.symbol(), w = env.plotWidth();
-      const list = store.prefs().hideAll ? [] : store.list(sym).filter((d) => !store.isHidden(sym, d));
+      const list = store.prefs().hideAll ? [] : store.listFor(sym, cid()).filter((d) => !store.isHidden(sym, d));
       if (store.state.multi.length === 1 && store.state.sel && store.state.sel.sym === sym) {
         const d = list.find((q) => q.id === store.state.sel.id);
         const P = d && toPx(d);
@@ -442,7 +443,7 @@
       const sym = env.symbol();
       if (store.prefs().hideAll) return [];
       const out = [];
-      store.list(sym).forEach((d) => {
+      store.listFor(sym, cid()).forEach((d) => {
         if (store.isHidden(sym, d)) return;
         const P = toPx(d);
         if (P && G.inRect(d, P, r)) out.push(d.id);
@@ -493,8 +494,11 @@
       const obj = Object.assign({}, d); delete obj.cur;
       commit(obj);
     }
+    // Todo dibujo nuevo pertenece al gráfico donde se crea; solo se comparte si la preferencia lo pide.
+    const own = (o) => { o.chart = cid(); o.shared = !!store.prefs().shareNew; return o; };
     function commit(obj) {
       const sym = env.symbol();
+      if (obj.type !== 'ruler' && obj.type !== 'zoom') own(obj);
       if (obj.type === 'ruler') { L.ruler = obj; store.setTool(null); repaint(); return; }
       if (obj.type === 'zoom') {
         store.setTool(null);
@@ -540,7 +544,7 @@
         inp.remove();
         const sym = env.symbol();
         if (ok && txt) {
-          if (isNew) { d.text = txt; store.add(sym, d); } else store.patch(sym, d.id, { text: txt });
+          if (isNew) { d.text = txt; own(d); store.add(sym, d); } else store.patch(sym, d.id, { text: txt });
         }
         if (isNew && !store.prefs().keep) store.setTool(null);
         repaint();
