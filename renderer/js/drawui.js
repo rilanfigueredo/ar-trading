@@ -453,7 +453,7 @@
   // ---------- Panel "Objetos" ----------
   function toggleObjects() {
     const p = X.$('objPanel');
-    if (p.classList.contains('hidden')) { X.$('panel').classList.add('hidden'); X.$('btnIndicators').classList.remove('active'); }
+    if (p.classList.contains('hidden')) { X.$('panel').classList.add('hidden'); X.$('btnIndicators').classList.remove('active'); if (window.TVWatch) window.TVWatch.close(); }
     p.classList.toggle('hidden');
     treeSig = '';
     renderAll();

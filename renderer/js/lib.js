@@ -591,7 +591,28 @@
     return color;
   }
 
-  const lib = { labelDur, MAX_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  // ---------- Exchanges (v0.11) ----------
+  // Qué velas base ofrece cada uno. Si falta alguna (por ejemplo 1s o 8h en Bybit), la temporalidad se arma con otra más pequeña.
+  const ALL_BASES = ['1s', '1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w', '1M'];
+  const EXCHANGES = {
+    binance: { id: 'binance', name: 'Binance', bases: ALL_BASES },
+    bybit: { id: 'bybit', name: 'Bybit', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w', '1M'] },
+    kucoin: { id: 'kucoin', name: 'KuCoin', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w', '1M'] },
+  };
+  const exchangeName = (id) => (EXCHANGES[id] || EXCHANGES.binance).name;
+  // Inicio de Binance (17-ago-2017, en segundos): en otros exchanges los bloques de N días/semanas/meses se cuentan desde aquí.
+  const GENESIS_SEC = Date.UTC(2017, 7, 17) / 1000;
+  // Adapta una temporalidad a un exchange. Si no se puede armar con sus velas devuelve una copia con unavailable = true y un motivo.
+  function tfFor(tf, exchange) {
+    const ex = EXCHANGES[exchange || 'binance'] || EXCHANGES.binance;
+    if (tf.kind === 'vol' || ex.bases.includes(tf.base)) return tf;
+    const b = BASES.filter((x) => ex.bases.includes(x.id) && x.sec <= tf.sec && tf.sec % x.sec === 0)[0];
+    if (!b) return Object.assign({}, tf, { unavailable: true, why: `${ex.name} no ofrece velas de ${tf.base === '1s' ? '1 segundo' : tf.base}, así que no puede armar la temporalidad ${tf.label}. Usa otra temporalidad o cambia de exchange.` });
+    const ratio = tf.sec / b.sec;
+    return Object.assign({}, tf, { base: b.id, ratio, kind: ratio === 1 ? 'native' : 'fixed', adapted: true });
+  }
+
+  const lib = { EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

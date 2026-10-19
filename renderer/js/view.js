@@ -95,7 +95,10 @@
     const view = { index, host, cfg: vcfg, state: s };
 
     const cfg = () => G.cfg();
-    const tfNow = () => L.tfById(vcfg.tf);
+    const exId = () => vcfg.exchange || 'binance';
+    const exName = () => L.exchangeName(exId());
+    // La temporalidad ya adaptada al exchange de este gráfico (Bybit y KuCoin no tienen todas las velas base de Binance).
+    const tfNow = () => L.tfFor(L.tfById(vcfg.tf), exId());
 
     function setStatus(text, kind) {
       s.status = { text: text || '', kind: kind || '' };
@@ -208,10 +211,10 @@
       const w = vcfg.wm;
       wmEl.innerHTML = '';
       const tf = tfNow();
-      const info = G.symbolInfo ? G.symbolInfo(vcfg.symbol) : null;
+      const info = G.symbolInfo ? G.symbolInfo(vcfg.symbol, exId()) : null;
       const items = [
         ['icon', null, 'wm-icon'], ['name', 'Ar_Trading', 'wm-name'], ['ticker', vcfg.symbol, 'wm-ticker'],
-        ['interval', tfLabel(tf), 'wm-interval'], ['desc', (info ? `${info.base} / ${info.quote}` : vcfg.symbol) + ' · Binance', 'wm-desc'],
+        ['interval', tfLabel(tf), 'wm-interval'], ['desc', (info ? `${info.base} / ${info.quote}` : vcfg.symbol) + ' · ' + exName(), 'wm-desc'],
       ];
       let any = false;
       items.forEach(([key, text, cls]) => {
@@ -707,7 +710,7 @@
       const tf = tfNow();
 
       legendEl.innerHTML = '';
-      legendEl.appendChild(el('div', 'lg-title', `${vcfg.symbol} · ${tfLabel(tf)} · Binance${tf.kind === 'vol' ? (s.vol && s.vol.market === 'spot' ? ' Spot' : ' Futuros') : ''}`));
+      legendEl.appendChild(el('div', 'lg-title', `${vcfg.symbol} · ${tfLabel(tf)} · ${exName()}${tf.kind === 'vol' ? (s.vol && s.vol.market === 'spot' ? ' Spot' : ' Futuros') : ''}`));
       const o = el('div', 'lg-ohlc ' + (chg >= 0 ? 'up' : 'down'));
       [['A', b.open], ['M', b.high], ['m', b.low], ['C', b.close]].forEach(([k, v]) => o.appendChild(el('b', '', `${k} ${fmtVal(v)}`)));
       o.appendChild(el('b', '', `${chg >= 0 ? '+' : ''}${fmtVal(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`));
@@ -1009,7 +1012,7 @@
       if (sec && window.TVHistory && TVHistory.supported(tf.base)) {
         // historial local: lo ya descargado sale del disco
         const nBlocks = pages;
-        const r = await TVHistory.fetchBack(vcfg.symbol, tf.base, endMs, nBlocks, () => token !== s.token || s.destroyed);
+        const r = await TVHistory.fetchBack(vcfg.symbol, tf.base, endMs, nBlocks, () => token !== s.token || s.destroyed, exId());
         if (!r) return null;
         const rows = endMs === undefined ? r.rows : r.rows.filter((x) => x[0] <= endMs);
         return { candles: rows.map(L.parseKline), reached: r.reached };
@@ -1020,7 +1023,7 @@
         for (let p0 = 0; p0 < pages && !reached; p0 += 5) {
           const jobs = [];
           for (let p = p0; p < Math.min(pages, p0 + 5); p++) {
-            jobs.push(API.klines({ symbol: vcfg.symbol, interval: tf.base, limit: 1000, endTime: first - p * span }));
+            jobs.push(API.klines({ exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit: 1000, endTime: first - p * span }));
           }
           const results = await Promise.all(jobs);
           if (token !== s.token || s.destroyed) return null;
@@ -1032,7 +1035,7 @@
       } else {
         let end = endMs;
         for (let p = 0; p < pages; p++) {
-          const params = { symbol: vcfg.symbol, interval: tf.base, limit: 1000 };
+          const params = { exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit: 1000 };
           if (end !== undefined) params.endTime = end;
           const rows = await API.klines(params);
           if (token !== s.token || s.destroyed) return null;
@@ -1056,20 +1059,29 @@
       stopPolling();
       hideOverlay();
       const tf = tfNow();
+      if (tf.unavailable) { // este exchange no puede armar esa temporalidad: se avisa en vez de cambiarla en silencio
+        s.loading = false;
+        setStatus('Sin datos', 'err');
+        showOverlay(tf.why, false);
+        return;
+      }
       s.loadingMore = false; s.reachedStart = false; s.loading = true;
       setStatus('Cargando historial…', 'loading');
       try {
         s.anchor = 0;
         if (L.needsAnchor(tf)) {
-          const first = await API.klines({ symbol: vcfg.symbol, interval: tf.base, startTime: 0, limit: 1 });
-          if (token !== s.token || s.destroyed) return;
-          if (first.length) s.anchor = Math.floor(first[0][0] / 1000);
+          if (exId() !== 'binance') s.anchor = L.GENESIS_SEC; // Bybit/KuCoin no dan "la primera vela": se cuenta desde la fecha de inicio de Binance
+          else {
+            const first = await API.klines({ symbol: vcfg.symbol, interval: tf.base, startTime: 0, limit: 1 });
+            if (token !== s.token || s.destroyed) return;
+            if (first.length) s.anchor = Math.floor(first[0][0] / 1000);
+          }
         }
         // Primera carga corta (se ve enseguida); el resto del historial se completa solo en segundo plano (autoFill).
         const pages = Math.min(16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
         const res = await fetchBack(undefined, pages, token);
         if (!res) return;
-        if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en Binance.`);
+        if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en ${exName()}.`);
         s.base = res.candles;
         s.reachedStart = res.reached;
         s.bars = L.aggregate(s.base, tf, s.anchor);
@@ -1104,7 +1116,7 @@
       const tf = tfNow();
       if (!window.TVHistory || !TVHistory.supported(tf.base) || !s.base.length || s.reachedStart) return;
       const blocks = Math.max(4, Math.min(40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
-      TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed);
+      TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
     async function loadMore(pagesOverride) {
       if (tfNow().kind === 'vol') return loadMoreVol();
@@ -1167,7 +1179,7 @@
       try {
         const tf = tfNow();
         const limit = Math.min(1000, Math.max(5, L.ratioOf(tf) * 2 + 2));
-        const rows = await API.klines({ symbol: vcfg.symbol, interval: tf.base, limit });
+        const rows = await API.klines({ exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit });
         if (token !== s.token || s.destroyed) return;
         const prevLast = s.bars[s.bars.length - 1].time;
         L.mergeCandles(s.base, rows.map(L.parseKline));
@@ -1293,7 +1305,11 @@
     Object.assign(view, {
       load,
       snapshotHeights,
-      setSymbol(sym) { if (sym === vcfg.symbol) return; vcfg.symbol = sym; renderWatermark(); load(); },
+      setSymbol(sym, ex) {
+        const nx = ex || exId();
+        if (sym === vcfg.symbol && nx === exId()) return;
+        vcfg.symbol = sym; vcfg.exchange = nx; renderWatermark(); load();
+      },
       setTf(id) {
         if (id === vcfg.tf) return;
         vcfg.tf = id;

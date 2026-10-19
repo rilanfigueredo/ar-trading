@@ -296,3 +296,26 @@ input[type=color]:disabled { cursor: not-allowed; }
 #selBar .sb-title { font-size: 14px; font-weight: 600; }
 #selBar .pal-btn { height: 30px; width: 32px; }
 #selBar .fav-grip svg { width: 20px; height: 20px; }
+
+/* ---- Listas de seguimiento (v0.11) ---- */
+#watchPanel { width: 320px; flex: none; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+#watchPanel.hidden { display: none; }
+#watchPanel h3 { margin: 0 0 8px; font-size: 14px; }
+.wl-top, .wl-add { display: flex; gap: 4px; margin-bottom: 6px; align-items: center; }
+.wl-top input, .wl-add input { flex: 1; min-width: 0; padding: 5px 7px; }
+.wl-sel { flex: 1; min-width: 0; padding: 5px; }
+.wl-ex { padding: 5px; }
+.wl-cur { width: 100%; margin-bottom: 8px; }
+.wl-err { color: var(--down, #ef5350); font-size: 12px; margin: 4px 0 8px; }
+.wl-row { display: flex; align-items: center; gap: 6px; padding: 6px 6px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.wl-row:hover, .wl-row.sel { background: var(--hover); }
+.wl-name { flex: 1; min-width: 0; font-weight: 600; }
+.wl-tag { margin-left: 5px; color: var(--muted); font-weight: 400; font-size: 10px; }
+.wl-price { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.wl-pct { min-width: 56px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.wl-acts { display: none; gap: 1px; }
+.wl-row:hover .wl-acts { display: flex; }
+.wl-b { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 12px; }
+.wl-b:hover:not(:disabled) { color: var(--text, #fff); }
+.wl-b:disabled { opacity: .3; cursor: default; }
+.ex-tabs { margin-bottom: 8px; }

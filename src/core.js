@@ -21,6 +21,30 @@ const GENESIS = Date.UTC(2017, 7, 17);
 
 const FUTURES_HOSTS = ['https://fapi.binance.com'];
 
+// ---------- Otros exchanges (v0.11): Bybit y KuCoin, solo spot ----------
+// Todos devuelven las velas en el mismo formato de Binance: [tiempoMs, apertura, máximo, mínimo, cierre, volumen].
+const EXCHANGE_IDS = ['binance', 'bybit', 'kucoin'];
+const EX_HOSTS = {
+  bybit: ['https://api.bybit.com', 'https://api.bytick.com'],
+  kucoin: ['https://api.kucoin.com'],
+};
+const BYBIT_IV = { '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '6h': '360', '12h': '720', '1d': 'D', '1w': 'W', '1M': 'M' };
+const KUCOIN_IV = { '1m': '1min', '3m': '3min', '5m': '5min', '15m': '15min', '30m': '30min', '1h': '1hour', '2h': '2hour', '4h': '4hour', '6h': '6hour', '8h': '8hour', '12h': '12hour', '1d': '1day', '1w': '1week', '1M': '1month' };
+const MONTH_MS = 31 * 86400000;
+const ivMs = (iv) => (iv === '1M' ? MONTH_MS : IV_MS[iv]);
+
+// Bybit: lista en orden descendente de [inicioMs, a, máx, mín, c, vol, turnover].
+function parseBybitKlines(json) {
+  if (!json || Number(json.retCode) !== 0) throw new Error('Bybit: ' + ((json && json.retMsg) || 'respuesta no válida'));
+  const list = (json.result && json.result.list) || [];
+  return list.map((r) => [Number(r[0]), r[1], r[2], r[3], r[4], r[5]]).sort((a, b) => a[0] - b[0]);
+}
+// KuCoin: lista en orden descendente de [segundos, apertura, CIERRE, máximo, mínimo, volumen, turnover] (ojo: el cierre va antes que el máximo).
+function parseKucoinKlines(json) {
+  if (!json || String(json.code) !== '200000') throw new Error('KuCoin: ' + ((json && json.msg) || 'respuesta no válida'));
+  return (json.data || []).map((r) => [Number(r[0]) * 1000, r[1], r[3], r[4], r[2], r[5]]).sort((a, b) => a[0] - b[0]);
+}
+
 async function httpGet(path, params, hosts) {
   const qs = new URLSearchParams(params || {}).toString();
   let lastErr = null;
@@ -30,16 +54,18 @@ async function httpGet(path, params, hosts) {
       const timer = setTimeout(() => ctrl.abort(), 12000);
       const res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal });
       clearTimeout(timer);
+      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : 'Binance';
       if (res.status === 429 || res.status === 418) {
-        throw new Error('Binance pidió ir más despacio (límite de peticiones). Espera un momento.');
+        throw new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
       }
-      if (!res.ok) throw new Error(`Binance respondió ${res.status}`);
+      if (!res.ok) throw new Error(`${exName} respondió ${res.status}`);
       return await res.json();
     } catch (e) {
       lastErr = e;
     }
   }
-  throw new Error('No se pudo conectar con Binance: ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+  const hs = (hosts || HOSTS)[0] || '';
+  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
 }
 
 // ---------- Datos simulados (solo para pruebas sin internet) ----------
@@ -179,25 +205,142 @@ async function aggTrades({ symbol, fromId, limit, market }) {
 }
 
 // ---------- API pública del núcleo ----------
-async function klines({ symbol, interval, startTime, endTime, limit }) {
+const hasVal = (v) => v !== undefined && v !== null && v !== '';
+
+async function klinesBybit({ symbol, interval, startTime, endTime, limit }) {
+  const iv = BYBIT_IV[interval];
+  if (!iv) throw new Error(`Bybit no ofrece velas de ${interval}.`);
+  const lim = Math.min(Number(limit) || 500, 1000);
+  const p = { category: 'spot', symbol, interval: iv, limit: String(lim) };
+  // Bybit pide inicio y fin juntos: si falta uno se calcula con el tamaño de la vela.
+  if (hasVal(startTime)) {
+    p.start = String(Math.floor(Number(startTime)));
+    p.end = String(hasVal(endTime) ? Math.floor(Number(endTime)) : Math.floor(Number(startTime)) + lim * ivMs(interval));
+  } else if (hasVal(endTime)) p.end = String(Math.floor(Number(endTime)));
+  const json = await httpGet('/v5/market/kline', p, EX_HOSTS.bybit);
+  return parseBybitKlines(json).slice(0, lim);
+}
+async function klinesKucoin({ symbol, interval, startTime, endTime, limit }) {
+  const iv = KUCOIN_IV[interval];
+  if (!iv) throw new Error(`KuCoin no ofrece velas de ${interval}.`);
+  const lim = Math.min(Number(limit) || 500, 1000);
+  const native = await nativeSymbol('kucoin', symbol);
+  const span = (hasVal(startTime) ? lim : Math.max(lim, 1000)) * ivMs(interval); // sin inicio se mira una ventana amplia hacia atrás
+  let a, b;
+  if (hasVal(startTime)) { a = Math.floor(Number(startTime)); b = hasVal(endTime) ? Math.floor(Number(endTime)) : a + span; }
+  else { b = hasVal(endTime) ? Math.floor(Number(endTime)) : Date.now(); a = b - span; }
+  const p = { symbol: native, type: iv, startAt: String(Math.max(0, Math.floor(a / 1000))), endAt: String(Math.floor(b / 1000)) };
+  const json = await httpGet('/api/v1/market/candles', p, EX_HOSTS.kucoin);
+  const rows = parseKucoinKlines(json);
+  // KuCoin entrega las más recientes primero: si hay más de las pedidas, se conservan las del extremo pedido.
+  return hasVal(startTime) ? rows.slice(0, lim) : rows.slice(-lim);
+}
+
+async function klines({ exchange, symbol, interval, startTime, endTime, limit }) {
+  const ex = exchange || 'binance';
+  if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
   if (!/^[A-Z0-9]{3,20}$/.test(String(symbol))) throw new Error('Símbolo inválido');
   if (!VALID_INTERVALS.includes(interval)) throw new Error('Intervalo inválido');
   if (MOCK()) return mockKlines({ symbol, interval, startTime, endTime, limit });
+  if (ex === 'bybit') return klinesBybit({ symbol, interval, startTime, endTime, limit });
+  if (ex === 'kucoin') return klinesKucoin({ symbol, interval, startTime, endTime, limit });
   const p = { symbol, interval, limit: String(Math.min(Number(limit) || 500, 1000)) };
-  if (startTime !== undefined && startTime !== null && startTime !== '') p.startTime = String(Math.floor(Number(startTime)));
-  if (endTime !== undefined && endTime !== null && endTime !== '') p.endTime = String(Math.floor(Number(endTime)));
+  if (hasVal(startTime)) p.startTime = String(Math.floor(Number(startTime)));
+  if (hasVal(endTime)) p.endTime = String(Math.floor(Number(endTime)));
   return httpGet('/api/v3/klines', p);
 }
 
-let symbolCache = null;
-async function symbols() {
-  if (symbolCache) return symbolCache;
-  if (MOCK()) return (symbolCache = MOCK_SYMBOLS.map((s) => ({ symbol: s, base: s.replace('USDT', ''), quote: 'USDT' })));
-  const info = await httpGet('/api/v3/exchangeInfo');
-  symbolCache = info.symbols
-    .filter((s) => s.status === 'TRADING' && s.isSpotTradingAllowed)
-    .map((s) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset }));
-  return symbolCache;
+const symbolCache = {};
+async function symbols(arg) {
+  const ex = (arg && arg.exchange) || 'binance';
+  if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
+  if (symbolCache[ex]) return symbolCache[ex];
+  if (MOCK()) {
+    const list = MOCK_SYMBOLS.filter((s) => !(ex === 'bybit' && s === 'RAYUSDT') && !(ex === 'kucoin' && s === 'BNBUSDT'));
+    return (symbolCache[ex] = list.map((s) => ({ symbol: s, base: s.replace('USDT', ''), quote: 'USDT' })));
+  }
+  let list;
+  if (ex === 'bybit') {
+    list = [];
+    let cursor = '';
+    for (let i = 0; i < 10; i++) {
+      const p = { category: 'spot', limit: '1000' };
+      if (cursor) p.cursor = cursor;
+      const json = await httpGet('/v5/market/instruments-info', p, EX_HOSTS.bybit);
+      if (Number(json.retCode) !== 0) throw new Error('Bybit: ' + json.retMsg);
+      (json.result.list || []).forEach((x) => { if (x.status === 'Trading') list.push({ symbol: x.symbol, base: x.baseCoin, quote: x.quoteCoin }); });
+      cursor = json.result.nextPageCursor || '';
+      if (!cursor) break;
+    }
+  } else if (ex === 'kucoin') {
+    const json = await httpGet('/api/v2/symbols', {}, EX_HOSTS.kucoin);
+    if (String(json.code) !== '200000') throw new Error('KuCoin: ' + (json.msg || 'respuesta no válida'));
+    list = json.data.filter((x) => x.enableTrading).map((x) => ({ symbol: x.baseCurrency + x.quoteCurrency, base: x.baseCurrency, quote: x.quoteCurrency, native: x.symbol }));
+  } else {
+    const info = await httpGet('/api/v3/exchangeInfo');
+    list = info.symbols
+      .filter((s) => s.status === 'TRADING' && s.isSpotTradingAllowed)
+      .map((s) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset }));
+  }
+  return (symbolCache[ex] = list);
+}
+// Nombre de un símbolo en el formato del exchange (KuCoin usa BTC-USDT).
+async function nativeSymbol(ex, symbol) {
+  if (ex !== 'kucoin') return symbol;
+  const list = await symbols({ exchange: 'kucoin' });
+  const f = list.find((x) => x.symbol === symbol);
+  if (!f) throw new Error(`KuCoin no tiene el activo ${symbol}.`);
+  return f.native;
 }
 
-module.exports = { klines, symbols, aggTrades };
+// ---------- Precios actuales y cambio de 24 h (listas de seguimiento) ----------
+function mockTickers(syms) {
+  const now = Date.now();
+  const out = {};
+  syms.forEach((s) => {
+    const p = mockPrice(s, now), q = mockPrice(s, now - 86400000);
+    out[s] = { price: p, pct: ((p - q) / q) * 100 };
+  });
+  return out;
+}
+const tickerCache = {};
+// Devuelve { SÍMBOLO: { price, pct } } de los símbolos pedidos; los que el exchange no conoce simplemente no aparecen.
+async function tickers({ exchange, symbols: syms }) {
+  const ex = exchange || 'binance';
+  if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
+  const want = (Array.isArray(syms) ? syms : String(syms || '').split(',')).filter((x) => /^[A-Z0-9]{3,20}$/.test(x));
+  if (!want.length) return {};
+  if (MOCK()) return mockTickers(want);
+  const now = Date.now();
+  let hit = tickerCache[ex + '|' + want.join(',')];
+  if (hit && now - hit.t < 2500) return hit.v;
+  const out = {};
+  if (ex === 'binance') {
+    for (let i = 0; i < want.length; i += 100) {
+      const part = want.slice(i, i + 100);
+      const rows = await httpGet('/api/v3/ticker/24hr', { symbols: JSON.stringify(part), type: 'MINI' });
+      rows.forEach((r) => {
+        const open = parseFloat(r.openPrice), last = parseFloat(r.lastPrice);
+        out[r.symbol] = { price: last, pct: open ? ((last - open) / open) * 100 : 0 };
+      });
+    }
+  } else if (ex === 'bybit') {
+    const json = await httpGet('/v5/market/tickers', { category: 'spot' }, EX_HOSTS.bybit);
+    if (Number(json.retCode) !== 0) throw new Error('Bybit: ' + json.retMsg);
+    const set = new Set(want);
+    json.result.list.forEach((r) => { if (set.has(r.symbol)) out[r.symbol] = { price: parseFloat(r.lastPrice), pct: parseFloat(r.price24hPcnt) * 100 }; });
+  } else {
+    const json = await httpGet('/api/v1/market/allTickers', {}, EX_HOSTS.kucoin);
+    if (String(json.code) !== '200000') throw new Error('KuCoin: ' + (json.msg || 'respuesta no válida'));
+    const set = new Set(want);
+    json.data.ticker.forEach((r) => {
+      const k = String(r.symbol).replace('-', '');
+      if (set.has(k)) out[k] = { price: parseFloat(r.last), pct: parseFloat(r.changeRate) * 100 };
+    });
+  }
+  Object.keys(out).forEach((k) => { if (!isFinite(out[k].price)) delete out[k]; });
+  tickerCache[ex + '|' + want.join(',')] = { t: now, v: out };
+  return out;
+}
+
+module.exports = { klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, EXCHANGE_IDS };

@@ -60,7 +60,7 @@
   // Cada gráfico lleva su propia configuración (indicadores, medias, velas, fondo, rejillas y marca de agua).
   function newChart(symbol, tf) {
     return {
-      symbol: symbol || 'BTCUSDT', tf, chartType: 'candles', scale: 'normal', invert: false,
+      symbol: symbol || 'BTCUSDT', exchange: 'binance', tf, chartType: 'candles', scale: 'normal', invert: false,
       ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch'], paneH: {}, candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
     };
   }
@@ -73,14 +73,47 @@
   }
   function defaultConfig() {
     return {
-      version: 7, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
+      version: 8, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
-      favorites: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT'],
+      lists: defaultLists(), listActive: 'l1',
     };
   }
+  // Listas de seguimiento (v0.11): cada lista tiene nombre y activos { s: símbolo, x: exchange }.
+  const DEFAULT_FAVS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT'];
+  function defaultLists(favs) {
+    return [{ id: 'l1', name: 'Favoritos', items: (favs || DEFAULT_FAVS).map((s2) => ({ s: s2, x: 'binance' })) }];
+  }
+  // Limpia las listas guardadas (o, si es una configuración anterior, convierte los favoritos viejos en la primera lista).
+  function cleanLists(src, oldFavs) {
+    const out = [];
+    const used = new Set();
+    if (Array.isArray(src)) {
+      src.forEach((l) => {
+        if (!l || typeof l !== 'object') return;
+        let id = typeof l.id === 'string' && l.id ? l.id : 'l' + Date.now() + out.length;
+        while (used.has(id)) id += 'x';
+        used.add(id);
+        const seen = new Set();
+        const items = [];
+        (Array.isArray(l.items) ? l.items : []).forEach((it) => {
+          if (!it || !/^[A-Z0-9]{3,20}$/.test(String(it.s))) return;
+          const x = L.EXCHANGES[it.x] ? it.x : 'binance';
+          if (seen.has(x + '|' + it.s)) return;
+          seen.add(x + '|' + it.s);
+          items.push({ s: it.s, x });
+        });
+        out.push({ id, name: String(l.name || 'Lista').slice(0, 40), items });
+      });
+    }
+    if (!out.length) {
+      const favs = Array.isArray(oldFavs) ? oldFavs.filter((f) => /^[A-Z0-9]{3,20}$/.test(String(f))) : null;
+      return defaultLists(favs && favs.length ? favs : null);
+    }
+    return out;
+  }
 
-  const A = { cfg: defaultConfig(), views: [], symbols: null, max: -1 };
+  const A = { cfg: defaultConfig(), views: [], symbolsBy: {}, max: -1 };
   const $ = (id) => document.getElementById(id);
   let saveTimer = null;
   function saveCfg() {
@@ -119,7 +152,7 @@
       if (!$('panel').classList.contains('hidden') && view.index === A.cfg.active) renderPanel();
       if (window.TVDrawUI) window.TVDrawUI.refresh();
     },
-    symbolInfo(sym) { return (A.symbols || []).find((x) => x.symbol === sym) || null; },
+    symbolInfo(sym, ex) { return ((A.symbolsBy || {})[ex || 'binance'] || []).find((x) => x.symbol === sym) || null; },
     onPaneSize() { saveCfg(); },
     onStatus(view) { if (view.index === A.cfg.active) renderStatus(); },
     // Tiempo sincronizado: los demás gráficos alinean su borde derecho con el del gráfico que se mueve.
@@ -246,7 +279,7 @@
     const c = activeCfg();
     document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => b.classList.toggle('active', b.dataset.type === c.chartType));
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => b.classList.toggle('active', b.dataset.scale === c.scale));
-    $('btnSymbol').textContent = c.symbol;
+    $('btnSymbol').textContent = c.symbol + ((c.exchange || 'binance') !== 'binance' ? ' · ' + L.exchangeName(c.exchange) : '');
     document.body.dataset.theme = A.cfg.theme;
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
     const multi = A.views.length > 1;
@@ -264,11 +297,22 @@
     activeView().setTf(id);
     markActive();
   }
-  function setSymbol(sym) {
+  function setSymbol(sym, ex) {
     closeModal();
-    activeView().setSymbol(sym);
+    activeView().setSymbol(sym, ex);
     saveCfg();
     markActive();
+    if (window.TVWatch) window.TVWatch.refresh();
+  }
+  // Listas de símbolos por exchange (se piden una vez). Si falla, el error se muestra donde se use, sin esconderlo.
+  const symPromises = {};
+  function loadSymbols(ex) {
+    ex = ex || 'binance';
+    if (A.symbolsBy[ex]) return Promise.resolve(A.symbolsBy[ex]);
+    if (!symPromises[ex]) {
+      symPromises[ex] = API.symbols(ex).then((list) => { A.symbolsBy[ex] = list; return list; }, (e) => { delete symPromises[ex]; throw e; });
+    }
+    return symPromises[ex];
   }
   function setChartType(t) { activeView().setChartType(t); saveCfg(); markActive(); }
   function setScale(sc) { activeView().setScale(sc); saveCfg(); markActive(); }
@@ -423,18 +467,31 @@
 
   function openSymbolPicker() {
     openModal((box) => {
+      let pickEx = activeCfg().exchange || 'binance';
+      let loadErr = null;
       const h = document.createElement('h3');
-      h.textContent = 'Buscar activo (Binance)';
+      h.textContent = 'Buscar activo';
+      const tabs = document.createElement('div');
+      tabs.className = 'group ex-tabs';
       const input = document.createElement('input');
       input.type = 'text'; input.className = 'sym-search'; input.placeholder = 'Escribe, por ejemplo BTC, ETHUSDT…';
       const list = document.createElement('div');
       list.className = 'sym-list';
-      box.append(h, input, list);
+      box.append(h, tabs, input, list);
 
-      const all = A.symbols;
       let current = [];
       const render = () => {
+        const exName = L.exchangeName(pickEx);
+        const all = A.symbolsBy[pickEx] || null;
         const q = input.value.trim().toUpperCase();
+        tabs.innerHTML = '';
+        Object.keys(L.EXCHANGES).forEach((id) => {
+          const b = document.createElement('button');
+          b.className = 'tb-btn' + (id === pickEx ? ' active' : '');
+          b.textContent = L.exchangeName(id);
+          b.onclick = () => { pickEx = id; loadErr = null; ensure(); render(); input.focus(); };
+          tabs.appendChild(b);
+        });
         list.innerHTML = '';
         current = [];
         const add = (title, items) => {
@@ -442,46 +499,56 @@
           const t = document.createElement('div');
           t.className = 'sym-title'; t.textContent = title;
           list.appendChild(t);
-          items.forEach((s) => {
+          items.forEach((s2) => {
             const d = document.createElement('div');
             d.className = 'sym-item' + (current.length === 0 ? ' sel' : '');
-            const a = document.createElement('span'); a.textContent = s.symbol;
-            const m = document.createElement('small'); m.textContent = s.quote ? `${s.base} / ${s.quote}` : 'Binance';
+            const a = document.createElement('span'); a.textContent = s2.symbol;
+            const m = document.createElement('small'); m.textContent = s2.quote ? `${s2.base} / ${s2.quote}` : exName;
             d.append(a, m);
-            d.onclick = () => setSymbol(s.symbol);
+            d.onclick = () => setSymbol(s2.symbol, pickEx);
             list.appendChild(d);
-            current.push(s.symbol);
+            current.push(s2.symbol);
           });
         };
-        const favs = A.cfg.favorites
+        const act = A.cfg.lists.find((l) => l.id === A.cfg.listActive) || A.cfg.lists[0];
+        const favs = act.items
+          .filter((it) => it.x === pickEx)
+          .map((it) => it.s)
           .filter((f) => !q || f.includes(q))
-          .filter((f) => !all || all.some((s) => s.symbol === f))
-          .map((f) => (all && all.find((s) => s.symbol === f)) || { symbol: f });
-        add('Tus activos', favs);
+          .filter((f) => !all || all.some((s2) => s2.symbol === f))
+          .map((f) => (all && all.find((s2) => s2.symbol === f)) || { symbol: f });
+        add(`Lista: ${act.name}`, favs);
         if (all) {
           const favSet = new Set(favs.map((f) => f.symbol));
-          const res = all.filter((s) => (!q || s.symbol.includes(q)) && !favSet.has(s.symbol));
-          const pref = res.filter((s) => s.quote === 'USDT').concat(res.filter((s) => s.quote !== 'USDT')).slice(0, 120);
+          const res = all.filter((s2) => (!q || s2.symbol.includes(q)) && !favSet.has(s2.symbol));
+          const pref = res.filter((s2) => s2.quote === 'USDT').concat(res.filter((s2) => s2.quote !== 'USDT')).slice(0, 120);
           add(q ? 'Resultados' : 'Todos (USDT primero)', pref);
         } else {
           const t = document.createElement('div');
-          t.className = 'hint'; t.textContent = 'Cargando la lista completa de Binance… Mientras tanto puedes escribir el símbolo y pulsar Enter.';
+          t.className = 'hint';
+          t.textContent = loadErr ? `No se pudo cargar la lista de ${exName}: ${loadErr}` : `Cargando la lista completa de ${exName}…`;
           list.appendChild(t);
         }
-        if (q && !current.length) {
+        if (all && q && !current.length) {
           const t = document.createElement('div');
-          t.className = 'hint'; t.textContent = `No hay resultados para "${q}" en Binance spot.`;
+          t.className = 'hint'; t.textContent = `No hay resultados para "${q}" en ${exName} spot.`;
           list.appendChild(t);
         }
+      };
+      const ensure = () => {
+        const ex = pickEx;
+        if (A.symbolsBy[ex]) return;
+        loadSymbols(ex).then(() => { if (pickEx === ex) render(); }, (e) => { if (pickEx === ex) { loadErr = (e && e.message) || String(e); render(); } });
       };
       input.oninput = render;
       input.onkeydown = (e) => {
         if (e.key === 'Enter') {
           const q = input.value.trim().toUpperCase();
-          if (current.length) setSymbol(current[0]);
-          else if (/^[A-Z0-9]{3,20}$/.test(q)) setSymbol(q);
+          if (current.length) setSymbol(current[0], pickEx);
+          else if (!A.symbolsBy[pickEx] && /^[A-Z0-9]{3,20}$/.test(q)) setSymbol(q, pickEx);
         }
       };
+      ensure();
       render();
       setTimeout(() => input.focus(), 0);
     });
@@ -766,7 +833,7 @@
       const row = mk('div', { className: 'row-actions' });
       row.append(reset, close);
       box.appendChild(row);
-      box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance (API pública y gratuita). Tus cambios se guardan automáticamente.' }));
+      box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance, Bybit y KuCoin (API públicas y gratuitas). Tus cambios se guardan automáticamente.' }));
       decoratePalette(box);
     }, { floating: true });
   }
@@ -951,7 +1018,7 @@
   }
   function togglePanel() {
     const p = $('panel');
-    if (p.classList.contains('hidden')) { renderPanel(); $('objPanel').classList.add('hidden'); if (window.TVDrawUI) window.TVDrawUI.refresh(); }
+    if (p.classList.contains('hidden')) { renderPanel(); $('objPanel').classList.add('hidden'); if (window.TVWatch) window.TVWatch.close(); if (window.TVDrawUI) window.TVDrawUI.refresh(); }
     p.classList.toggle('hidden');
     $('btnIndicators').classList.toggle('active', !p.classList.contains('hidden'));
   }
@@ -961,6 +1028,7 @@
     document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { b.onclick = () => setChartType(b.dataset.type); });
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.onclick = () => setScale(b.dataset.scale); });
     $('btnSymbol').onclick = openSymbolPicker;
+    $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
     $('syncCross').onclick = () => {
@@ -1021,6 +1089,7 @@
       const d = newChart(cfg.charts[0].symbol, defaultCharts()[i].tf);
       const out = Object.assign({}, d, c);
       out.tf = L.normalizeId(out.tf);
+      if (!L.EXCHANGES[out.exchange]) out.exchange = 'binance';
       if (!['candles', 'line', 'area'].includes(out.chartType)) out.chartType = 'candles';
       if (!['normal', 'log', 'percent'].includes(out.scale)) out.scale = 'normal';
       out.invert = !!out.invert;
@@ -1055,7 +1124,10 @@
     cfg.drawings = cleanDrawings(saved.drawings);
     cfg.draw = cleanDrawPrefs(saved.draw);
     cfg.folders = cleanFolders(saved.folders, cfg.drawings);
-    cfg.version = 7;
+    cfg.lists = cleanLists(saved.lists, saved.favorites);
+    delete cfg.favorites;
+    if (!cfg.lists.some((l) => l.id === cfg.listActive)) cfg.listActive = cfg.lists[0].id;
+    cfg.version = 8;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
@@ -1162,7 +1234,10 @@
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
     applyLayout();
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
-    API.symbols().then((s) => { A.symbols = s; eachView((v) => v.applyLook()); }).catch(() => {});
+    if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
+    const used = new Set(['binance']);
+    (A.cfg.charts || []).forEach((c) => used.add(c.exchange || 'binance'));
+    used.forEach((ex) => loadSymbols(ex).then(() => eachView((v) => v.applyLook())).catch(() => {}));
   }
 
   // Las ventanas flotantes (Ajustes, propiedades de dibujos...) se cierran al hacer clic fuera de ellas

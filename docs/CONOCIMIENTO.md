@@ -22,7 +22,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.10)
+## 3. Funciones actuales (v0.11)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -37,6 +37,9 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **v0.8 historial en temporalidades grandes**: `makeTf` redondea duraciones con `ratio > MAX_RATIO (300)` a una duración cercana de ≤300 velas base (nota visible `tf.note`); `view.js` calcula las páginas iniciales según `ratioOf(tf)` y `autoFill()` completa hasta ~1500 barras (máx. 150 bloques); `history.js` agrupa hasta 8 bloques por petición.
 - **Dibujos (v0.7, ampliado en v0.8 — ver línea siguiente)**: línea de tendencia (extensión izq./der.), horizontal (etiqueta en el eje de precios), rayo [v0.8: ahora rayo horizontal `hray`], canal paralelo (3 puntos), polilínea, Fibonacci (niveles editables: valor, color, activo; fondo, precio, extensiones), rectángulo, texto (editor interno, `prompt()` no existe en Electron) y regla (efímera, no se guarda). Imán a A/M/m/C (40 px), modo "mantener herramienta", ocultar todos, bloquear/ocultar/duplicar, deshacer/rehacer (por activo, 60 pasos), árbol de objetos, barra de favoritos, barra del objeto seleccionado, atajos Alt+T/H/F/R. Se guardan **por activo** en `cfg.drawings[símbolo]` (puntos en tiempo y precio reales: valen en cualquier temporalidad y gráfico del mismo activo). Preferencias globales en `cfg.draw` (`favs, magnet, keep, favBar, hideAll, styles`). No se dibuja en velas por volumen.
 - Configuración guardada y migrada entre versiones (`migrate()` en app.js, `cfg.version`).
+
+- **Más exchanges (v0.11):** Binance, Bybit y KuCoin (spot, API públicas). `vcfg.exchange` por gráfico; `core.klines/symbols/tickers({exchange})`; `L.EXCHANGES` y `L.tfFor(tf, exchange)` adaptan la temporalidad base al exchange o la marcan `unavailable` (aviso en pantalla). Formato normalizado `[tMs,o,h,l,c,v]`. Caché IndexedDB de otros exchanges con prefijo `ex:` (Binance conserva sus claves). Anclas (d/w/mes) fuera de Binance = `L.GENESIS_SEC`. Símbolos por exchange: `A.symbolsBy[ex]`, `loadSymbols(ex)`.
+- **Listas de seguimiento (v0.11):** `renderer/js/watch.js` (`TVWatch`), panel `#watchPanel` excluyente con `#panel` y `#objPanel`. `cfg.lists=[{id,name,items:[{s,x}]}]`, `cfg.listActive`; `favorites` migra a la lista "Favoritos" (`cleanLists` en app.js). Tickers cada 5 s (`API.tickers`), errores visibles. `cfg.version` = 8. Dibujos siguen por símbolo (no por exchange).
 
 ## 4. Decisiones de diseño tomadas
 - Un gráfico = un objeto de configuración independiente; nada global salvo tema, zona horaria, temporizador, paleta, plantillas y sincronización.
@@ -78,6 +81,8 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.8: rectángulo con tiradores/línea central, imán débil/fuerte, rayo horizontal, texto en líneas y Fibonacci, Shift horizontal, plantillas, propiedades con Plantilla/Aceptar/Cancelar, selección múltiple, carpetas, favoritos movibles, barra derecha; arreglo de historial en temporalidades grandes. `cfg.version` = 6.
 - v0.9: cursor de tiradores, texto y cursiva en rectángulo/todo, Ajustes fijo, barra de propiedades movible, indicadores en la lista de objetos, tabla, regla fija + zoom, carpetas con estado propio. `cfg.version` = 7.
 - v0.10: Ctrl+Z/Y fiable, plantillas en clic derecho, icono de paleta, texto del rectángulo interior/superior/inferior, eliminar carpeta con contenido, barra de propiedades grande, Ajustes 3/4 y cierre al clic fuera, objetos en dos grupos, tabla fijada + pegar desde Excel, lupa de alejar.
+- v0.11: listas de seguimiento múltiples, Bybit y KuCoin, selector de exchange en el buscador. `cfg.version` = 8.
+- v0.11: Listas + Bybit + KuCoin. Se probó con datos simulados y con `fetch` falso (test/exchanges.test.js, `npm test`). Sin probar con datos reales: formato de velas/tickers de Bybit y KuCoin (alineación diaria/semanal de KuCoin, límites de peticiones), ni en Windows/Electron. Pendiente ver: las anclas con GENESIS_SEC pueden no coincidir con las de TradingView.
 
 ## 9. Pendientes conocidos
 - Probar en Windows/Electron y con Binance real: 1 s (profundidad e límites), caché IndexedDB en Electron, rendimiento.
@@ -87,4 +92,4 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.8: probado solo en el navegador con datos simulados. Sin probar: Binance real (carga de historial en 25-35 d y > 2 h, imán), Windows/Electron, arrastrar y soltar en el panel de objetos dentro de Electron. Idea: botón para elegir si el redondeo de duraciones raras se hace o no.
 - v0.9: probado solo en el navegador con datos simulados. Sin probar: Windows/Electron, zoom con Binance real y escala logarítmica en uso real. Ideas: tabla con celdas combinadas, copiar/pegar tablas desde Excel, tamaño de columna manual.
 - v0.10: probado solo en el navegador con datos simulados (el pegado de Excel se simuló con un evento `paste`; falta probar con el portapapeles real y en Windows/Electron). Ideas: tabla con celdas combinadas y ancho de columna manual; la lupa de alejar solo cuenta zooms hechos con la lupa o escala vertical fija.
-- Fase 4: ver instrucciones maestras.
+- Fase 4 restante: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto.

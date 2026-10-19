@@ -24,8 +24,9 @@ Programa: app de escritorio personal tipo TradingView (Electron + modo navegador
 - `renderer/js/lib.js`: lógica pura (temporalidades `makeTf`, `aggregate`, RSI/Estocástico/medias/pivotes) — con tests en `test/`
 - `renderer/js/api.js`: puente de datos · `history.js`: caché IndexedDB de velas (`TVHistory`)
 - `renderer/js/view.js`: un view por gráfico. Secciones (buscar por nombre): `syncMas`, `SUBS` (paneles RSI/Estocástico), `layoutPanes/orderPanes/snapshotHeights`, `syncIndicators`, `renderLegend`, `fetchBack/load/loadMore/poll`, `zoomAxis/showAxisMenu`, crosshair (`showCrosshairAt`), `renderWatermark`, `applyLook`, API pública `Object.assign(view,{…})` al final.
+- `renderer/js/watch.js`: panel de listas de seguimiento (`TVWatch`).
 - `renderer/js/app.js`: config (`defaultConfig`, `newChart`, `migrate`), `openModal` (flotante), paleta (`openPalette/decoratePalette`), `openSettings`, plantillas (`snapshotTemplate/applyTemplate`), `renderPanel` (indicadores/medias), `bindUi`.
 - Depuración en el navegador: `window.__tv` (`cfg`, `views[i].bars/chart/cfg`).
 
 ## Hoja de ruta
-Hecho: fases 1–2 (v0.1–v0.6). Siguiente: **Fase 3** dibujos (línea de tendencia, horizontal, rayo, canal paralelo, Fibonacci con niveles editables, rectángulo, texto, regla, polilínea; imán, bloquear/ocultar/duplicar; guardar por activo; árbol de objetos; barra de favoritos). **Fase 4**: listas de seguimiento múltiples, perfil de volumen, replay, espacios de trabajo, exportar imagen, más exchanges, mercados no cripto. Descartado: alertas. Aplazado: velas por volumen.
+Hecho: fases 1–3 (v0.1–v0.10) y de la fase 4: listas de seguimiento y más exchanges (Bybit, KuCoin) en v0.11. **Fase 4 restante**: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto. Descartado: alertas. Aplazado: velas por volumen.

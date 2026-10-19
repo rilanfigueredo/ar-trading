@@ -16,7 +16,8 @@ function readConfig() {
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
-ipcMain.handle('symbols', async () => core.symbols());
+ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
+ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
 ipcMain.handle('config:get', async () => readConfig());
 ipcMain.handle('config:set', async (_e, cfg) => {
   fs.mkdirSync(path.dirname(configFile()), { recursive: true });

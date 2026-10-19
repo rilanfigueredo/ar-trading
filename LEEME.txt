@@ -1,10 +1,22 @@
-AR_TRADING - VERSION 0.10.0
+AR_TRADING - VERSION 0.11.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.10)
+NOVEDADES DE ESTA VERSION (v0.11)
+- LISTAS DE SEGUIMIENTO: boton "Listas" (arriba a la derecha). Puedes tener varias listas con nombre
+  (crear, renombrar, borrar). Cada activo muestra precio y % de 24 h (verde/rojo) y se actualiza cada
+  5 s mientras el panel esta abierto. Clic en un activo = lo abre en el grafico activo. Al pasar el
+  mouse salen flechas para subir/bajar y la X para quitar. "+ Anadir ... del grafico activo" agrega
+  el activo que estas viendo. Tus favoritos anteriores pasan solos a la lista "Favoritos".
+- MAS EXCHANGES: ademas de Binance ahora hay Bybit y KuCoin (spot). Cada grafico tiene su exchange; se
+  elige en el buscador de activos (pestanas arriba) o desde las listas. Si el exchange no ofrece una
+  temporalidad (por ejemplo 1 s en Bybit/KuCoin) el grafico lo avisa en pantalla, no cambia de datos en silencio.
+- Los dibujos se guardan por simbolo (el mismo BTCUSDT en Binance y Bybit comparte dibujos).
+- IMPORTANTE: Bybit y KuCoin se probaron solo con respuestas de ejemplo; falta probarlos con datos reales.
+
+NOVEDADES ANTERIORES (v0.10)
 - CTRL+Z / CTRL+Y: deshacer y rehacer varios pasos (crear, mover, cambiar color/grosor, plantillas, borrar,
   carpetas). Funciona tambien con el foco en una lista o color de la barra de propiedades. Mientras
   dibujas una polilinea, Ctrl+Z quita el ultimo punto. (Ctrl+Shift+Z tambien rehace.)

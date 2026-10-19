@@ -14,14 +14,16 @@
     ? {
         klines: (p) => desktop.klines(p),
         aggTrades: (p) => desktop.aggTrades(p),
-        symbols: () => desktop.symbols(),
+        symbols: (ex) => desktop.symbols({ exchange: ex || 'binance' }),
+        tickers: (ex, list) => desktop.tickers({ exchange: ex || 'binance', symbols: list }),
         getConfig: () => desktop.getConfig(),
         setConfig: (c) => desktop.setConfig(c),
       }
     : {
         klines: (p) => http('/api/klines?' + new URLSearchParams(p).toString()),
         aggTrades: (p) => http('/api/aggtrades?' + new URLSearchParams(p).toString()),
-        symbols: () => http('/api/symbols'),
+        symbols: (ex) => http('/api/symbols?exchange=' + (ex || 'binance')),
+        tickers: (ex, list) => http('/api/tickers?exchange=' + (ex || 'binance') + '&symbols=' + encodeURIComponent(list.join(','))),
         getConfig: () => http('/api/config'),
         setConfig: (c) => http('/api/config', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c),

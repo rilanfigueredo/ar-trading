@@ -39,7 +39,8 @@
       } catch (e) { resolve(null); }
     }));
   }
-  const keyOf = (sym, iv, idx) => `${sym}|${iv}|${idx}`;
+  // Binance conserva sus claves de siempre (lo ya guardado sigue valiendo); los demás exchanges llevan su nombre delante.
+  const keyOf = (sym, iv, idx, ex) => `${ex && ex !== 'binance' ? ex + ':' : ''}${sym}|${iv}|${idx}`;
   // rows <-> Float64Array [t,o,h,l,c,v, ...]
   const pack = (rows) => {
     const a = new Float64Array(rows.length * 6);
@@ -76,9 +77,9 @@
 
   // ----- Descarga de un bloque (con la misma petición en curso compartida entre gráficos) -----
   const inflight = new Map();
-  async function getBlock(symbol, iv, idx) {
+  async function getBlock(symbol, iv, idx, ex) {
     const ms = IV_MS[iv];
-    const key = keyOf(symbol, iv, idx);
+    const key = keyOf(symbol, iv, idx, ex);
     const start = idx * BLOCK * ms, end = start + BLOCK * ms;
     const closed = end <= Date.now() - ms; // bloque pasado: ya no cambia
     if (closed) {
@@ -87,7 +88,7 @@
     }
     if (inflight.has(key)) return inflight.get(key);
     const p = (async () => {
-      const rows = await API.klines({ symbol, interval: iv, startTime: start, limit: BLOCK });
+      const rows = await API.klines({ exchange: ex || 'binance', symbol, interval: iv, startTime: start, limit: BLOCK });
       const inBlock = rows.filter((r) => r[0] >= start && r[0] < end);
       if (closed) cachePut(key, inBlock);
       return { rows: inBlock, empty: inBlock.length === 0 };
@@ -98,28 +99,28 @@
   }
 
   // ¿Hay velas más antiguas que este bloque vacío? (huecos de 1s sin operaciones vs. inicio real del historial)
-  async function hasDataBefore(symbol, iv, idx) {
+  async function hasDataBefore(symbol, iv, idx, ex) {
     const end = (idx + 1) * BLOCK * IV_MS[iv];
-    const rows = await API.klines({ symbol, interval: iv, endTime: end - 1, limit: 1 });
+    const rows = await API.klines({ exchange: ex || 'binance', symbol, interval: iv, endTime: end - 1, limit: 1 });
     return rows.length > 0;
   }
 
   // Devuelve hasta nBlocks bloques hacia atrás desde el que contiene a endMs. { rows (orden ascendente), reached }
-  async function fetchBack(symbol, iv, endMs, nBlocks, isCancelled) {
+  async function fetchBack(symbol, iv, endMs, nBlocks, isCancelled, ex) {
     const ms = IV_MS[iv];
     let idx = Math.floor((endMs === undefined ? Date.now() : endMs) / (BLOCK * ms));
     const byTime = new Map();
     let reached = false;
     let left = nBlocks;
     while (left > 0 && !reached) {
-      const group = Math.min(8, left);
+      const group = Math.min(ex && ex !== 'binance' ? 3 : 8, left);
       const idxs = [];
       for (let i = 0; i < group; i++) idxs.push(idx - i);
-      const res = await Promise.all(idxs.map((i) => getBlock(symbol, iv, i)));
+      const res = await Promise.all(idxs.map((i) => getBlock(symbol, iv, i, ex)));
       if (isCancelled()) return null;
       for (let k = 0; k < res.length && !reached; k++) {
         if (res[k].empty) {
-          if (!(await hasDataBefore(symbol, iv, idxs[k]))) { reached = true; break; }
+          if (!(await hasDataBefore(symbol, iv, idxs[k], ex))) { reached = true; break; }
         }
         for (const r of res[k].rows) byTime.set(r[0], r);
       }
@@ -131,8 +132,8 @@
 
   // Descarga en segundo plano (sin molestar) los bloques anteriores, para que luego estén ya guardados.
   const warming = new Map();
-  async function warm(symbol, iv, beforeMs, nBlocks, isCancelled) {
-    const key = symbol + '|' + iv;
+  async function warm(symbol, iv, beforeMs, nBlocks, isCancelled, ex) {
+    const key = (ex || 'binance') + '|' + symbol + '|' + iv;
     if (warming.get(key)) return;
     warming.set(key, true);
     try {
@@ -140,9 +141,9 @@
       let idx = Math.floor(beforeMs / (BLOCK * ms));
       for (let i = 0; i < nBlocks; i++, idx--) {
         if (isCancelled()) break;
-        const b = await getBlock(symbol, iv, idx);
-        if (b.empty && !(await hasDataBefore(symbol, iv, idx))) break;
-        await new Promise((r) => setTimeout(r, 120));
+        const b = await getBlock(symbol, iv, idx, ex);
+        if (b.empty && !(await hasDataBefore(symbol, iv, idx, ex))) break;
+        await new Promise((r) => setTimeout(r, ex && ex !== 'binance' ? 500 : 120));
       }
     } catch (e) { /* sin conexión: no pasa nada */ } finally { warming.delete(key); }
   }
