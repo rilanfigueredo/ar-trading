@@ -333,3 +333,4 @@ input[type=color]:disabled { cursor: not-allowed; }
 .wl-state.on { background: #00e5ee; border-color: #00e5ee; color: #03282b; }
 .wl-results { max-height: 52vh; }
 #rightBar .rb-slot { display: contents; }
+#objPanel .obj-row { user-select: none; }

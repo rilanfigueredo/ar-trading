@@ -1,10 +1,22 @@
-AR_TRADING - VERSION 0.13.0
+AR_TRADING - VERSION 0.14.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.13)
+NOVEDADES DE ESTA VERSION (v0.14)
+- LISTA DE OBJETOS, SELECCION POR RANGO: haz clic en un dibujo, manten Shift y haz clic en otro: quedan
+  seleccionados todos los de en medio (15 o mas). Sirve para meterlos en una carpeta, ocultarlos, etc.
+- OCULTAR / BLOQUEAR VARIOS: si hay varios dibujos seleccionados y pulsas el ojo (o el candado) de cualquiera de
+  ellos, se ocultan (o bloquean) TODOS los seleccionados.
+- COPIAR Y PEGAR: Ctrl+C copia el dibujo seleccionado (o varios); Ctrl+D (o Ctrl+V) lo pega, tambien en otro
+  grafico o activo. Si dejas el mismo dibujo seleccionado, Ctrl+D lo duplica como antes.
+- EDITAR TEXTO EN EL GRAFICO: con un dibujo seleccionado (linea, rectangulo, texto...) pulsa Enter o el boton "T"
+  de su barra y escribe el texto ahi mismo, sin abrir Ajustes. Enter guarda, Esc cancela.
+- PLANTILLAS CON EL MISMO NOMBRE: al guardar una plantilla (de grafico o de dibujo) con un nombre que ya existe,
+  pregunta si quieres Reemplazar o Cancelar.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.13)
 - INDICADORES ARRIBA: cuando RSI/Estocastico se movian encima del precio el panel podia quedar en blanco. Se
   agrego una "autocuracion": al mover los paneles se vuelve a ajustar la escala 0-100, se reponen los rotulos y se
   fuerza el repintado. IMPORTANTE: con datos simulados NO pude reproducir el fallo, asi que hay que probarlo en

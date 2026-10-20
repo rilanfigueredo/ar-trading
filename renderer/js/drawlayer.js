@@ -530,8 +530,10 @@
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'draw-text-input'; inp.placeholder = 'Escribe el texto y pulsa Enter';
       inp.value = d.text || '';
-      inp.style.left = Math.max(2, P[0].x) + 'px';
-      inp.style.top = Math.max(2, pr.top - cr.top + P[0].y - size - 8) + 'px';
+      const ax = d.type === 'text' ? P[0].x : P.reduce((a, q) => a + q.x, 0) / P.length;
+      const ay = d.type === 'text' ? P[0].y : P.reduce((a, q) => a + q.y, 0) / P.length;
+      inp.style.left = Math.max(2, ax - (d.type === 'text' ? 0 : 60)) + 'px';
+      inp.style.top = Math.max(2, pr.top - cr.top + ay - size - 8) + 'px';
       inp.style.fontSize = size + 'px';
       host.appendChild(inp);
       L.editor = inp;
@@ -543,7 +545,7 @@
         if (L.editor === inp) L.editor = null;
         inp.remove();
         const sym = env.symbol();
-        if (ok && txt) {
+        if (ok && (txt || (!isNew && d.type !== 'text'))) {
           if (isNew) { d.text = txt; own(d); store.add(sym, d); } else store.patch(sym, d.id, { text: txt });
         }
         if (isNew && !store.prefs().keep) store.setTool(null);

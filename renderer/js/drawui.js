@@ -105,6 +105,30 @@
     const sym = symNow(), ids = selIds();
     if (ids.length) store.duplicateMany(sym, ids, shiftFn());
   }
+  // Copiar (Ctrl+C) y pegar (Ctrl+D o Ctrl+V): vale también para otro gráfico o activo.
+  let clip = null;
+  function copySel() {
+    const sym = symNow(), ids = selIds();
+    const items = ids.map((id) => store.get(sym, id)).filter(Boolean);
+    if (!items.length) return false;
+    clip = { sym, ids: ids.slice(), items: JSON.parse(JSON.stringify(items)) };
+    return true;
+  }
+  function pasteClip() {
+    if (!clip) return false;
+    const sym = symNow();
+    store.pasteMany(sym, clip.items, sym === clip.sym ? shiftFn() : null, chartNow());
+    return true;
+  }
+  // Edita el texto del dibujo seleccionado directamente sobre el gráfico (sin abrir Ajustes).
+  function editSelText() {
+    const sym = symNow(), ids = selIds(), layer = layerNow();
+    if (ids.length !== 1 || !layer) return false;
+    const d = store.get(sym, ids[0]);
+    if (!d || !(d.type === 'text' || (D.TYPES[d.type] && D.TYPES[d.type].text)) || store.isLocked(sym, d)) return false;
+    layer.editText(d.id);
+    return true;
+  }
   function confirmClear() {
     const sym = symNow(), n = store.listFor(sym, chartNow()).length;
     if (!n) return;
@@ -444,7 +468,9 @@
       const grp = iconBtn('folderadd', 'Agrupar en una carpeta', () => newFolder(selIds(), null));
       r.cfg = iconBtn('gear', 'Propiedades (doble clic sobre el dibujo)', () => { const i = selIds(); if (i.length === 1) openProps(sym, i[0]); });
       r.del = iconBtn('trash', 'Eliminar (Supr)', deleteSel);
+      r.txt = iconBtn('text', 'Editar el texto aquí mismo (Enter)', editSelText);
       bar.append(r.title, r.color, r.width, r.dash, r.lock, r.share, r.eye, dup, grp);
+      if (!many) bar.appendChild(r.txt);
       if (!many) bar.appendChild(r.cfg);
       bar.appendChild(r.del);
       sel.refs = r;
@@ -464,6 +490,7 @@
     r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 20);
     r.share.classList.toggle('active', ds.every((d) => d.shared));
     r.del.disabled = allLocked;
+    r.txt.classList.toggle('hidden', many || !(ds[0].type === 'text' || (D.TYPES[ds[0].type] && D.TYPES[ds[0].type].text)));
     placeBar('selBar');
   }
 
@@ -475,6 +502,7 @@
     treeSig = '';
     renderAll();
   }
+  let lastRowClick = { sym: null, id: null };
   function renderTree(force) {
     const p = X.$('objPanel');
     if (p.classList.contains('hidden')) return;
@@ -496,7 +524,7 @@
     renderIndicatorRows(p, vc);
     p.appendChild(el('h4', 'obj-head', `Dibujos de ${sym}`));
     p.appendChild(top);
-    if (!list.length && !folders.length) p.appendChild(el('p', 'hint', 'Todavía no hay dibujos en este activo. Elige una herramienta en la barra izquierda y dibuja en el gráfico. Para seleccionar varios: Shift + arrastrar (recuadro) o Ctrl + clic (uno por uno).'));
+    if (!list.length && !folders.length) p.appendChild(el('p', 'hint', 'Todavía no hay dibujos en este activo. Elige una herramienta en la barra izquierda y dibuja en el gráfico. Para seleccionar varios: Shift + arrastrar (recuadro), Ctrl + clic (uno por uno) o Shift + clic en la lista (todo un rango).'));
     const wrap = el('div', 'tree-root');
     wrap.ondragover = (e) => { if (dragData) { e.preventDefault(); wrap.classList.add('drop-root'); } };
     wrap.ondragleave = (e) => { if (e.target === wrap) wrap.classList.remove('drop-root'); };
@@ -505,7 +533,10 @@
 
     const fexists = (id) => !!id && !!store.folder(sym, id);
     const mkBtn = (row, icon, title, fn) => { const b = el('button', 'obj-btn'); b.innerHTML = svg(icon, 15); b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; row.appendChild(b); };
+    const visOrder = [];
+    let anchorId = null;
     function itemRow(d, depth) {
+      visOrder.push(d.id);
       const row = el('div', 'obj-row' + (store.isSelected(sym, d.id) ? ' sel' : '') + (store.isHidden(sym, d) ? ' off' : ''));
       row.style.paddingLeft = 6 + depth * 16 + 'px';
       row.draggable = true;
@@ -513,12 +544,28 @@
       row.ondragend = () => { dragData = null; };
       const ic = el('span', 'obj-ic'); ic.innerHTML = svg(d.type, 16); ic.style.color = hexOk(d.color);
       row.append(ic, el('span', 'obj-name', store.label(d)));
-      mkBtn(row, d.hidden ? 'eyeoff' : 'eye', d.hidden ? 'Mostrar' : 'Ocultar', () => store.patch(sym, d.id, { hidden: !d.hidden }));
-      mkBtn(row, d.locked ? 'lock' : 'unlock', d.locked ? 'Desbloquear' : 'Bloquear', () => store.patch(sym, d.id, { locked: !d.locked }));
+      // si el dibujo forma parte de una selección de varios, el ojo y el candado actúan sobre todos los seleccionados
+      const grp = () => (store.isSelected(sym, d.id) && selIds().length > 1 ? selIds() : [d.id]);
+      mkBtn(row, d.hidden ? 'eyeoff' : 'eye', d.hidden ? 'Mostrar' : 'Ocultar', () => store.patchMany(sym, grp(), { hidden: !d.hidden }));
+      mkBtn(row, d.locked ? 'lock' : 'unlock', d.locked ? 'Desbloquear' : 'Bloquear', () => store.patchMany(sym, grp(), { locked: !d.locked }));
       if (fexists(d.folder)) mkBtn(row, 'out', 'Sacar de la carpeta', () => store.moveToFolder(sym, [d.id], null));
       mkBtn(row, 'copy', 'Duplicar', () => store.duplicate(sym, d.id, shiftFn()));
       mkBtn(row, 'trash', 'Eliminar', () => { if (!store.isLocked(sym, d)) store.remove(sym, d.id); });
-      row.onclick = (e) => store.select(sym, d.id, e.ctrlKey || e.metaKey ? 'toggle' : undefined);
+      row.onmousedown = (e) => { if (e.shiftKey) e.preventDefault(); };   // evita que Shift+clic seleccione texto
+      row.onclick = (e) => {
+        if (e.shiftKey) {
+          // Shift + clic: selecciona todos los dibujos entre el último clic y este (en el orden de la lista)
+          const from = visOrder.indexOf(lastRowClick.sym === sym && visOrder.includes(lastRowClick.id) ? lastRowClick.id : (selIds().slice(-1)[0] || d.id));
+          const to = visOrder.indexOf(d.id);
+          if (from >= 0 && to >= 0) {
+            const range = visOrder.slice(Math.min(from, to), Math.max(from, to) + 1);
+            store.selectMany(sym, range, e.ctrlKey || e.metaKey);
+            return;
+          }
+        }
+        lastRowClick = { sym, id: d.id };
+        store.select(sym, d.id, e.ctrlKey || e.metaKey ? 'toggle' : undefined);
+      };
       row.ondblclick = () => openProps(sym, d.id);
       return row;
     }
@@ -650,6 +697,19 @@
     const save = () => {
       const cur = store.get(sym, id); const nm = inp.value.trim();
       if (!cur || !nm) return;
+      if (store.hasTemplate(type, nm)) {
+        closeTpl();
+        X.openModal((box) => {
+          box.appendChild(el('h3', '', 'Ya existe una plantilla con ese nombre'));
+          box.appendChild(el('p', 'hint', `Ya tienes una plantilla "${nm}" para esta herramienta. ¿Quieres reemplazarla con el estilo actual?`));
+          const row = el('div', 'row-actions');
+          const yes = el('button', 'btn', 'Reemplazar');
+          yes.onclick = () => { store.saveTemplate(type, nm, store.get(sym, id) || cur); X.closeModal(); };
+          const no = el('button', 'btn secondary', 'Cancelar'); no.onclick = () => X.closeModal();
+          row.append(yes, no); box.appendChild(row);
+        });
+        return;
+      }
       store.saveTemplate(type, nm, cur);
       openTplMenu(anchor, sym, id, refill);
     };
@@ -966,6 +1026,7 @@
       return;
     }
     if (k === 'Enter' && layer && layer.hasDraft()) { e.preventDefault(); layer.finish(); return; }
+    if (k === 'Enter' && !layer?.hasDraft() && ids.length === 1 && !e.ctrlKey && !e.altKey && editSelText()) { e.preventDefault(); return; }
     if ((k === 'Delete' || k === 'Backspace') && ids.length) { e.preventDefault(); deleteSel(); return; }
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       const low = k.toLowerCase();
@@ -975,7 +1036,15 @@
         if (isZ && !e.shiftKey) { if (!(layer && layer.undoPoint())) store.undo(sym); } else store.redo(sym);
         return;
       }
-      if (low === 'd' && ids.length) { e.preventDefault(); duplicateSel(); return; }
+      if (low === 'c' && ids.length) { if (copySel()) e.preventDefault(); return; }
+      if (low === 'v' && clip) { e.preventDefault(); pasteClip(); return; }
+      if (low === 'd') {
+        // con lo copiado y sin selección (o con la misma selección) se pega; si no, se duplica lo seleccionado
+        const same = clip && ids.length === clip.ids.length && ids.every((i) => clip.ids.includes(i));
+        if (clip && (!ids.length || same)) { e.preventDefault(); pasteClip(); return; }
+        if (ids.length) { e.preventDefault(); duplicateSel(); return; }
+        return;
+      }
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
       const map = { t: 'trend', h: 'hline', f: 'fib', r: 'rect' };

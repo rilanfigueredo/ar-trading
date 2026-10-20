@@ -776,7 +776,21 @@
         if (!name) { tplName.focus(); return; }
         const data = snapshotTemplate(ac);
         const ex = A.cfg.templates.find((t) => t.name.toLowerCase() === name.toLowerCase());
-        if (ex) ex.data = data; else A.cfg.templates.push({ id: 't' + Date.now(), name, data });
+        if (ex) {
+          // mismo nombre: se pregunta antes de reemplazar
+          openModal((mb) => {
+            mb.appendChild(mk('h3', { textContent: 'Ya existe una plantilla con ese nombre' }));
+            mb.appendChild(mk('p', { className: 'hint', textContent: `Ya tienes una plantilla "${ex.name}". ¿Quieres reemplazarla con el estado actual de este gráfico?` }));
+            const rw = mk('div', { className: 'row-actions' });
+            const yes = mk('button', { className: 'btn', textContent: 'Reemplazar' });
+            yes.onclick = () => { ex.data = snapshotTemplate(ac); saveCfg(); openSettings(); };
+            const no = mk('button', { className: 'btn secondary', textContent: 'Cancelar' });
+            no.onclick = () => openSettings();
+            rw.append(yes, no); mb.appendChild(rw);
+          });
+          return;
+        }
+        A.cfg.templates.push({ id: 't' + Date.now(), name, data });
         saveCfg(); openSettings();
       };
       const tplRow = mk('div', { className: 'row-actions' });

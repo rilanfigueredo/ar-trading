@@ -444,6 +444,24 @@
         changed(); emit('select');
         return copies;
       },
+      // Pega copias de dibujos (de cualquier activo/gráfico) en este activo. Mismo activo: se desplazan un poco.
+      pasteMany(sym, items, shift, chartId) {
+        const src = (items || []).filter(Boolean);
+        if (!src.length) return [];
+        snap(sym);
+        const copies = src.map((d) => {
+          const c = clone(d);
+          c.id = newId('d'); c.locked = false; c.hidden = false;
+          if (!c.shared) c.chart = chartId;
+          if (!find(sym, d.id) || !c.folder || !store.folder(sym, c.folder)) delete c.folder;
+          if (shift) c.pts = c.pts.map(shift);
+          return c;
+        });
+        setList(sym, list(sym).concat(copies));
+        st.sel = { sym, id: copies[copies.length - 1].id }; st.multi = copies.map((c) => c.id);
+        changed(); emit('select');
+        return copies;
+      },
       clear(sym) {
         if (!list(sym).length && !folders(sym).length) return;
         snap(sym);
@@ -545,11 +563,14 @@
         if (!pr.templates) pr.templates = {};
         const style = {};
         TEMPLATE_KEYS.forEach((k) => { if (d[k] !== undefined) style[k] = clone(d[k]); });
-        const tpl = { id: newId('t'), name: String(name).trim() || 'Plantilla', style };
-        pr.templates[type] = (pr.templates[type] || []).concat([tpl]);
+        const nm = String(name).trim() || 'Plantilla';
+        const old = (pr.templates[type] || []).find((x) => x.name.toLowerCase() === nm.toLowerCase());
+        const tpl = old ? { id: old.id, name: old.name, style } : { id: newId('t'), name: nm, style };
+        pr.templates[type] = old ? pr.templates[type].map((x) => (x === old ? tpl : x)) : (pr.templates[type] || []).concat([tpl]);
         save(); emit('templates');
         return tpl;
       },
+      hasTemplate(type, name) { const n = String(name).trim().toLowerCase(); return (store.templates(type) || []).some((x) => x.name.toLowerCase() === n); },
       deleteTemplate(type, id) {
         const pr = getPrefs();
         if (!pr.templates || !pr.templates[type]) return;
