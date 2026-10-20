@@ -142,8 +142,11 @@
   }
 
   // Id -> temporalidad. Acepta ids antiguos ('1h', '4D'…).
+  // Velas por bloque de Bitcoin: cada vela es un bloque minado (no depende del reloj).
+  const BLOCK_TF = { id: 'blk', label: 'Bloque', base: null, kind: 'block', sec: 600, ratio: 1, note: 'Cada vela es un bloque de Bitcoin (~10 min). El volumen es el BTC movido en la cadena en ese bloque.' };
   function tfById(id) {
     const key = LEGACY[id] || id;
+    if (key === 'blk') return Object.assign({}, BLOCK_TF);
     const m = /^([smdwMv]):(\d+(?:\.\d+)?)$/.exec(String(key));
     if (m) {
       try { return makeTf(m[1], Number(m[2])); } catch (e) { /* cae al valor por defecto */ }
@@ -164,6 +167,7 @@
     return tf.kind === 'anchor' || (tf.kind === 'months' && 12 % tf.n !== 0);
   }
   function describe(tf) {
+    if (tf.kind === 'block') return 'Una vela por cada bloque de Bitcoin. Precio: velas de 1 minuto del exchange entre un bloque y el siguiente. Volumen: BTC movido en la cadena (mempool.space).';
     if (tf.kind === 'vol') return `Velas por volumen: cierran cada ${String(tf.vol).replace('.', ',')} (operaciones de futuros en tiempo real).`;
     if (tf.kind === 'native') return `Binance la ofrece directamente (velas de ${tf.base === '1M' ? '1 mes' : tf.base}).`;
     const b = tf.base === '1M' ? 'mes' : tf.base === '1w' ? 'semana' : tf.base;
@@ -611,7 +615,7 @@
   // Adapta una temporalidad a un exchange. Si no se puede armar con sus velas devuelve una copia con unavailable = true y un motivo.
   function tfFor(tf, exchange) {
     const ex = EXCHANGES[exchange || 'binance'] || EXCHANGES.binance;
-    if (tf.kind === 'vol' || ex.bases.includes(tf.base)) return tf;
+    if (tf.kind === 'vol' || tf.kind === 'block' || ex.bases.includes(tf.base)) return tf;
     // Sin velas de semana ni de mes: se arman desde las de 1 día (semanas en bloques de lunes a domingo; meses naturales).
     if (tf.base === '1w' && ex.bases.includes('1d')) return Object.assign({}, tf, { base: '1d', ratio: tf.sec / DAY, kind: 'anchor', adapted: true });
     if (tf.base === '1M' && ex.bases.includes('1d')) { const n = tf.n || 1; return Object.assign({}, tf, { base: '1d', kind: 'months', n, ratio: 30 * n, adapted: true }); }

@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktopApi', {
   klines: (p) => ipcRenderer.invoke('klines', p),
   aggTrades: (p) => ipcRenderer.invoke('aggTrades', p),
+  blocks: (p) => ipcRenderer.invoke('blocks', p),
   symbols: (p) => ipcRenderer.invoke('symbols', p),
   tickers: (p) => ipcRenderer.invoke('tickers', p),
   getConfig: () => ipcRenderer.invoke('config:get'),

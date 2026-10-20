@@ -1,10 +1,21 @@
-AR_TRADING - VERSION 0.14.0
+AR_TRADING - VERSION 0.15.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.14)
+NOVEDADES DE ESTA VERSION (v0.15)
+- VELAS POR BLOQUE DE BITCOIN: en "+" (temporalidades) pulsa "Velas por bloque de Bitcoin"; aparece el boton "Bloque".
+  Cada vela es un bloque minado. El PRECIO sale de las velas de 1 minuto del exchange del grafico, entre la hora del
+  bloque anterior y la del bloque (error de hasta ~1 minuto). El VOLUMEN (barras abajo) es el BTC movido en la cadena
+  en ese bloque, tomado de mempool.space. Al pasar el mouse se ve: numero de bloque, pool minero, volumen, cantidad
+  de transacciones y comisiones. Solo para simbolos de Bitcoin (BTCUSDT...). Se actualiza cada 30 s y el historial
+  se amplia al arrastrar hacia la izquierda.
+  OJO: el volumen de cadena incluye el "cambio" que vuelve al mismo dueño, asi que es mayor que el volumen real
+  de compra/venta. En este tipo de vela no hay dibujos, temporizador ni cruz sincronizada.
+  IMPORTANTE: solo se probo con bloques y precios simulados; falta probarlo con mempool.space real.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.14)
 - LISTA DE OBJETOS, SELECCION POR RANGO: haz clic en un dibujo, manten Shift y haz clic en otro: quedan
   seleccionados todos los de en medio (15 o mas). Sirve para meterlos en una carpeta, ocultarlos, etc.
 - OCULTAR / BLOQUEAR VARIOS: si hay varios dibujos seleccionados y pulsas el ojo (o el candado) de cualquiera de

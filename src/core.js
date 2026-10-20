@@ -65,7 +65,7 @@ async function httpGet(path, params, hosts) {
       const timer = setTimeout(() => ctrl.abort(), 12000);
       const res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal });
       clearTimeout(timer);
-      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : 'Binance';
+      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : host.includes('mempool') ? 'mempool.space' : 'Binance';
       if (res.status === 429 || res.status === 418) {
         throw new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
       }
@@ -76,7 +76,7 @@ async function httpGet(path, params, hosts) {
     }
   }
   const hs = (hosts || HOSTS)[0] || '';
-  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : hs.includes('mempool') ? 'mempool.space' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
 }
 
 // ---------- Datos simulados (solo para pruebas sin internet) ----------
@@ -387,4 +387,78 @@ async function tickers({ exchange, symbols: syms }) {
   return out;
 }
 
-module.exports = { klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+// ---------- Velas por bloque de Bitcoin (v0.15): mempool.space (bloques) + velas de 1 minuto del exchange (precio) ----------
+const MEMPOOL_HOSTS = ['https://mempool.space'];
+const MOCK_BLK_T0 = 1735689600; // 1-ene-2025, altura simulada 900000
+const mockBlkTs = (h) => MOCK_BLK_T0 + (h - 900000) * 600 + Math.round(hash(h) * 240 - 120);
+const mockTipHeight = () => 900000 + Math.floor((Date.now() / 1000 - MOCK_BLK_T0) / 600);
+function mockBlockRaw(h) {
+  const btc = 300 + 4200 * Math.pow(hash(h + 3), 2);
+  return {
+    height: h, id: 'mock' + h, timestamp: mockBlkTs(h), tx_count: Math.round(1500 + 2500 * hash(h + 7)), size: Math.round(1.2e6 + 6e5 * hash(h + 8)),
+    extras: { totalOutputAmt: Math.round(btc * 1e8), totalFees: Math.round((0.01 + 0.4 * hash(h + 11)) * 1e8), pool: { name: ['AntPool', 'Foundry USA', 'F2Pool', 'ViaBTC'][Math.floor(hash(h + 13) * 4)] } },
+  };
+}
+// Devuelve los bloques con altura entre lo y hi (ambos incluidos), de menor a mayor altura.
+async function fetchBlockRange(lo, hi) {
+  if (MOCK()) { const out = []; for (let h = lo; h <= hi; h++) out.push(mockBlockRaw(h)); return out; }
+  const starts = [];
+  for (let h = hi; h >= lo; h -= 15) starts.push(h);
+  const out = new Map();
+  for (let i = 0; i < starts.length; i += 3) {
+    const group = await Promise.all(starts.slice(i, i + 3).map((st) => httpGet(`/api/v1/blocks/${st}`, null, MEMPOOL_HOSTS)));
+    for (const arr of group) for (const b of arr) if (b.height >= lo && b.height <= hi) out.set(b.height, b);
+  }
+  const res = Array.from(out.values()).sort((a, b) => a.height - b.height);
+  if (res.length < hi - lo + 1) throw new Error('mempool.space entregó bloques incompletos. Vuelve a intentarlo en un momento.');
+  return res;
+}
+// Devuelve { tip, rows: [{ height, time, open, high, low, close, volume, fees, txs, size, pool }] } de menor a mayor altura.
+// Cada vela es un bloque: va desde la hora del bloque anterior hasta la suya. El volumen es el total de BTC movido por
+// las salidas del bloque (incluye el "cambio" que vuelve al mismo dueño, por eso es mayor que el volumen económico real).
+async function blockBars({ symbol, exchange, endHeight, count }) {
+  if (!/^[A-Z0-9]{3,20}$/.test(String(symbol))) throw new Error('Símbolo inválido');
+  if (!/^(BTC|XBT)/.test(String(symbol))) throw new Error('Las velas por bloque solo existen para Bitcoin (un símbolo que empiece con BTC, por ejemplo BTCUSDT).');
+  const n = Math.max(1, Math.min(Number(count) || 150, 300));
+  const tip = MOCK() ? mockTipHeight() : Number(await httpGet('/api/blocks/tip/height', null, MEMPOOL_HOSTS));
+  if (!(tip > 0)) throw new Error('mempool.space no entregó la altura del último bloque.');
+  const hi = Math.min(tip, hasVal(endHeight) ? Math.floor(Number(endHeight)) : tip);
+  const lo = Math.max(0, hi - n);
+  if (hi <= lo) return { tip, rows: [] };
+  const raws = await fetchBlockRange(lo, hi);
+  // precio: velas de 1 minuto que cubren desde el bloque "lo" hasta el último
+  const t0 = raws[0].timestamp * 1000 - 60000, t1 = raws[raws.length - 1].timestamp * 1000;
+  const mins = [];
+  let from = Math.floor(t0 / 60000) * 60000;
+  for (let req = 0; req < 12 && from <= t1; req++) {
+    const rows = await klines({ exchange, symbol, interval: '1m', startTime: from, endTime: t1, limit: 1000 });
+    if (!rows.length) break;
+    for (const r of rows) mins.push([Number(r[0]), parseFloat(r[1]), parseFloat(r[2]), parseFloat(r[3]), parseFloat(r[4])]);
+    const next = Number(rows[rows.length - 1][0]) + 60000;
+    if (next <= from) break;
+    from = next;
+  }
+  mins.sort((a, b) => a[0] - b[0]);
+  if (!mins.length) throw new Error('No hay velas de 1 minuto para calcular el precio de cada bloque.');
+  const out = [];
+  let lastClose = null, lastTime = 0, mi = 0;
+  for (let i = 1; i < raws.length; i++) {
+    const b = raws[i], a = raws[i - 1];
+    const startMs = a.timestamp * 1000, endMs = b.timestamp * 1000;
+    while (mi < mins.length && mins[mi][0] + 60000 <= startMs) mi++;
+    let o = null, h = -Infinity, l = Infinity, c = null, j = mi;
+    while (j < mins.length && mins[j][0] < endMs) { const m = mins[j]; if (o === null) o = m[1]; h = Math.max(h, m[2]); l = Math.min(l, m[3]); c = m[4]; j++; }
+    if (o === null) { if (lastClose === null) continue; o = h = l = c = lastClose; }   // sin velas en ese rato: se mantiene el último precio
+    lastClose = c;
+    const time = Math.max(b.timestamp, lastTime + 1);   // la hora de un bloque puede ser menor que la del anterior; el gráfico necesita tiempos crecientes
+    lastTime = time;
+    const ex = b.extras || {};
+    out.push({
+      height: b.height, time, open: o, high: h, low: l, close: c,
+      volume: (Number(ex.totalOutputAmt) || 0) / 1e8, fees: (Number(ex.totalFees) || 0) / 1e8, txs: b.tx_count, size: b.size, pool: (ex.pool && ex.pool.name) || '',
+    });
+  }
+  return { tip, rows: out };
+}
+
+module.exports = { klines, symbols, aggTrades, blockBars, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

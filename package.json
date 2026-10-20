@@ -1,13 +1,13 @@
 {
   "name": "ar-trading",
   "productName": "Ar_Trading",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "browser": "node server.js",
-    "test": "node test/lib.test.js && node test/indicators.test.js && node test/draw.test.js && node test/exchanges.test.js",
+    "test": "node test/lib.test.js && node test/indicators.test.js && node test/draw.test.js && node test/exchanges.test.js && node test/blocks.test.js",
     "dist": "electron-builder --win"
   },
   "devDependencies": {

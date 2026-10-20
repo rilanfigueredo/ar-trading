@@ -128,8 +128,9 @@
       return fmtCache[k];
     }
     const isDaily = () => tfNow().sec >= 86400;
-    const isVol = () => tfNow().kind === 'vol';
-    const isSub = () => tfNow().sec < 60 && tfNow().kind !== 'vol';
+    const isBlk = () => tfNow().kind === 'block';
+    const isVol = () => tfNow().kind === 'vol' || isBlk();   // velas que no siguen el reloj: sin temporizador, cruz sincronizada ni dibujos
+    const isSub = () => tfNow().sec < 60 && tfNow().kind !== 'vol' && !isBlk();
     function timeFormatter(t) {
       if (typeof t !== 'number') return '';
       const d = new Date(t * 1000);
@@ -739,6 +740,10 @@
       [['A', b.open], ['M', b.high], ['m', b.low], ['C', b.close]].forEach(([k, v]) => o.appendChild(el('b', '', `${k} ${fmtVal(v)}`)));
       o.appendChild(el('b', '', `${chg >= 0 ? '+' : ''}${fmtVal(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`));
       legendEl.appendChild(o);
+      if (tf.kind === 'block' && b.height) {
+        const f = (x, d) => (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es', { maximumFractionDigits: d });
+        legendEl.appendChild(el('div', 'lg-note', `Bloque #${b.height}${b.pool ? ' · ' + b.pool : ''} · Volumen cadena ${f(b.volume, 2)} BTC · ${b.txs} transacciones · comisiones ${f(b.fees, 3)} BTC`));
+      }
 
       const masDiv = el('div', 'lg-mas');
       for (const ma of vcfg.mas) {
@@ -847,7 +852,7 @@
 
     // ---------- Temporizador de la vela en la barra de precios ----------
     function nextClose(tf, bar) {
-      if (tf.kind === 'vol') return null;
+      if (tf.kind === 'vol' || tf.kind === 'block') return null;
       if (tf.kind === 'months' || tf.base === '1M') {
         const d = new Date(bar.time * 1000);
         const n = tf.kind === 'months' ? tf.n : 1;
@@ -889,7 +894,7 @@
       const m = /^(.+?)(USDT|USDC|FDUSD|BUSD|TUSD|USD|EUR|BTC|ETH|BNB)$/.exec(vcfg.symbol);
       return m ? m[1] : vcfg.symbol;
     }
-    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
+    function tfLabel(tf) { return tf.kind === 'block' ? 'Bloque' : tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
     function volNote() {
       const bits = [];
       if (s.vol && s.vol.market === 'spot') bits.push('Futuros no disponible: usando Spot');
@@ -1027,6 +1032,106 @@
       }
     }
 
+    // ---------- Velas por bloque de Bitcoin ----------
+    const BLK_COUNT = 150;
+    function dropBlkVol() { if (s.blkVol) { try { s.chart.removeSeries(s.blkVol); } catch (e) { /* ya quitada */ } s.blkVol = null; } }
+    const blkVolPoint = (b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)' });
+    // Histograma del volumen en cadena (BTC movidos por bloque), en la parte baja del panel del precio.
+    function syncBlkVol() {
+      if (!s.blkVol) {
+        s.blkVol = s.chart.addSeries(LC.HistogramSeries, {
+          priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false,
+        }, mainPaneIdx());
+        s.blkVol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+      }
+      s.blkVol.setData(s.bars.map(blkVolPoint));
+    }
+    async function loadBlk() {
+      const token = ++s.token;
+      stopPolling();
+      hideOverlay();
+      s.loadingMore = false; s.reachedStart = false; s.loading = true; s.base = [];
+      setStatus('Cargando bloques de Bitcoin…', 'loading');
+      try {
+        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), count: BLK_COUNT });
+        if (token !== s.token || s.destroyed) return;
+        if (!r.rows.length) throw new Error('No hay bloques para mostrar.');
+        s.bars = r.rows;
+        s.reachedStart = r.rows[0].height <= 1;
+        s.precision = L.detectPrecision(s.bars);
+        buildMainSeries();
+        syncBlkVol();
+        mainScale().applyOptions({ autoScale: true });
+        syncMas();
+        Object.keys(s.sub).forEach(dropSub);
+        removeEmptyPanes();
+        syncIndicators(true);
+        const n = s.bars.length;
+        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 7 });
+        renderLegend(null);
+        s.loading = false;
+        setStatus('En vivo · cadena de bloques', 'live');
+        s.pollTimer = setInterval(poll, 30000);
+        G.onLoaded(view);
+      } catch (e) {
+        if (token !== s.token || s.destroyed) return;
+        s.loading = false;
+        setStatus('Sin datos', 'err');
+        showOverlay('No se pudieron cargar los bloques: ' + e.message, true);
+      }
+    }
+    async function loadMoreBlk() {
+      if (s.loadingMore || s.reachedStart || !s.bars.length || s.loading) return;
+      s.loadingMore = true;
+      const token = s.token;
+      try {
+        setStatus('Cargando más bloques…', 'loading');
+        const endH = s.bars[0].height - 1;
+        if (endH <= 1) { s.reachedStart = true; return; }
+        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), endHeight: endH, count: BLK_COUNT });
+        if (token !== s.token || s.destroyed) return;
+        const firstTime = s.bars[0].time;
+        const older = r.rows.filter((x) => x.height < s.bars[0].height && x.time < firstTime);
+        if (!older.length) { s.reachedStart = true; return; }
+        const range = s.chart.timeScale().getVisibleLogicalRange();
+        s.bars = older.concat(s.bars);
+        s.series.setData(s.bars.map(toPoint));
+        syncBlkVol();
+        syncMas();
+        syncIndicators(true);
+        if (range) s.chart.timeScale().setVisibleLogicalRange({ from: range.from + older.length, to: range.to + older.length });
+        setStatus('En vivo · cadena de bloques', 'live');
+      } catch (e) {
+        setStatus('Error al cargar bloques', 'err');
+      } finally {
+        s.loadingMore = false;
+      }
+    }
+    async function pollBlk() {
+      if (s.polling || !s.bars.length || s.loading) return;
+      s.polling = true;
+      const token = s.token;
+      try {
+        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), count: 30 });
+        if (token !== s.token || s.destroyed) return;
+        const last = s.bars[s.bars.length - 1];
+        const fresh = r.rows.filter((x) => x.height > last.height);
+        if (fresh.length) {
+          if (fresh[0].height > last.height + 1) { load(); return; }   // se perdieron bloques (equipo dormido): se vuelve a cargar
+          const start = s.bars.length;
+          fresh.forEach((b) => { b.time = Math.max(b.time, s.bars[s.bars.length - 1].time + 1); s.bars.push(b); s.series.update(toPoint(b)); if (s.blkVol) s.blkVol.update(blkVolPoint(b)); });
+          updateMasTail(start);
+          syncIndicators(false, start);
+          if (s.hoverTime === null) renderLegend(null);
+        }
+        setStatus('En vivo · cadena de bloques', 'live');
+      } catch (e) {
+        setStatus('Reconectando…', 'err');
+      } finally {
+        s.polling = false;
+      }
+    }
+
     // ---------- Carga de datos ----------
     async function fetchBack(endMs, pages, token) {
       const tf = tfNow();
@@ -1078,6 +1183,8 @@
 
     async function load() {
       zoomStack.length = 0;
+      if (tfNow().kind !== 'block') dropBlkVol();
+      if (tfNow().kind === 'block') return loadBlk();
       if (tfNow().kind === 'vol') return loadVol();
       const token = ++s.token;
       stopPolling();
@@ -1143,6 +1250,7 @@
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
     async function loadMore(pagesOverride) {
+      if (tfNow().kind === 'block') return loadMoreBlk();
       if (tfNow().kind === 'vol') return loadMoreVol();
       if (s.loadingMore || s.reachedStart || !s.base.length || s.loading) return false;
       s.loadingMore = true;
@@ -1197,6 +1305,7 @@
     }
 
     async function poll() {
+      if (tfNow().kind === 'block') return pollBlk();
       if (tfNow().kind === 'vol') return pollVol();
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;

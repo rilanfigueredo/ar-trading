@@ -22,7 +22,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.14)
+## 3. Funciones actuales (v0.15)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -90,6 +90,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.10: Ctrl+Z/Y fiable, plantillas en clic derecho, icono de paleta, texto del rectángulo interior/superior/inferior, eliminar carpeta con contenido, barra de propiedades grande, Ajustes 3/4 y cierre al clic fuera, objetos en dos grupos, tabla fijada + pegar desde Excel, lupa de alejar.
 - v0.11: listas de seguimiento múltiples, Bybit y KuCoin, selector de exchange en el buscador. `cfg.version` = 8.
 - v0.11.1: duraciones personalizadas exactas (p. ej. 1.200.000 s con velas de 5 m), carga progresiva y precarga en segundo plano.
+- v0.15: velas por bloque de Bitcoin (tf id `blk`, kind `block`): `core.blockBars` (mempool.space `/api/v1/blocks/:altura` 15 por petición + `/api/blocks/tip/height`; precio = velas 1m del exchange entre bloques; volumen = `extras.totalOutputAmt`/1e8), ruta `/api/blocks` + IPC `blocks`, `loadBlk/loadMoreBlk/pollBlk` y histograma `s.blkVol` en view.js. `isVol()` ahora incluye `block`. Test: test/blocks.test.js.
 - v0.14: Shift+clic por rango en la lista de objetos (`visOrder` en `renderTree`), ojo/candado actúan sobre toda la selección, copiar/pegar dibujos (`copySel/pasteClip`, `store.pasteMany`; Ctrl+C, Ctrl+D/Ctrl+V), edición de texto en el gráfico con Enter o botón T (`editSelText`, `layer.editText`), aviso al repetir nombre de plantilla (global en app.js, por herramienta en drawui.js; `store.hasTemplate`).
 - v0.13: botones Indicadores y Listas pasan a la barra derecha (`#rightBar`, ids `btnIndicators`/`btnWatch`, el de Objetos va en `#rbObjects`); `healSubs()` en view.js tras mover paneles; Fibonacci con opción `logScale` (`fibPrice(p1,p2,v,log)`, clave de plantilla/estilo). `cfg.version` sigue en 9.
 - v0.12: Bitstamp, dibujos por gráfico (compartir opcional), arreglo del doble clic en flechas de indicadores, buscador "Añadir símbolo" con iconos, botón Diseño turquesa. `cfg.version` = 9.
@@ -107,4 +108,5 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.12: probado con datos simulados y `fetch` falso. Sin probar con datos reales: Bitstamp (formato/límites de ohlc, alineación diaria, ticker `percent_change_24`/`open_24`), descarga de iconos de internet (en pruebas solo salió la letra), Windows/Electron. Los dibujos antiguos siguen compartidos hasta que el usuario los deje en un solo gráfico. Deshacer (Ctrl+Z) sigue siendo por símbolo, no por gráfico.
 - v0.13: probado con datos simulados. Sin probar: Electron/Windows (el fallo del panel en blanco de RSI/Estocástico arriba no se reprodujo en Chromium; se añadió `healSubs()` en view.js como autocuración), Fibonacci log con Binance real.
 - v0.14: probado con datos simulados (rango de 11 dibujos, ocultar en grupo, pegar, texto, plantilla repetida). Sin probar: Electron/Windows. El portapapeles de dibujos es interno (no copia al sistema) y se pierde al cerrar.
+- v0.15: probado con bloques/precios simulados. Sin probar: mempool.space real (límites de peticiones, 429), Windows/Electron. Ideas: vela del bloque en formación, otras medidas (comisiones, nº de transacciones) como volumen, excluir salidas de cambio (requiere recorrer transacciones), dibujos sobre velas por bloque. Las velas por volumen de operaciones (aggTrades) siguen aplazadas.
 - Fase 4 restante: perfil de volumen, replay, espacios de trabajo, exportar imagen, mercados no cripto.

@@ -253,7 +253,7 @@
       const tf = L.tfById(id);
       if (!seen.has(tf.id)) { seen.add(tf.id); list.push(tf); }
     }
-    const key = (t) => (t.kind === 'vol' ? 1e12 + t.vol : t.sec);
+    const key = (t) => (t.kind === 'block' ? 2e12 : t.kind === 'vol' ? 1e12 + t.vol : t.sec);
     return list.sort((x, y) => key(x) - key(y));
   }
   function renderTfButtons() {
@@ -609,12 +609,16 @@
         saveCfg();
         if (use) { closeModal(); setTimeframe(id); } else { renderTfButtons(); num.value = ''; check(); renderList(); }
       };
+      const blk = document.createElement('button'); blk.className = 'btn secondary'; blk.textContent = 'Velas por bloque de Bitcoin';
+      blk.title = L.describe(L.tfById('blk'));
+      blk.onclick = () => { if (!A.cfg.tfs.includes('blk')) A.cfg.tfs.push('blk'); saveCfg(); closeModal(); setTimeframe('blk'); };
       const actions = document.createElement('div');
       actions.className = 'row-actions';
       const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'Agregar y usar'; b1.onclick = () => addTf(true);
       const b2 = document.createElement('button'); b2.className = 'btn secondary'; b2.textContent = 'Solo agregar'; b2.onclick = () => addTf(false);
       actions.append(b1, b2);
       box.appendChild(actions);
+      box.appendChild(blk);
       num.onkeydown = (e) => { if (e.key === 'Enter') addTf(true); };
 
       const h4 = document.createElement('h4');
