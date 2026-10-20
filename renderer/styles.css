@@ -332,3 +332,4 @@ input[type=color]:disabled { cursor: not-allowed; }
 .wl-state { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--muted); font-weight: 700; }
 .wl-state.on { background: #00e5ee; border-color: #00e5ee; color: #03282b; }
 .wl-results { max-height: 52vh; }
+#rightBar .rb-slot { display: contents; }

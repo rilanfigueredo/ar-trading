@@ -47,7 +47,7 @@
       case 'channel': return Object.assign(base, { fill: true, fillOpacity: 12, extL: false, extR: false });
       case 'poly': return base;
       case 'fib': return {
-        color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true,
+        color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true, logScale: false,
         levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',
       };
       case 'rect': return Object.assign(base, {
@@ -63,7 +63,7 @@
     }
   }
   // Claves de estilo que se recuerdan como "valor por defecto" para los siguientes dibujos del mismo tipo.
-  const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'levels',
+  const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'logScale', 'levels',
     'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx'];
   // Una plantilla guarda el estilo y también el texto (y, en tablas, su forma y el contenido de las celdas).
   const TEMPLATE_KEYS = STYLE_KEYS.concat(['text', 'rows', 'cols', 'cells', 'colStyles']);
@@ -150,7 +150,8 @@
     return c.y - (a.y + m * (c.x - a.x));
   }
   // Precio de un nivel de Fibonacci: 0 está en el segundo punto y 1 en el primero (como en TradingView).
-  const fibPrice = (p1, p2, v) => p2 + (p1 - p2) * v;
+  // Con "log" los niveles se reparten en escala logarítmica (proporcional); si algún precio no es positivo, se usa la lineal.
+  const fibPrice = (p1, p2, v, log) => (log && p1 > 0 && p2 > 0 ? Math.exp(Math.log(p2) + (Math.log(p1) - Math.log(p2)) * v) : p2 + (p1 - p2) * v);
 
   function humanDur(sec) {
     sec = Math.abs(Math.round(sec));
@@ -236,7 +237,7 @@
         const p1 = d.pts[0].p, p2 = d.pts[1].p;
         for (const lv of d.levels) {
           if (!lv.on) continue;
-          const yy = env.yOfPrice(fibPrice(p1, p2, lv.v));
+          const yy = env.yOfPrice(fibPrice(p1, p2, lv.v, d.logScale));
           if (yy === null) continue;
           best = Math.min(best, distPointSeg(x, y, xl, yy, xr, yy));
         }

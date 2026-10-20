@@ -608,6 +608,7 @@
       orderPanes();
       layoutPanes(relayout);
       ensureSubLegends();
+      if (relayout) healSubs();
 
       // Pivotes
       const tf = tfNow();
@@ -624,6 +625,29 @@
       renderLegend(null);
     }
 
+    // Autocuración de los paneles de indicadores tras moverlos: escala automática con rango 0–100,
+    // rótulos reintentados cuando el panel ya existe en pantalla y un repintado forzado en el siguiente cuadro.
+    function healSubs() {
+      const fix = () => {
+        if (!s.chart) return;
+        SUB_ORDER.forEach((name) => {
+          const sub = s.sub[name];
+          if (!sub) return;
+          try {
+            const ps = sub.main.priceScale();
+            ps.applyOptions({ autoScale: true, mode: LC.PriceScaleMode.Normal, invertScale: false });
+            const r = ps.getVisibleRange();
+            if (!r || !isFinite(r.from) || !isFinite(r.to) || !(r.to > r.from)) ps.setAutoScale(true);
+          } catch (e) { /* panel ya quitado */ }
+        });
+        ensureSubLegends();
+        try { s.chart.applyOptions({}); } catch (e) { /* sin gráfico */ }
+        positionLegend();
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => { fix(); requestAnimationFrame(fix); });
+      } else setTimeout(fix, 30);
+    }
     // Rótulo de cada panel inferior, dentro del propio panel (con botones para moverlo o quitarlo).
     function ensureSubLegends() {
       SUB_ORDER.forEach((name) => {

@@ -239,7 +239,7 @@
       const p1 = d.pts[0].p, p2 = d.pts[1].p;
       const [xl, xr] = G.boxXRange(P, d.extL, d.extR, w);
       const lv = (d.levels || []).filter((l) => l.on && num(l.v)).map((l) => {
-        const price = G.fibPrice(p1, p2, l.v);
+        const price = G.fibPrice(p1, p2, l.v, d.logScale);
         return { v: l.v, color: themed(l.color), price, y: env.yOfPrice(price) };
       }).filter((l) => num(l.y)).sort((a, b) => a.v - b.v);
       if (d.bg) {

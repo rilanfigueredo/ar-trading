@@ -37,8 +37,6 @@
   </div>
   <div class="tb-right">
     <span id="status" class="status"></span>
-    <button id="btnWatch" class="tb-btn">Listas</button>
-    <button id="btnIndicators" class="tb-btn">Indicadores</button>
     <button id="btnSettings" class="tb-btn">Ajustes</button>
   </div>
   </header>
@@ -53,7 +51,11 @@
     <aside id="panel" class="hidden"></aside>
     <aside id="objPanel" class="hidden"></aside>
     <aside id="watchPanel" class="hidden"></aside>
-    <aside id="rightBar" aria-label="Objetos"></aside>
+    <aside id="rightBar" aria-label="Indicadores, objetos y listas">
+      <button id="btnIndicators" class="db-btn" title="Indicadores y medias (clic otra vez para cerrar)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/></svg></button>
+      <div id="rbObjects" class="rb-slot"></div>
+      <button id="btnWatch" class="db-btn" title="Listas de seguimiento (clic otra vez para cerrar)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
+    </aside>
   </main>
 
   <div id="modal" class="modal hidden">

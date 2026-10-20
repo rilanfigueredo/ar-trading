@@ -34,6 +34,10 @@ close(G.fibPrice(100, 200, 0), 200);
 close(G.fibPrice(100, 200, 1), 100);
 close(G.fibPrice(100, 200, 0.5), 150);
 close(G.fibPrice(100, 200, 1.618), 200 - 100 * 1.618);
+close(G.fibPrice(100, 400, 0.5, true), 200);
+close(G.fibPrice(100, 400, 0, true), 400);
+close(G.fibPrice(100, 400, 1, true), 100);
+close(G.fibPrice(-5, 400, 0.5, true), 197.5);
 eq(D.fibLevels().length, 11);
 assert.ok(D.fibLevels().find((l) => l.v === 0.618).on);
 // duración legible

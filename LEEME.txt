@@ -1,10 +1,21 @@
-AR_TRADING - VERSION 0.12.0
+AR_TRADING - VERSION 0.13.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.12)
+NOVEDADES DE ESTA VERSION (v0.13)
+- INDICADORES ARRIBA: cuando RSI/Estocastico se movian encima del precio el panel podia quedar en blanco. Se
+  agrego una "autocuracion": al mover los paneles se vuelve a ajustar la escala 0-100, se reponen los rotulos y se
+  fuerza el repintado. IMPORTANTE: con datos simulados NO pude reproducir el fallo, asi que hay que probarlo en
+  Electron/Windows. Si sigue en blanco, avisame con que pasos y lo que diga la consola (F12).
+- BOTONES A LA BARRA DERECHA: "Indicadores" (icono de grafico) quedo justo ARRIBA del icono de Objetos, y "Listas"
+  (icono de marcador) justo DEBAJO. Ya no estan en la barra superior (queda "Ajustes").
+- FIBONACCI LOGARITMICO: en las propiedades del retroceso de Fibonacci hay una casilla "Niveles de Fibonacci
+  basados en escala logaritmica". Los niveles se reparten en proporcion (no en diferencia de precio). Apagada por
+  defecto; vale por dibujo.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.12)
 - BITSTAMP: cuarto exchange (spot, datos publicos). Aparece como pestana en el buscador de activos y en las
   listas. Simbolos tipo BTCUSD / ETHEUR. No tiene 1 s, 8 h, 1 semana ni 1 mes: las semanas (lunes a domingo) y los
   meses se arman con velas de 1 dia; 1 s no esta disponible y el grafico lo avisa. IMPORTANTE: solo se probo con

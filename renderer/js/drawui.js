@@ -310,8 +310,9 @@
     bar.appendChild(bigBtn('star', 'Mostrar / ocultar la barra de favoritos', () => setPref('favBar', !prefs().favBar), 'favBar'));
     // Barra derecha: panel de objetos
     const rb = X.$('rightBar');
-    rb.innerHTML = '';
-    rb.appendChild(bigBtn('list', 'Objetos: ver todos los dibujos (clic otra vez para cerrar)', toggleObjects, 'objects'));
+    const slot = X.$('rbObjects') || rb;
+    slot.innerHTML = '';
+    slot.appendChild(bigBtn('list', 'Objetos: ver todos los dibujos (clic otra vez para cerrar)', toggleObjects, 'objects'));
   }
   // El botón de alejar solo se ve cuando el gráfico activo tiene zoom
   function updateZoomOut() {
@@ -880,6 +881,7 @@
         if (t === 'trend' || t === 'hline' || t === 'hray' || t === 'rect') textBlock(d, true);
         if (t === 'fib') {
           field('Línea de tendencia (punteada)', checkIn(d.trendLine, (v) => patch({ trendLine: v })));
+          field('Niveles de Fibonacci basados en escala logarítmica', checkIn(!!d.logScale, (v) => patch({ logScale: v })));
           field('Mostrar el precio de cada nivel', checkIn(d.showPrice, (v) => patch({ showPrice: v })));
           field('Fondo entre niveles', checkIn(d.bg, (v) => patch({ bg: v })));
           field('Opacidad del fondo', rangeIn(d.bgOpacity == null ? 10 : d.bgOpacity, (v) => patch({ bgOpacity: v })));
