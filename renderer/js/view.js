@@ -6,7 +6,7 @@
   const L = window.TVLib;
   const API = window.TVApi;
 
-  const SUB_ORDER = ['rsi', 'stoch'];
+  const SUB_ORDER = ['rsi', 'stoch', 'delta', 'cvd'];
   const PIVOT_LEVELS = ['R3', 'R2', 'R1', 'P', 'S1', 'S2', 'S3'];
   const PIVOT_COLORS = { P: '#ff9800', R1: '#ef5350', R2: '#ef5350', R3: '#ef5350', S1: '#26a69a', S2: '#26a69a', S3: '#26a69a' };
 
@@ -128,9 +128,8 @@
       return fmtCache[k];
     }
     const isDaily = () => tfNow().sec >= 86400;
-    const isBlk = () => tfNow().kind === 'block';
-    const isVol = () => tfNow().kind === 'vol' || isBlk();   // velas que no siguen el reloj: sin temporizador, cruz sincronizada ni dibujos
-    const isSub = () => tfNow().sec < 60 && tfNow().kind !== 'vol' && !isBlk();
+    const isVol = () => tfNow().kind === 'vol';
+    const isSub = () => tfNow().sec < 60 && tfNow().kind !== 'vol';
     function timeFormatter(t) {
       if (typeof t !== 'number') return '';
       const d = new Date(t * 1000);
@@ -337,7 +336,7 @@
 
     // ---------- Indicadores ----------
     const col = (arrs) => ({
-      closes: arrs.map((b) => b.close), highs: arrs.map((b) => b.high), lows: arrs.map((b) => b.low),
+      closes: arrs.map((b) => b.close), highs: arrs.map((b) => b.high), lows: arrs.map((b) => b.low), bars: arrs,
     });
     const LSTYLE = { solid: LC.LineStyle.Solid, dashed: LC.LineStyle.Dashed, dotted: LC.LineStyle.Dotted };
     function lineOpts(color, extra) {
@@ -432,6 +431,41 @@
         data(vals) { return { k: pointsFrom(vals.k), d: pointsFrom(vals.d) }; },
         text(c, get, fmt) { return [{ color: c.kColor, t: fmt(get('k'), 2) }, { color: c.dColor, t: fmt(get('d'), 2) }]; },
       },
+      // Delta: compra agresiva - venta agresiva de cada vela (volumen de compra de Binance). Solo hay datos en Binance.
+      delta: {
+        struct: (c) => ({ u: c.upColor, d: c.downColor }),
+        title: () => 'Delta (compra − venta)',
+        build(chart, c, pane) {
+          const ser = chart.addSeries(LC.HistogramSeries, { lastValueVisible: false, priceLineVisible: false, priceFormat: { type: 'volume' } }, pane);
+          ser.priceScale().applyOptions(subMargins);
+          return { main: ser, list: [ser] };
+        },
+        style() {},
+        compute(c, d) { return { main: d.bars.map((b) => L.deltaOf(b)) }; },
+        pt(sub, k, i, v) { const c = vcfg.ind.delta; return { time: s.bars[i].time, value: v, color: v >= 0 ? c.upColor : c.downColor }; },
+        data(vals) { const c = vcfg.ind.delta; const out = []; vals.main.forEach((v, i) => { if (v !== null && v !== undefined) out.push({ time: s.bars[i].time, value: v, color: v >= 0 ? c.upColor : c.downColor }); }); return { main: out }; },
+        text(c, get, fmt) {
+          if (!s.bars.some((b) => b.buy !== undefined)) return [{ color: '#787b86', t: `no disponible: ${exName()} no entrega el volumen de compra` }];
+          return [{ color: get('main') >= 0 ? c.upColor : c.downColor, t: fmt(get('main'), 3) }];
+        },
+      },
+      // Delta acumulado (CVD): suma del delta desde la primera vela cargada (el nivel absoluto cambia al cargar más historial; vale la forma).
+      cvd: {
+        struct: () => ({}),
+        title: () => 'Delta acumulado (CVD)',
+        build(chart, c, pane) {
+          const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { priceFormat: { type: 'volume' }, lineWidth: 2 }), pane);
+          ser.priceScale().applyOptions(subMargins);
+          return { main: ser, list: [ser] };
+        },
+        style(sub, c) { sub.main.applyOptions({ color: c.color }); },
+        compute(c, d) { return { main: L.cumDelta(d.bars) }; },
+        data(vals) { return { main: pointsFrom(vals.main) }; },
+        text(c, get, fmt) {
+          if (!s.bars.some((b) => b.buy !== undefined)) return [{ color: '#787b86', t: `no disponible: ${exName()} no entrega el volumen de compra` }];
+          return [{ color: c.color, t: fmt(get('main'), 1) }];
+        },
+      },
     };
 
     function fmtVal(v, decimals) {
@@ -451,7 +485,7 @@
     const drawEnv = {
       host, chartEl,
       series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol, chart: () => vcfg.id,
-      active: () => !!(s.chart && s.series && s.bars.length && !s.loading && tfNow().kind !== 'vol'),
+      active: () => !!(s.chart && s.series && s.bars.length && !s.loading && !isVol()),
       xOfTime(t) { const lg = logicalAtTime(t); return lg === null ? null : xOfLogical(lg); },
       timeOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? timeAtLogical(lg) : null; },
       logicalOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? lg : null; },
@@ -599,7 +633,7 @@
             Object.keys(vals).forEach((k) => {
               const v = vals[k][i];
               if (v === null || v === undefined) return;
-              sub[k].update({ time: s.bars[i].time, value: v });
+              sub[k].update(def.pt ? def.pt(sub, k, i, v) : { time: s.bars[i].time, value: v });
             });
           }
         }
@@ -740,11 +774,6 @@
       [['A', b.open], ['M', b.high], ['m', b.low], ['C', b.close]].forEach(([k, v]) => o.appendChild(el('b', '', `${k} ${fmtVal(v)}`)));
       o.appendChild(el('b', '', `${chg >= 0 ? '+' : ''}${fmtVal(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`));
       legendEl.appendChild(o);
-      if (tf.kind === 'block' && b.h0 !== undefined) {
-        const f = (x, d) => (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es', { maximumFractionDigits: d });
-        const dur = b.durMin >= 120 ? f(b.durMin / 60, 1) + ' h' : f(b.durMin, 1) + ' min';
-        legendEl.appendChild(el('div', 'lg-note', `${b.blocks > 1 ? `Bloques #${b.h0}–#${b.h1} (${b.blocks})` : `Bloque #${b.h0}`}${b.partial ? ' · EN FORMACIÓN' : ''} · duración ${dur} · Vol. cadena ${f(b.volume, 1)} BTC (${f(b.volPerMin, 2)} BTC/min) · ${b.txs.toLocaleString('es')} tx · comisiones ${f(b.fees, 3)} BTC`));
-      }
 
       const masDiv = el('div', 'lg-mas');
       for (const ma of vcfg.mas) {
@@ -853,7 +882,7 @@
 
     // ---------- Temporizador de la vela en la barra de precios ----------
     function nextClose(tf, bar) {
-      if (tf.kind === 'vol' || tf.kind === 'block') return null;
+      if (tf.kind === 'vol') return null;
       if (tf.kind === 'months' || tf.base === '1M') {
         const d = new Date(bar.time * 1000);
         const n = tf.kind === 'months' ? tf.n : 1;
@@ -895,7 +924,7 @@
       const m = /^(.+?)(USDT|USDC|FDUSD|BUSD|TUSD|USD|EUR|BTC|ETH|BNB)$/.exec(vcfg.symbol);
       return m ? m[1] : vcfg.symbol;
     }
-    function tfLabel(tf) { return tf.kind === 'block' ? (tf.n === 1 ? 'Bloque' : tf.n + ' bloques') : tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
+    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
     function volNote() {
       const bits = [];
       if (s.vol && s.vol.market === 'spot') bits.push('Futuros no disponible: usando Spot');
@@ -1033,172 +1062,6 @@
       }
     }
 
-    // ---------- Velas por bloques de Bitcoin ----------
-    // Los bloques (hora, volumen en cadena, comisiones, transacciones) vienen de mempool.space con caché en disco; el precio sale de las
-    // velas del exchange (caché IndexedDB). L.blockCandles arma cada vela de n bloques. El historial se descarga en segundo plano, de nuevo a antiguo.
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    function dropBlkVol() { if (s.blkVol) { try { s.chart.removeSeries(s.blkVol); } catch (e) { /* ya quitada */ } s.blkVol = null; } }
-    const blkVolPoint = (b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)' });
-    // Histograma del volumen en cadena (BTC movidos), en la parte baja del panel del precio.
-    function syncBlkVol() {
-      if (!s.blkVol) {
-        s.blkVol = s.chart.addSeries(LC.HistogramSeries, { priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false }, mainPaneIdx());
-        s.blkVol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-      }
-      s.blkVol.setData(s.bars.map(blkVolPoint));
-    }
-    // Descarga bloques lo..hi (repite hasta que no falte ninguno). Devuelve false si se canceló.
-    async function blkEnsure(lo, hi, token, label) {
-      let retries = 0;
-      for (;;) {
-        let r;
-        try { r = await API.blockRecords({ lo, hi, budget: 12 }); } catch (e) {
-          if (token !== s.token || s.destroyed) return false;
-          if (++retries > 5) throw e;
-          setStatus('mempool.space pidió esperar: reintentando…', 'loading');
-          await sleep(6000 * retries);
-          continue;
-        }
-        if (token !== s.token || s.destroyed) return false;
-        retries = 0;
-        for (const x of r.rows) s.blkMap.set(x[0], x);
-        s.blkTip = r.tip;
-        if (!r.missing) return true;
-        setStatus(`${label} ${Math.round(100 * (1 - r.missing / r.total))} %`, 'loading');
-        await sleep(150);
-      }
-    }
-    async function blkMinutes(startMs, token) {
-      const iv = L.BLOCK_IV(tfNow().n), ms = L.IV_MS_BLOCK[iv];
-      const pages = Math.ceil((Date.now() - startMs) / (1000 * ms)) + 1;
-      const r = await TVHistory.fetchBack(vcfg.symbol, iv, undefined, pages, () => token !== s.token || s.destroyed, exId());
-      return r ? r.rows : null;
-    }
-    // Arma las velas con los bloques desde blkLo hasta el último.
-    async function blkAssemble(token) {
-      const N = tfNow().n;
-      const recs = [];
-      for (let h = s.blkLo; h <= s.blkTip; h++) { const r = s.blkMap.get(h); if (r) recs.push(r); }
-      if (!recs.length) return null;
-      const mins = await blkMinutes(recs[0][1] * 1000 - 60000, token);
-      if (!mins) return null;
-      return L.blockCandles(recs, mins, L.IV_MS_BLOCK[L.BLOCK_IV(N)], N, Date.now());
-    }
-    function blkApply(bars) {
-      const old = s.bars.length;
-      const range = old ? s.chart.timeScale().getVisibleLogicalRange() : null;
-      s.bars = bars;
-      s.precision = L.detectPrecision(s.bars);
-      if (!old || !s.series) buildMainSeries(); else s.series.setData(s.bars.map(toPoint));
-      syncBlkVol();
-      syncMas();
-      syncIndicators(true);
-      const n = s.bars.length;
-      if (!old) s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 7 });
-      else if (range) { const d = n - old; s.chart.timeScale().setVisibleLogicalRange({ from: range.from + d, to: range.to + d }); }
-      renderLegend(null);
-      if (view.draw) view.draw.repaint();
-    }
-    const blkStatus = () => (s.reachedStart ? 'En vivo · historial de bloques completo' : s.blkFilling ? 'En vivo · bajando más bloques…' : 'En vivo · cadena de bloques');
-    // Baja bloques más antiguos hasta blkCap, rearmando el gráfico cada ~1500 bloques.
-    async function blkFill(token) {
-      if (s.blkFilling) return;
-      s.blkFilling = true;
-      try {
-        const N = tfNow().n;
-        while (s.blkLo > s.blkCap && token === s.token && !s.destroyed) {
-          const lo = Math.max(s.blkCap, s.blkLo - Math.max(1500, N));
-          if (!(await blkEnsure(lo, s.blkLo - 1, token, 'Bajando bloques…'))) return;
-          s.blkLo = lo;
-          const bars = await blkAssemble(token);
-          if (!bars) return;
-          if (token !== s.token || s.destroyed) return;
-          blkApply(bars);
-          setStatus(blkStatus(), 'live');
-        }
-        if (s.blkLo <= 1) s.reachedStart = true;
-      } catch (e) {
-        if (token === s.token && !s.destroyed) setStatus('Error al bajar bloques: ' + e.message, 'err');
-      } finally { s.blkFilling = false; if (token === s.token) setStatus(blkStatus(), 'live'); }
-    }
-    async function loadBlk() {
-      const token = ++s.token;
-      stopPolling();
-      hideOverlay();
-      s.loadingMore = false; s.reachedStart = false; s.loading = true; s.base = []; s.blkFilling = false;
-      s.blkMap = new Map();
-      setStatus('Cargando bloques de Bitcoin…', 'loading');
-      try {
-        if (!/^(BTC|XBT)/.test(vcfg.symbol)) throw new Error('las velas por bloque solo existen para Bitcoin (un símbolo que empiece con BTC, por ejemplo BTCUSDT).');
-        const N = tfNow().n;
-        const tip = (await API.blockRecords({ tipOnly: 1 })).tip;
-        if (token !== s.token || s.destroyed) return;
-        s.blkTip = tip;
-        const first = Math.min(Math.max(N * 3, 450), 6100);
-        s.blkLo = Math.max(1, tip - first);
-        s.blkCap = Math.max(1, tip - Math.min(Math.max(200 * N, 3000), 420000));
-        if (!(await blkEnsure(s.blkLo, tip, token, 'Cargando bloques…'))) return;
-        const bars = await blkAssemble(token);
-        if (!bars) return;
-        if (token !== s.token || s.destroyed) return;
-        if (!bars.length) throw new Error('no hay datos de precio para esos bloques.');
-        s.bars = [];
-        blkApply(bars);
-        mainScale().applyOptions({ autoScale: true });
-        s.loading = false;
-        setStatus(blkStatus(), 'live');
-        s.pollTimer = setInterval(poll, 30000);
-        G.onLoaded(view);
-        blkFill(token);
-      } catch (e) {
-        if (token !== s.token || s.destroyed) return;
-        s.loading = false;
-        setStatus('Sin datos', 'err');
-        showOverlay('No se pudieron cargar los bloques: ' + e.message, true);
-      }
-    }
-    // Al llegar al borde izquierdo se amplía el tope de descarga.
-    async function loadMoreBlk() {
-      if (s.blkFilling || s.reachedStart || !s.bars.length || s.loading) return;
-      const N = tfNow().n;
-      if (s.blkLo <= s.blkCap) s.blkCap = Math.max(1, s.blkCap - Math.max(100 * N, 3000));
-      blkFill(s.token);
-    }
-    async function pollBlk() {
-      if (s.polling || !s.bars.length || s.loading) return;
-      s.polling = true;
-      const token = s.token;
-      try {
-        const N = tfNow().n;
-        const r = await API.blockRecords({ lo: Math.max(1, s.blkTip - 20), refresh: 1, budget: 4 });
-        if (token !== s.token || s.destroyed) return;
-        for (const x of r.rows) s.blkMap.set(x[0], x);
-        s.blkTip = r.tip;
-        // se rearman solo los dos últimos grupos
-        const tailLo = Math.max(s.blkLo, (Math.floor(r.tip / N) - 1) * N - 1);
-        const recs = [];
-        for (let h = tailLo; h <= r.tip; h++) { const x = s.blkMap.get(h); if (x) recs.push(x); }
-        const mins = await blkMinutes(recs[0][1] * 1000 - 60000, token);
-        if (!mins || token !== s.token || s.destroyed) return;
-        const tail = L.blockCandles(recs, mins, L.IV_MS_BLOCK[L.BLOCK_IV(N)], N, Date.now());
-        if (tail.length) {
-          let i0 = s.bars.findIndex((b) => b.time >= tail[0].time);
-          if (i0 < 0) i0 = s.bars.length;
-          const start = i0;
-          s.bars = s.bars.slice(0, i0).concat(tail);
-          for (let i = start; i < s.bars.length; i++) { s.series.update(toPoint(s.bars[i])); if (s.blkVol) s.blkVol.update(blkVolPoint(s.bars[i])); }
-          updateMasTail(start);
-          syncIndicators(false, start);
-          if (s.hoverTime === null) renderLegend(null);
-        }
-        setStatus(blkStatus(), 'live');
-      } catch (e) {
-        setStatus('Reconectando…', 'err');
-      } finally {
-        s.polling = false;
-      }
-    }
-
     // ---------- Carga de datos ----------
     async function fetchBack(endMs, pages, token) {
       const tf = tfNow();
@@ -1250,8 +1113,6 @@
 
     async function load() {
       zoomStack.length = 0;
-      if (tfNow().kind !== 'block') dropBlkVol();
-      if (tfNow().kind === 'block') return loadBlk();
       if (tfNow().kind === 'vol') return loadVol();
       const token = ++s.token;
       stopPolling();
@@ -1317,7 +1178,6 @@
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
     async function loadMore(pagesOverride) {
-      if (tfNow().kind === 'block') return loadMoreBlk();
       if (tfNow().kind === 'vol') return loadMoreVol();
       if (s.loadingMore || s.reachedStart || !s.base.length || s.loading) return false;
       s.loadingMore = true;
@@ -1372,7 +1232,6 @@
     }
 
     async function poll() {
-      if (tfNow().kind === 'block') return pollBlk();
       if (tfNow().kind === 'vol') return pollVol();
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;

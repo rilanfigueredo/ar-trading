@@ -16,8 +16,7 @@ function readConfig() {
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
-ipcMain.handle('blockRecords', async (_e, p) => core.blockRecords(p));
-core.setDataDir(app.getPath('userData'));
+ipcMain.handle('testConnection', async () => core.testConnection());
 ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
 ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
 ipcMain.handle('config:get', async () => readConfig());

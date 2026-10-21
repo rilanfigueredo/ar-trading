@@ -99,6 +99,40 @@
       ctx.restore();
     }
 
+    // Polilínea: cada tramo puede tener su propio color o estar eliminado (d.segs[i]); cada punto puede llevar un texto (d.labels[i]).
+    function drawPoly(ctx, d, P, color, o) {
+      const segs = d.segs || {};
+      const custom = Object.keys(segs).length > 0;
+      if (P.length > 1) {
+        if (!custom) { ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y); ctx.stroke(); }
+        else {
+          const base = ctx.strokeStyle;
+          for (let i = 1; i < P.length; i++) {
+            const sg = segs[i - 1] || {};
+            if (sg.hidden) {
+              if (o && (o.selected || o.hover)) {      // con el dibujo seleccionado se ve un rastro tenue para poder restaurarlo
+                ctx.save(); ctx.globalAlpha = 0.25; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(P[i - 1].x, P[i - 1].y); ctx.lineTo(P[i].x, P[i].y); ctx.stroke(); ctx.restore();
+              }
+              continue;
+            }
+            ctx.strokeStyle = sg.color ? themed(sg.color) : base;
+            ctx.beginPath(); ctx.moveTo(P[i - 1].x, P[i - 1].y); ctx.lineTo(P[i].x, P[i].y); ctx.stroke();
+          }
+          ctx.strokeStyle = base;
+        }
+      }
+      const labels = d.labels || {};
+      const keys = Object.keys(labels).filter((k) => labels[k] !== '' && labels[k] !== undefined && P[Number(k)]);
+      if (keys.length) {
+        const size = d.tSize || 12, bg = env.bg();
+        ctx.save();
+        ctx.font = font(size, d.tBold, d.tItalic); ctx.fillStyle = d.tColor ? themed(d.tColor) : color;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.setLineDash([]);
+        keys.forEach((k) => { const p = P[Number(k)]; haloText(ctx, String(labels[k]), p.x, p.y - 8, bg); });
+        ctx.restore();
+      }
+    }
+
     function drawOne(ctx, d, w, h, o) {
       const P = toPx(d);
       if (!P || !P.length) return;
@@ -120,9 +154,7 @@
           seg(ctx, [P[0].x, P[0].y, Math.max(w + 50, P[0].x), P[0].y]);
           drawLineText(ctx, d, P[0].x, P[0].y, w, P[0].y, w);
           break;
-        case 'poly':
-          if (P.length > 1) { ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y); ctx.stroke(); }
-          break;
+        case 'poly': drawPoly(ctx, d, P, color, o); break;
         case 'rect': if (P.length > 1) drawRect(ctx, d, P, w, color); break;
         case 'channel': drawChannel(ctx, d, P, w, color); break;
         case 'fib': if (P.length > 1) drawFib(ctx, d, P, w, o); break;
@@ -557,8 +589,80 @@
       setTimeout(() => { inp.focus(); inp.select(); }, 0);
     }
 
+    // ---------- Texto en cada punto de una polilínea ----------
+    // Con la polilínea seleccionada, al pasar el mouse por un punto aparece "+ Texto" (o el texto actual) para escribir o cambiar el texto o número de ese punto.
+    let chipEl = null, chipTimer = null, chipFor = null;
+    function hideChip() { clearTimeout(chipTimer); chipTimer = null; if (chipEl) chipEl.style.display = 'none'; chipFor = null; }
+    function softHideChip() { if (!chipTimer) chipTimer = setTimeout(hideChip, 450); }
+    function selectedPoly() {
+      const sym = env.symbol();
+      if (store.state.multi.length !== 1 || !store.state.sel || store.state.sel.sym !== sym) return null;
+      const d = store.get(sym, store.state.sel.id);
+      return d && d.type === 'poly' && !store.isLocked(sym, d) ? d : null;
+    }
+    function openPointEditor(id, idx) {
+      const sym = env.symbol(), d = store.get(sym, id);
+      if (!d) return;
+      closeEditor(); hideChip();
+      const P = toPx(d), pr = env.paneRect(), cr = env.chartEl.getBoundingClientRect();
+      if (!P || !P[idx] || !pr) return;
+      const size = d.tSize || 12;
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'draw-text-input'; inp.placeholder = 'Texto o número del punto (Enter)';
+      inp.value = (d.labels && d.labels[idx]) || '';
+      inp.style.left = Math.max(2, P[idx].x - 60) + 'px';
+      inp.style.top = Math.max(2, pr.top - cr.top + P[idx].y - size - 12) + 'px';
+      inp.style.fontSize = size + 'px';
+      host.appendChild(inp);
+      L.editor = inp;
+      let done = false;
+      const end = (ok) => {
+        if (done) return;
+        done = true;
+        const txt = inp.value.trim();
+        if (L.editor === inp) L.editor = null;
+        inp.remove();
+        if (ok) {
+          const cur = store.get(sym, id);
+          if (cur) { const labels = Object.assign({}, cur.labels || {}); if (txt) labels[idx] = txt; else delete labels[idx]; store.patch(sym, id, { labels }); }
+        }
+        repaint();
+      };
+      inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') end(true); else if (e.key === 'Escape') end(false); };
+      inp.onblur = () => end(true);
+      inp.onmousedown = (e) => e.stopPropagation();
+      setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    }
+    function updateChip(loc) {
+      const d = selectedPoly();
+      const P = d && toPx(d);
+      if (!P || !loc.inPane) { softHideChip(); return; }
+      let best = -1, bd = 16;
+      P.forEach((p, i) => { const dd = Math.hypot(p.x - loc.x, p.y - loc.y); if (dd < bd) { bd = dd; best = i; } });
+      if (best < 0) { softHideChip(); return; }
+      const pr = env.paneRect(), cr = env.chartEl.getBoundingClientRect();
+      if (!pr) return;
+      if (!chipEl) {
+        chipEl = document.createElement('button');
+        chipEl.className = 'poly-chip';
+        chipEl.onmouseenter = () => { clearTimeout(chipTimer); chipTimer = null; };
+        chipEl.onmouseleave = () => softHideChip();
+        chipEl.onmousedown = (e) => e.stopPropagation();
+        chipEl.onclick = (e) => { e.stopPropagation(); if (chipFor) openPointEditor(chipFor.id, chipFor.idx); };
+        host.appendChild(chipEl);
+      }
+      clearTimeout(chipTimer); chipTimer = null;
+      chipFor = { id: d.id, idx: best };
+      const has = d.labels && d.labels[best];
+      chipEl.textContent = has ? '✎ ' + d.labels[best] : '＋ Texto';
+      chipEl.title = has ? 'Cambiar el texto de este punto' : 'Agregar texto o número a este punto';
+      chipEl.style.display = 'block';
+      chipEl.style.left = Math.max(2, P[best].x - 28) + 'px';
+      chipEl.style.top = Math.max(2, pr.top - cr.top + P[best].y - (has ? 40 : 34)) + 'px';
+    }
+
     // ---------- Ratón ----------
-    const isUi = (t) => !!(t && t.closest && t.closest('.max-btn, .pl-btns, .pl-btn, .ctimer, .draw-text-input'));
+    const isUi = (t) => !!(t && t.closest && t.closest('.max-btn, .pl-btns, .pl-btn, .ctimer, .draw-text-input, .poly-chip'));
     function stop(e) { e.stopPropagation(); e.preventDefault(); }
 
     function onDown(e) {
@@ -668,6 +772,7 @@
     function onHover(e) {
       if (destroyed || L.drag || L.draft || L.marquee || store.state.tool || !env.active()) return;
       const loc = local(e);
+      if (!isUi(e.target)) updateChip(loc);
       const hit = loc.inPane && !isUi(e.target) ? hitAt(loc.x, loc.y) : null;
       const id = hit ? hit.d.id : null;
       // Flecha de dos puntas al pasar por un tirador del rectángulo (como en TradingView)
@@ -697,13 +802,14 @@
       stop(e);
       const sym = env.symbol();
       if (!store.isSelected(sym, hit.d.id)) store.select(sym, hit.d.id);
-      store.emit('ctx', { x: e.clientX, y: e.clientY, sym, id: hit.d.id });
+      const P2 = hit.d.type === 'poly' ? toPx(hit.d) : null;
+      store.emit('ctx', { x: e.clientX, y: e.clientY, sym, id: hit.d.id, seg: P2 ? G.nearestSegment(P2, loc.x, loc.y) : -1 });
     }
     host.addEventListener('mousedown', onDown, true);
     host.addEventListener('mousemove', onHover);
     host.addEventListener('dblclick', onDbl, true);
     host.addEventListener('contextmenu', onCtx, true);
-    host.addEventListener('mouseleave', () => { delete host.dataset.cur; if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
+    host.addEventListener('mouseleave', () => { softHideChip(); delete host.dataset.cur; if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
 
     // Cambios en el almacén (de este u otro gráfico): repintar y ajustar el cursor.
     const off = store.on((kind) => {

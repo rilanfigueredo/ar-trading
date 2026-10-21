@@ -14,7 +14,7 @@
     ? {
         klines: (p) => desktop.klines(p),
         aggTrades: (p) => desktop.aggTrades(p),
-        blockRecords: (p) => desktop.blockRecords(p),
+        testConnection: () => desktop.testConnection(),
         symbols: (ex) => desktop.symbols({ exchange: ex || 'binance' }),
         tickers: (ex, list) => desktop.tickers({ exchange: ex || 'binance', symbols: list }),
         getConfig: () => desktop.getConfig(),
@@ -23,7 +23,7 @@
     : {
         klines: (p) => http('/api/klines?' + new URLSearchParams(p).toString()),
         aggTrades: (p) => http('/api/aggtrades?' + new URLSearchParams(p).toString()),
-        blockRecords: (p) => http('/api/blockrecords?' + new URLSearchParams(p).toString()),
+        testConnection: () => http('/api/testconnection'),
         symbols: (ex) => http('/api/symbols?exchange=' + (ex || 'binance')),
         tickers: (ex, list) => http('/api/tickers?exchange=' + (ex || 'binance') + '&symbols=' + encodeURIComponent(list.join(','))),
         getConfig: () => http('/api/config'),

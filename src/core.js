@@ -65,7 +65,7 @@ async function httpGet(path, params, hosts) {
       const timer = setTimeout(() => ctrl.abort(), 12000);
       const res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal });
       clearTimeout(timer);
-      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : host.includes('mempool') ? 'mempool.space' : 'Binance';
+      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : 'Binance';
       if (res.status === 429 || res.status === 418) {
         throw new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
       }
@@ -76,7 +76,7 @@ async function httpGet(path, params, hosts) {
     }
   }
   const hs = (hosts || HOSTS)[0] || '';
-  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : hs.includes('mempool') ? 'mempool.space' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+  throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
 }
 
 // ---------- Datos simulados (solo para pruebas sin internet) ----------
@@ -131,7 +131,9 @@ function mockCandle(symbol, interval, t) {
   const h = Math.max(o, c) * (1 + 0.004 * hash(t + 1));
   const l = Math.min(o, c) * (1 - 0.004 * hash(t + 2));
   const v = 100 * (1 + hash(t + 3));
-  return [t, String(o), String(h), String(l), String(c), String(v)];
+  // Como Binance: [apertura, o, h, l, c, volumen, cierre, volumen en dólares, operaciones, volumen de compra agresiva, ...]
+  const buy = v * (0.3 + 0.4 * hash(t + 4));
+  return [t, String(o), String(h), String(l), String(c), String(v), t + 1, String(v * o), 100, String(buy), String(buy * o), '0'];
 }
 function mockKlines({ symbol, interval, startTime, endTime, limit }) {
   const lim = Math.min(Number(limit) || 500, 1000);
@@ -387,87 +389,69 @@ async function tickers({ exchange, symbols: syms }) {
   return out;
 }
 
-// ---------- Velas por bloque de Bitcoin (v0.15/v0.16): bloques de mempool.space con caché en disco ----------
-// Cada bloque se guarda como [altura, hora (s), BTC de salidas en satoshis, comisiones en satoshis, transacciones, tamaño].
-// Los bloques ya minados no cambian, así que se descargan una sola vez (15 por petición) y quedan en la carpeta de datos.
-const fs = require('fs');
-const path = require('path');
-const MEMPOOL_HOSTS = ['https://mempool.space'];
-const BLK_CHUNK = 2016;          // un archivo por cada 2016 bloques (un periodo de dificultad)
-const BLK_SAFE = 12;             // los últimos bloques pueden cambiar por reorganizaciones: no se guardan en disco
-let blkDir = null;
-const blkMem = new Map();
-const blkLoaded = new Set();
-const blkDirty = new Set();
-let blkTimer = null;
-let blkTip = { h: 0, t: 0 };
-function setDataDir(dir) { blkDir = dir ? path.join(dir, 'blocks') : null; }
-const chunkFile = (i) => path.join(blkDir, `c${i}.json`);
-function loadChunk(i) {
-  if (blkLoaded.has(i)) return;
-  blkLoaded.add(i);
-  if (!blkDir) return;
-  try { for (const r of JSON.parse(fs.readFileSync(chunkFile(i), 'utf8'))) if (!blkMem.has(r[0])) blkMem.set(r[0], r); } catch (e) { /* aún no existe */ }
+// ---------- Prueba de conexión (v0.17): ¿qué fuentes de datos responden en este equipo y a qué velocidad? ----------
+async function timedFetch(url, opts, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 12000);
+  const t0 = Date.now();
+  try {
+    const res = await fetch(url, Object.assign({ signal: ctrl.signal }, opts || {}));
+    return { res, ms: Date.now() - t0 };
+  } finally { clearTimeout(timer); }
 }
-function flushBlocks() {
-  blkTimer = null;
-  if (!blkDir) { blkDirty.clear(); return; }
-  try { fs.mkdirSync(blkDir, { recursive: true }); } catch (e) { return; }
-  const safe = blkTip.h - BLK_SAFE;
-  for (const i of blkDirty) {
-    const rows = [];
-    for (let h = i * BLK_CHUNK; h < (i + 1) * BLK_CHUNK; h++) { const r = blkMem.get(h); if (r && h <= safe) rows.push(r); }
-    try { fs.writeFileSync(chunkFile(i) + '.tmp', JSON.stringify(rows)); fs.renameSync(chunkFile(i) + '.tmp', chunkFile(i)); } catch (e) { /* sin permiso de escritura: sigue en memoria */ }
-  }
-  blkDirty.clear();
-}
-function markBlk(h) { blkDirty.add(Math.floor(h / BLK_CHUNK)); if (!blkTimer) { blkTimer = setTimeout(flushBlocks, 2500); if (blkTimer.unref) blkTimer.unref(); } }
-const toRec = (b) => { const ex = b.extras || {}; return [b.height, b.timestamp, Number(ex.totalOutputAmt) || 0, Number(ex.totalFees) || 0, b.tx_count || 0, b.size || 0]; };
-
-const MOCK_BLK_T0 = 1735689600; // 1-ene-2025 = altura simulada 900000
-const mockBlkTs = (h) => MOCK_BLK_T0 + (h - 900000) * 600 + Math.round(hash(h) * 240 - 120);
-const mockTipHeight = () => 900000 + Math.floor((Date.now() / 1000 - MOCK_BLK_T0) / 600);
-function mockRec(h) {
-  const btc = 300 + 4200 * Math.pow(hash(h + 3), 2);
-  return [h, mockBlkTs(h), Math.round(btc * 1e8), Math.round((0.01 + 0.4 * hash(h + 11)) * 1e8), Math.round(1500 + 2500 * hash(h + 7)), Math.round(1.2e6 + 6e5 * hash(h + 8))];
-}
-async function blockTip() {
-  if (MOCK()) return mockTipHeight();
-  if (blkTip.h && Date.now() - blkTip.t < 15000) return blkTip.h;
-  const h = Number(await httpGet('/api/blocks/tip/height', null, MEMPOOL_HOSTS));
-  if (!(h > 0)) throw new Error('mempool.space no entregó la altura del último bloque.');
-  blkTip = { h, t: Date.now() };
-  return h;
-}
-// Asegura (con un máximo de "budget" peticiones) los bloques lo..hi y devuelve los que ya se tienen, de menor a mayor altura.
-// Se descargan primero los más nuevos. missing = cuántos faltan todavía (el que llama repite hasta que sea 0).
-async function blockRecords({ lo, hi, budget, refresh, tipOnly }) {
-  const tip = await blockTip();
-  if (tipOnly) return { tip };
-  const H = Math.min(tip, hasVal(hi) ? Math.floor(Number(hi)) : tip);
-  const L0 = Math.max(0, hasVal(lo) ? Math.floor(Number(lo)) : H - 150);
-  if (H < L0) return { tip, rows: [], missing: 0, total: 0 };
-  if (MOCK()) { const rows = []; for (let h = L0; h <= H; h++) rows.push(mockRec(h)); return { tip, rows, missing: 0, total: rows.length }; }
-  for (let i = Math.floor(L0 / BLK_CHUNK); i <= Math.floor(H / BLK_CHUNK); i++) loadChunk(i);
-  if (refresh) for (let h = tip - 14; h <= tip; h++) blkMem.delete(h);
-  let reqs = 0;
-  const maxReq = Math.max(1, Math.min(Number(budget) || 12, 40));
-  while (reqs < maxReq) {
-    const starts = [];
-    for (let h = H; h >= L0 && starts.length < 2; h--) {
-      if (blkMem.has(h)) continue;
-      if (starts.length && starts[0] - h < 15) continue;   // ya lo cubre la otra petición
-      starts.push(h);
-    }
-    if (!starts.length) break;
-    const res = await Promise.all(starts.map((st) => httpGet(`/api/v1/blocks/${st}`, null, MEMPOOL_HOSTS)));
-    reqs += starts.length;
-    for (const arr of res) for (const b of arr) { blkMem.set(b.height, toRec(b)); markBlk(b.height); }
-  }
-  const rows = [];
-  let missing = 0;
-  for (let h = L0; h <= H; h++) { const r = blkMem.get(h); if (r) rows.push(r); else missing++; }
-  return { tip, rows, missing, total: H - L0 + 1 };
+const dayStr = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
+async function testConnection() {
+  if (MOCK()) return { mock: true, results: [{ name: 'Datos simulados', ok: true, ms: 0, detail: 'Modo de prueba: no se contacta con ninguna fuente real.' }] };
+  const out = [];
+  const run = async (name, fn) => {
+    const t0 = Date.now();
+    try { const detail = await fn(); out.push({ name, ok: true, ms: Date.now() - t0, detail }); }
+    catch (e) { out.push({ name, ok: false, ms: Date.now() - t0, detail: (e && e.name === 'AbortError') ? 'No respondió en 12 segundos' : (e && e.message) || String(e) }); }
+  };
+  const json = async (url) => { const { res } = await timedFetch(url); if (!res.ok) throw new Error(`Respondió ${res.status}`); return res.json(); };
+  await run('Binance Spot · velas (con volumen de compra)', async () => {
+    const r = await json('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=2');
+    if (!Array.isArray(r) || !r.length) throw new Error('Respuesta vacía');
+    return r[0].length > 9 ? 'Correcto: trae el volumen de compra agresiva (el delta se puede calcular).' : 'Responde pero SIN volumen de compra: el delta no se podría calcular.';
+  });
+  await run('Binance Futuros · velas', async () => {
+    const r = await json('https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&limit=2');
+    if (!Array.isArray(r) || !r.length) throw new Error('Respuesta vacía');
+    return 'Correcto.';
+  });
+  await run('Binance Futuros · operaciones (aggTrades)', async () => {
+    const r = await json('https://fapi.binance.com/fapi/v1/aggTrades?symbol=BTCUSDT&limit=1000');
+    if (!Array.isArray(r) || r.length < 2) throw new Error('Respuesta vacía');
+    const span = (r[r.length - 1].T - r[0].T) / 1000;
+    return `${r.length} operaciones en ${span.toFixed(1)} s (≈ ${span > 0 ? Math.round(r.length / span) : '?'} por segundo). Indica el lado agresor: ${r[0].m !== undefined ? 'sí' : 'NO'}.`;
+  });
+  await run('Binance · archivo histórico de operaciones (data.binance.vision)', async () => {
+    const url = `https://data.binance.vision/data/futures/um/daily/aggTrades/BTCUSDT/BTCUSDT-aggTrades-${dayStr(3)}.zip`;
+    const head = await timedFetch(url, { method: 'HEAD' });
+    if (!head.res.ok) throw new Error(`El archivo de ${dayStr(3)} respondió ${head.res.status}`);
+    const size = Number(head.res.headers.get('content-length')) || 0;
+    const part = await timedFetch(url, { headers: { Range: 'bytes=0-1999999' } }, 20000);
+    const buf = part.res.ok || part.res.status === 206 ? (await part.res.arrayBuffer()).byteLength : 0;
+    const mbs = buf ? (buf / 1048576) / (Math.max(part.ms, 1) / 1000) : 0;
+    return `Existe. Un día pesa ${(size / 1048576).toFixed(0)} MB comprimido; velocidad medida ${mbs.toFixed(1)} MB/s (≈ ${mbs ? Math.ceil(size / 1048576 / mbs) : '?'} s por día).`;
+  });
+  await run('Bybit · operaciones recientes', async () => {
+    const r = await json('https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=BTCUSDT&limit=1000');
+    const n = r && r.result && r.result.list ? r.result.list.length : 0;
+    if (!n) throw new Error('Respuesta vacía');
+    return `${n} operaciones.`;
+  });
+  await run('Bybit · archivo histórico (dirección sin verificar)', async () => {
+    const { res } = await timedFetch(`https://public.bybit.com/trading/BTCUSDT/BTCUSDT${dayStr(3)}.csv.gz`, { method: 'HEAD' });
+    if (!res.ok) throw new Error(`Respondió ${res.status}`);
+    return `Existe (${((Number(res.headers.get('content-length')) || 0) / 1048576).toFixed(0)} MB).`;
+  });
+  await run('Coinbase · operaciones recientes', async () => {
+    const r = await json('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=100');
+    if (!Array.isArray(r) || !r.length) throw new Error('Respuesta vacía');
+    return `${r.length} operaciones.`;
+  });
+  return { mock: false, results: out };
 }
 
-module.exports = { klines, symbols, aggTrades, blockRecords, setDataDir, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

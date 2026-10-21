@@ -203,7 +203,7 @@ console.log('draw.test.js OK');
   assert.strictEqual(st.get(S, a.id).folder, f2.id);
   // plantillas
   const t1 = st.saveTemplate('trend', 'Rojo', Object.assign({}, st.get(S, a.id), { color: '#ff0000', text: 'zona' }));
-  assert.strictEqual(st.templates('trend').length, 1);
+  assert.strictEqual(st.userTemplates('trend').length, 1);
   st.setTool('trend', t1.id);
   assert.strictEqual(st.typeDefaults('trend').color, '#ff0000');
   assert.strictEqual(st.typeDefaults('trend').text, 'zona');
@@ -287,3 +287,24 @@ console.log('draw.test.js v0.8 OK');
   assert.ok('tItalic' in D.defaults('rect') && D.TYPES.rect.text && 'italic' in D.defaults('text') && 'tItalic' in D.defaults('trend'));
 }
 console.log('draw.test.js v0.9 OK');
+
+// --- v0.17: plantillas incluidas, tramos de polilínea ---
+{
+  const D2 = require('../renderer/js/draw.js');
+  const prefs2 = { templates: {}, favs: [], styles: {} }, root2 = {}, fold2 = {};
+  const st = D2.createStore(() => root2, () => prefs2, () => {}, () => fold2);
+  const tpls = st.templates('trend');
+  assert.ok(tpls.length >= 6 && tpls.every((t) => t.builtin), 'la línea de tendencia trae plantillas incluidas');
+  assert.ok(st.templates('rect').length === 0);
+  st.saveTemplate('trend', 'Mía', Object.assign({ type: 'trend' }, D2.defaults('trend')));
+  assert.strictEqual(st.templates('trend').length, tpls.length + 1);
+  assert.strictEqual(st.hasTemplate('trend', 'mía'), true);
+  assert.strictEqual(st.hasTemplate('trend', 'Fina gris'), false, 'las incluidas no cuentan como nombre repetido');
+  const poly = { type: 'poly', pts: [{ t: 1, p: 1 }, { t: 2, p: 2 }, { t: 3, p: 3 }], segs: { 0: { hidden: true } } };
+  const P = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }];
+  assert.ok(D2.geom.hitDistance(poly, P, 50, 0, 500, {}) > 40, 'un tramo eliminado no se agarra');
+  assert.ok(D2.geom.hitDistance(poly, P, 150, 0, 500, {}) < 1, 'el otro tramo sí');
+  assert.strictEqual(D2.geom.nearestSegment(P, 150, 3), 1);
+  assert.strictEqual(D2.geom.nearestSegment(P, 50, 3), 0, 'incluye los tramos eliminados (para restaurarlos)');
+  console.log('draw.test.js v0.17 OK');
+}

@@ -27,6 +27,19 @@
   ];
   const DASHES = { solid: [], dashed: [8, 6], dotted: [2, 4] };
 
+  // Plantillas que vienen con el programa (no se pueden borrar). Se suman a las que guarda el usuario.
+  const BUILTIN_TPL = {
+    trend: [
+      { id: 'bt-fina', name: 'Fina gris', style: { color: '#787b86', width: 1, dash: 'solid', extL: false, extR: false } },
+      { id: 'bt-gruesa', name: 'Gruesa azul', style: { color: '#2962ff', width: 3, dash: 'solid', extL: false, extR: false } },
+      { id: 'bt-soporte', name: 'Soporte (verde, hacia la derecha)', style: { color: '#26a69a', width: 2, dash: 'solid', extL: false, extR: true } },
+      { id: 'bt-resist', name: 'Resistencia (roja, hacia la derecha)', style: { color: '#ef5350', width: 2, dash: 'solid', extL: false, extR: true } },
+      { id: 'bt-proy', name: 'Proyección (naranja, guiones)', style: { color: '#ff9800', width: 1, dash: 'dashed', extL: false, extR: true } },
+      { id: 'bt-ref', name: 'Referencia (gris, puntos)', style: { color: '#9598a1', width: 1, dash: 'dotted', extL: false, extR: false } },
+      { id: 'bt-larga', name: 'Larga (amarilla, a ambos lados)', style: { color: '#fdd835', width: 2, dash: 'solid', extL: true, extR: true } },
+      { id: 'bt-marca', name: 'Marcador (magenta, gruesa)', style: { color: '#e91e63', width: 4, dash: 'solid', extL: false, extR: false } },
+    ].map((t) => Object.assign(t, { builtin: true })),
+  };
   const FIB_BASE = [
     [0, '#787b86', true], [0.236, '#f23645', true], [0.382, '#ff9800', true], [0.5, '#4caf50', true],
     [0.618, '#089981', true], [0.786, '#00bcd4', true], [1, '#787b86', true], [1.618, '#2962ff', true],
@@ -213,7 +226,10 @@
       case 'hray': return distPointSeg(x, y, P[0].x, P[0].y, Math.max(w + 50, P[0].x), P[0].y);
       case 'poly': {
         let best = 1e9;
-        for (let i = 1; i < P.length; i++) best = Math.min(best, distPointSeg(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y));
+        for (let i = 1; i < P.length; i++) {
+          if (d.segs && d.segs[i - 1] && d.segs[i - 1].hidden) continue;   // tramo eliminado: no se agarra
+          best = Math.min(best, distPointSeg(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y));
+        }
         return best;
       }
       case 'rect': {
@@ -261,6 +277,16 @@
     if (d.type === 'table' && d.pin && d.pin !== 'none') return [];
     if (d.type === 'hline' || d.type === 'hray') return P.length ? [{ x: Math.max(14, Math.min(w - 14, P[0].x)), y: P[0].y }] : [];
     return P.slice();
+  }
+
+  // Tramo (0 = entre el punto 0 y el 1) de una polilínea más cercano a (x, y); incluye los tramos ocultos. -1 si no hay.
+  function nearestSegment(P, x, y) {
+    let best = -1, bd = 1e9;
+    for (let i = 1; i < P.length; i++) {
+      const dd = distPointSeg(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y);
+      if (dd < bd) { bd = dd; best = i - 1; }
+    }
+    return best;
   }
 
   // ¿Queda el dibujo dentro del recuadro de selección (rect en píxeles)? Las horizontales cuentan si cruzan la altura del recuadro.
@@ -557,7 +583,8 @@
       },
 
       // ----- plantillas por herramienta -----
-      templates(type) { const t = getPrefs().templates; return t && Array.isArray(t[type]) ? t[type] : EMPTY; },
+      userTemplates(type) { const t = getPrefs().templates; return t && Array.isArray(t[type]) ? t[type] : EMPTY; },
+      templates(type) { return (BUILTIN_TPL[type] || EMPTY).concat(store.userTemplates(type)); },
       saveTemplate(type, name, d) {
         const pr = getPrefs();
         if (!pr.templates) pr.templates = {};
@@ -570,7 +597,7 @@
         save(); emit('templates');
         return tpl;
       },
-      hasTemplate(type, name) { const n = String(name).trim().toLowerCase(); return (store.templates(type) || []).some((x) => x.name.toLowerCase() === n); },
+      hasTemplate(type, name) { const n = String(name).trim().toLowerCase(); return (store.userTemplates(type) || []).some((x) => x.name.toLowerCase() === n); },
       deleteTemplate(type, id) {
         const pr = getPrefs();
         if (!pr.templates || !pr.templates[type]) return;
@@ -616,7 +643,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;

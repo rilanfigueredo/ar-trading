@@ -44,6 +44,8 @@
     return {
       rsi: Object.assign({ on: false, len: 14, color: '#7e57c2' }, levelDefaults('#7e57c2')),
       stoch: Object.assign({ on: false, k: 14, sm: 1, d: 3, kColor: '#2962ff', dColor: '#ff6d00' }, levelDefaults('#2962ff'), { ob: 80, os: 20 }),
+      delta: { on: false, upColor: '#26a69a', downColor: '#ef5350' },
+      cvd: { on: false, color: '#ffb74d' },
       pivots: { on: false, type: 'classic', period: 'auto' },
     };
   }
@@ -61,7 +63,7 @@
   function newChart(symbol, tf) {
     return {
       symbol: symbol || 'BTCUSDT', exchange: 'binance', tf, chartType: 'candles', scale: 'normal', invert: false,
-      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch'], paneH: {}, candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
+      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
     };
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
@@ -253,7 +255,7 @@
       const tf = L.tfById(id);
       if (!seen.has(tf.id)) { seen.add(tf.id); list.push(tf); }
     }
-    const key = (t) => (t.kind === 'block' ? 2e12 + t.n : t.kind === 'vol' ? 1e12 + t.vol : t.sec);
+    const key = (t) => (t.kind === 'vol' ? 1e12 + t.vol : t.sec);
     return list.sort((x, y) => key(x) - key(y));
   }
   function renderTfButtons() {
@@ -569,7 +571,7 @@
       const num = document.createElement('input');
       num.type = 'text'; num.inputMode = 'decimal'; num.placeholder = 'Ej: 4,3'; num.className = 'tf-num';
       const unit = document.createElement('select');
-      [['s', 'segundos'], ['m', 'minutos'], ['h', 'horas'], ['d', 'días'], ['w', 'semanas'], ['M', 'meses'], ['b', 'bloques de Bitcoin']].forEach(([v, t]) => {
+      [['s', 'segundos'], ['m', 'minutos'], ['h', 'horas'], ['d', 'días'], ['w', 'semanas'], ['M', 'meses']].forEach(([v, t]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = t; unit.appendChild(o);
       });
       unit.value = 'h';
@@ -609,28 +611,12 @@
         saveCfg();
         if (use) { closeModal(); setTimeframe(id); } else { renderTfButtons(); num.value = ''; check(); renderList(); }
       };
-      // Velas por bloques de Bitcoin: cantidades habituales (Fibonacci, 144 ≈ un día, 2016 = un periodo de dificultad)
-      const blkBox = document.createElement('div');
-      blkBox.className = 'tf-chips';
-      const blkTitle = document.createElement('h4'); blkTitle.textContent = 'Velas por bloques de Bitcoin (cada vela agrupa N bloques)';
-      const BLK_SET = [1, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2016];
-      BLK_SET.forEach((n) => {
-        const b = document.createElement('button'); b.className = 'btn secondary'; b.textContent = n === 1 ? '1 bloque' : String(n);
-        b.title = L.describe(L.tfById('b:' + n)) + ' ' + (L.tfById('b:' + n).note || '');
-        b.onclick = () => { const id = 'b:' + n; if (!A.cfg.tfs.includes(id)) A.cfg.tfs.push(id); saveCfg(); closeModal(); setTimeframe(id); };
-        blkBox.appendChild(b);
-      });
-      const blkAll = document.createElement('button'); blkAll.className = 'btn'; blkAll.textContent = 'Agregar todas a la barra';
-      blkAll.onclick = () => { BLK_SET.forEach((n) => { const id = 'b:' + n; if (!A.cfg.tfs.includes(id)) A.cfg.tfs.push(id); }); saveCfg(); renderTfButtons(); renderList(); };
       const actions = document.createElement('div');
       actions.className = 'row-actions';
       const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'Agregar y usar'; b1.onclick = () => addTf(true);
       const b2 = document.createElement('button'); b2.className = 'btn secondary'; b2.textContent = 'Solo agregar'; b2.onclick = () => addTf(false);
       actions.append(b1, b2);
       box.appendChild(actions);
-      box.appendChild(blkTitle);
-      box.appendChild(blkBox);
-      box.appendChild(blkAll);
       num.onkeydown = (e) => { if (e.key === 'Enter') addTf(true); };
 
       const h4 = document.createElement('h4');
@@ -853,6 +839,25 @@
       box.appendChild(palRow);
       box.appendChild(mk('div', { className: 'hint', textContent: 'Junto a cada selector de color hay un botón ▾ con tu paleta: un clic aplica el color; "+ Guardar" añade el color actual. Clic derecho en un color de la paleta lo quita.' }));
 
+      // ----- Conexión con las fuentes de datos -----
+      title('Conexión con las fuentes de datos');
+      box.appendChild(mk('div', { className: 'hint', textContent: 'Comprueba en este equipo qué fuentes responden (Binance, Bybit, Coinbase y los archivos históricos) y a qué velocidad. Sirve para saber qué datos se pueden usar.' }));
+      const connBtn = mk('button', { className: 'btn secondary', textContent: 'Probar conexión' });
+      const connOut = mk('div', { className: 'conn-out' });
+      connBtn.onclick = async () => {
+        connBtn.disabled = true; connBtn.textContent = 'Probando… (puede tardar hasta 1 minuto)'; connOut.innerHTML = '';
+        try {
+          const r = await API.testConnection();
+          r.results.forEach((x) => {
+            const row = mk('div', { className: 'conn-row ' + (x.ok ? 'ok' : 'bad') });
+            row.append(mk('b', { textContent: (x.ok ? '✓ ' : '✗ ') + x.name }), mk('span', { textContent: ` · ${x.ms} ms` }), mk('div', { className: 'hint', textContent: x.detail }));
+            connOut.appendChild(row);
+          });
+        } catch (e) { connOut.appendChild(mk('div', { className: 'conn-row bad', textContent: 'No se pudo hacer la prueba: ' + e.message })); }
+        connBtn.disabled = false; connBtn.textContent = 'Probar conexión otra vez';
+      };
+      box.append(connBtn, connOut);
+
       const reset = mk('button', { className: 'btn secondary', textContent: 'Restaurar estilo de este gráfico' });
       reset.onclick = () => {
         ac.candle = defaultCandle(); ac.look = defaultLook(); ac.wm = defaultWm();
@@ -863,7 +868,7 @@
       const row = mk('div', { className: 'row-actions' });
       row.append(reset, close);
       box.appendChild(row);
-      box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance, Bybit y KuCoin (API públicas y gratuitas). Tus cambios se guardan automáticamente.' }));
+      box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance, Bybit, KuCoin y Bitstamp (API públicas y gratuitas). Tus cambios se guardan automáticamente.' }));
       decoratePalette(box);
     }, { floating: true });
   }
@@ -975,6 +980,14 @@
       { label: 'Color %K', prop: 'kColor', type: 'color' },
       { label: 'Color %D', prop: 'dColor', type: 'color' },
     ].concat(levelFields(['Banda superior', 'Banda central', 'Banda inferior'])));
+
+    indBlock(p, 'Delta (compra − venta)', 'delta', [
+      { label: 'Color positivo (compra domina)', prop: 'upColor', type: 'color' },
+      { label: 'Color negativo (venta domina)', prop: 'downColor', type: 'color' },
+    ], 'Volumen de compra agresiva menos venta agresiva de cada vela. Solo hay datos en Binance (Bybit, KuCoin y Bitstamp no entregan el volumen de compra).');
+    indBlock(p, 'Delta acumulado (CVD)', 'cvd', [
+      { label: 'Color de la línea', prop: 'color', type: 'color' },
+    ], 'Suma del delta desde la primera vela cargada. Al cargar más historial el nivel cambia; lo que importa es la forma.');
 
     const h4b = document.createElement('h4'); h4b.textContent = 'Sobre el precio';
     p.appendChild(h4b);
@@ -1132,7 +1145,7 @@
       out.mas.forEach((m) => { if (!m.width) m.width = 1; });
       out.paneH = Object.assign({}, c.paneH || {});
       {
-        const base = ['main', 'rsi', 'stoch'];
+        const base = ['main', 'rsi', 'stoch', 'delta', 'cvd'];
         let ord = Array.isArray(c.order) ? c.order.filter((n) => base.includes(n)) : null;
         if (!ord || !ord.length) {
           const tops = ['rsi', 'stoch'].filter((n) => srcInd[n] && srcInd[n].pos === 'top');
@@ -1257,9 +1270,11 @@
     try { saved = await API.getConfig(); } catch (e) { /* valores por defecto */ }
     A.cfg = migrate(saved);
     // Velas por volumen: desactivadas por ahora (ver NOTAS_VELAS_VOLUMEN.txt). Se limpian de configuraciones guardadas.
-    A.cfg.tfs = (A.cfg.tfs || []).filter((id) => !String(id).startsWith('v:'));
+    // Velas por volumen y velas por bloque: no están disponibles; se limpian de configuraciones guardadas (v0.15/v0.16 guardaban 'b:N' y 'blk').
+    const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
+    A.cfg.tfs = (A.cfg.tfs || []).filter((id) => !gone(id));
     if (!A.cfg.tfs.length) A.cfg.tfs = L.DEFAULT_TFS.slice();
-    (A.cfg.charts || []).forEach((c) => { if (String(c.tf).startsWith('v:')) c.tf = 'm:60'; });
+    (A.cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
     // Dibujos: el almacén se crea antes que los gráficos (cada gráfico se engancha a él).
     G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg, () => A.cfg.folders);
     A.drawStore = G.drawStore; // para depuración (F12)

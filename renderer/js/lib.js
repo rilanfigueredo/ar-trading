@@ -81,15 +81,6 @@
         sec: 60, ratio: 1, note: 'Cada vela se cierra al completarse ese volumen negociado (no depende del reloj).',
       };
     }
-    if (unit === 'b') {
-      // Velas por bloques de Bitcoin: cada vela agrupa n bloques (n entero). Los grupos se alinean por altura (altura múltiplo de n abre vela).
-      if (!Number.isInteger(v) || v < 1) throw fail('La cantidad de bloques debe ser un número entero (1, 13, 144, 2016…).');
-      if (v > 4032) throw fail('El máximo es 4032 bloques por vela.');
-      return {
-        id: `b:${v}`, label: v === 1 ? 'Bloque' : `${v} bl`, base: null, kind: 'block', n: v, sec: v * 600, ratio: 1,
-        note: v === 144 ? 'Cada vela agrupa 144 bloques (≈ 1 día, pero con ±2 horas de diferencia típica).' : v === 2016 ? 'Cada vela es un periodo de dificultad completo (≈ 14 días).' : '',
-      };
-    }
     if (unit === 'M') {
       if (!Number.isInteger(v)) throw fail('Los meses deben ser números enteros (1, 2, 3, 4…).');
       if (v > 60) throw fail('El máximo es 60 meses.');
@@ -151,11 +142,9 @@
   }
 
   // Id -> temporalidad. Acepta ids antiguos ('1h', '4D'…).
-  // Velas por bloque de Bitcoin: cada vela es un bloque minado (no depende del reloj).
   function tfById(id) {
     const key = LEGACY[id] || id;
-    if (key === 'blk') return makeTf('b', 1);   // id de la v0.15
-    const m = /^([smdwMvb]):(\d+(?:\.\d+)?)$/.exec(String(key));
+    const m = /^([smdwMv]):(\d+(?:\.\d+)?)$/.exec(String(key));
     if (m) {
       try { return makeTf(m[1], Number(m[2])); } catch (e) { /* cae al valor por defecto */ }
     }
@@ -175,7 +164,6 @@
     return tf.kind === 'anchor' || (tf.kind === 'months' && 12 % tf.n !== 0);
   }
   function describe(tf) {
-    if (tf.kind === 'block') return `Cada vela agrupa ${tf.n} bloque${tf.n > 1 ? 's' : ''} de Bitcoin. Precio: velas del exchange entre el bloque anterior y el último del grupo. Volumen: BTC movido en la cadena (mempool.space).`;
     if (tf.kind === 'vol') return `Velas por volumen: cierran cada ${String(tf.vol).replace('.', ',')} (operaciones de futuros en tiempo real).`;
     if (tf.kind === 'native') return `Binance la ofrece directamente (velas de ${tf.base === '1M' ? '1 mes' : tf.base}).`;
     const b = tf.base === '1M' ? 'mes' : tf.base === '1w' ? 'semana' : tf.base;
@@ -216,24 +204,37 @@
       const b = bucketStart(tf, c.time, anchor);
       if (!cur || cur.time !== b) {
         cur = { time: b, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+        if (c.buy !== undefined) cur.buy = c.buy;
         out.push(cur);
       } else {
         if (c.high > cur.high) cur.high = c.high;
         if (c.low < cur.low) cur.low = c.low;
         cur.close = c.close;
         cur.volume += c.volume;
+        if (cur.buy !== undefined && c.buy !== undefined) cur.buy += c.buy; else delete cur.buy;   // sin volumen de compra en alguna vela: no se puede calcular el delta
       }
     }
     return out;
   }
 
   // Fila de Binance -> vela
+  // buy = volumen de compra agresiva (columna "taker buy base asset volume" de Binance); otros exchanges no lo entregan.
   function parseKline(k) {
-    return {
+    const c = {
       time: Math.floor(Number(k[0]) / 1000),
       open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]),
       close: parseFloat(k[4]), volume: parseFloat(k[5]),
     };
+    const tb = k.length > 9 ? parseFloat(k[9]) : NaN;
+    if (isFinite(tb)) c.buy = tb;
+    return c;
+  }
+  // Delta = compra agresiva - venta agresiva = 2*buy - volumen. null si la vela no trae volumen de compra.
+  const deltaOf = (c) => (c && c.buy !== undefined && isFinite(c.buy) ? 2 * c.buy - c.volume : null);
+  // Delta acumulado desde la primera vela que tenga datos (null antes de esa).
+  function cumDelta(bars) {
+    let acc = 0, started = false;
+    return bars.map((b) => { const d = deltaOf(b); if (d === null) return started ? acc : null; started = true; acc += d; return acc; });
   }
 
   // Une velas nuevas dentro de la lista base (ordenada por tiempo). Devuelve la misma lista.
@@ -623,7 +624,7 @@
   // Adapta una temporalidad a un exchange. Si no se puede armar con sus velas devuelve una copia con unavailable = true y un motivo.
   function tfFor(tf, exchange) {
     const ex = EXCHANGES[exchange || 'binance'] || EXCHANGES.binance;
-    if (tf.kind === 'vol' || tf.kind === 'block' || ex.bases.includes(tf.base)) return tf;
+    if (tf.kind === 'vol' || ex.bases.includes(tf.base)) return tf;
     // Sin velas de semana ni de mes: se arman desde las de 1 día (semanas en bloques de lunes a domingo; meses naturales).
     if (tf.base === '1w' && ex.bases.includes('1d')) return Object.assign({}, tf, { base: '1d', ratio: tf.sec / DAY, kind: 'anchor', adapted: true });
     if (tf.base === '1M' && ex.bases.includes('1d')) { const n = tf.n || 1; return Object.assign({}, tf, { base: '1d', kind: 'months', n, ratio: 30 * n, adapted: true }); }
@@ -633,55 +634,7 @@
     return Object.assign({}, tf, { base: b.id, ratio, kind: ratio === 1 ? 'native' : 'fixed', adapted: true });
   }
 
-  // ---------- Velas por bloques de Bitcoin ----------
-  // Resolución de las velas del exchange con que se arma el precio de cada vela de n bloques (el error máximo en los bordes es 1 vela de ese tamaño).
-  const BLOCK_IV = (n) => (n <= 55 ? '1m' : n <= 233 ? '5m' : n <= 610 ? '15m' : '1h');
-  const IV_MS_BLOCK = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000 };
-  // recs: bloques [altura, hora s, salidas (sat), comisiones (sat), transacciones, tamaño] de menor a mayor altura.
-  // mins: velas del exchange [tiempoMs, apertura, máximo, mínimo, cierre, ...] de menor a mayor tiempo, de tamaño ivMs.
-  // Cada grupo son los bloques con altura entre g*n y g*n+n-1. Su vela va desde la hora del bloque anterior (g*n-1) hasta la del último bloque
-  // del grupo (o hasta nowMs si es el grupo en formación). Devuelve las velas con: time (s, apertura), OHLC, volume (BTC), fees (BTC), txs, size, h0, h1, blocks, partial, durMin, volPerMin.
-  function blockCandles(recs, mins, ivMs, n, nowMs) {
-    const out = [];
-    if (!recs.length || !mins.length) return out;
-    const byH = new Map(recs.map((r) => [r[0], r]));
-    const hmin = recs[0][0], hmax = recs[recs.length - 1][0];
-    const mt = mins.map((m) => Number(m[0]));
-    const firstAfter = (ms) => { let lo = 0, hi = mt.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (mt[mid] + ivMs > ms) hi = mid; else lo = mid + 1; } return lo; };
-    const gLast = Math.floor(hmax / n);
-    let lastClose = null, lastTime = -Infinity;
-    for (let g = Math.max(1, Math.ceil((hmin + 1) / n)); g <= gLast; g++) {
-      const h0 = g * n, h1 = Math.min(h0 + n - 1, hmax);
-      const pred = byH.get(h0 - 1), last = byH.get(h1);
-      if (!pred || !last) continue;
-      let ok = true, vol = 0, fees = 0, txs = 0, size = 0;
-      for (let h = h0; h <= h1; h++) { const r = byH.get(h); if (!r) { ok = false; break; } vol += r[2]; fees += r[3]; txs += r[4]; size += r[5]; }
-      if (!ok) continue;
-      const partial = h1 < h0 + n - 1;
-      const startMs = pred[1] * 1000;
-      const endMs = partial && nowMs ? Math.max(nowMs, last[1] * 1000) : last[1] * 1000;
-      let o = null, hi = -Infinity, lo = Infinity, c = null;
-      for (let j = firstAfter(startMs); j < mins.length && mt[j] < endMs; j++) {
-        const m = mins[j], mh = parseFloat(m[2]), ml = parseFloat(m[3]);
-        if (o === null) o = parseFloat(m[1]);
-        if (mh > hi) hi = mh;
-        if (ml < lo) lo = ml;
-        c = parseFloat(m[4]);
-      }
-      if (o === null) { if (lastClose === null) continue; o = hi = lo = c = lastClose; }
-      lastClose = c;
-      const time = Math.max(pred[1], lastTime + 1);
-      lastTime = time;
-      const durMin = Math.max(1 / 60, (endMs - startMs) / 60000);
-      out.push({
-        time, open: o, high: hi, low: lo, close: c, volume: vol / 1e8, fees: fees / 1e8, txs, size, h0, h1, blocks: h1 - h0 + 1, partial,
-        durMin, volPerMin: vol / 1e8 / durMin,
-      });
-    }
-    return out;
-  }
-
-  const lib = { BLOCK_IV, IV_MS_BLOCK, blockCandles, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  const lib = { deltaOf, cumDelta, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

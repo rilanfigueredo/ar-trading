@@ -243,7 +243,7 @@
     ctxMenu = m;
   }
 
-  function showCtx(x, y, sym, id) {
+  function showCtx(x, y, sym, id, seg) {
     closeFly();
     const d = store.get(sym, id);
     if (!d) return;
@@ -257,6 +257,23 @@
       m.appendChild(b);
     };
     if (!many) item('Propiedades…', () => openProps(sym, id));
+    // Polilínea: editar un tramo (el más cercano al clic) o los textos de sus puntos
+    if (!many && d.type === 'poly' && seg >= 0 && seg < d.pts.length - 1) {
+      const segs = d.segs || {};
+      const setSeg = (i, v) => { const cur = store.get(sym, id); if (!cur) return; const s2 = Object.assign({}, cur.segs || {}); if (v === null) delete s2[i]; else s2[i] = Object.assign({}, s2[i] || {}, v); store.patch(sym, id, { segs: s2 }); };
+      item(`Cambiar el color del tramo ${seg + 1}…`, () => {
+        const inp = el('input'); inp.type = 'color'; inp.value = hexOk((segs[seg] && segs[seg].color) || d.color);
+        inp.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;opacity:0;width:1px;height:1px';
+        document.body.appendChild(inp);
+        inp.oninput = () => setSeg(seg, { color: inp.value });
+        inp.onchange = () => { setSeg(seg, { color: inp.value }); inp.remove(); };
+        inp.addEventListener('blur', () => setTimeout(() => inp.remove(), 300));
+        inp.click();
+      });
+      if (!(segs[seg] && segs[seg].hidden)) item(`Eliminar el tramo ${seg + 1}`, () => setSeg(seg, { hidden: true }));
+      if (Object.keys(segs).some((k) => segs[k] && segs[k].hidden)) item('Restaurar los tramos eliminados', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.hidden; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
+      if (Object.keys(segs).some((k) => segs[k] && segs[k].color)) item('Quitar los colores de los tramos', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.color; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
+    }
     // Plantillas: al pasar el mouse se despliegan las guardadas para esta herramienta
     {
       const wrap = el('div', 'ctx-wrap');
@@ -285,6 +302,13 @@
       wrap.onmouseenter = () => {
         const r = m.getBoundingClientRect();
         sub.classList.toggle('left', r.right + 260 > window.innerWidth);
+        // La lista de plantillas siempre queda completa en pantalla: se sube si se sale por abajo y, si es más alta que la ventana, se desplaza
+        requestAnimationFrame(() => {
+          sub.style.top = '-5px';
+          const b = sub.getBoundingClientRect();
+          const over = b.bottom - (window.innerHeight - 8);
+          if (over > 0) sub.style.top = Math.max(-5 - over, 8 - wrap.getBoundingClientRect().top) + 'px';
+        });
       };
       m.appendChild(wrap);
     }
@@ -639,6 +663,8 @@
     const ind = vc.ind;
     if (ind.rsi && ind.rsi.on) rows.push({ name: `RSI (${ind.rsi.len})`, color: ind.rsi.color, hidden: !!ind.rsi.hide, toggle: () => { ind.rsi.hide = !ind.rsi.hide; }, remove: () => { ind.rsi.on = false; ind.rsi.hide = false; }, kind: 'ind' });
     if (ind.stoch && ind.stoch.on) rows.push({ name: `Estocástico (${ind.stoch.k}, ${ind.stoch.sm}, ${ind.stoch.d})`, color: ind.stoch.kColor, hidden: !!ind.stoch.hide, toggle: () => { ind.stoch.hide = !ind.stoch.hide; }, remove: () => { ind.stoch.on = false; ind.stoch.hide = false; }, kind: 'ind' });
+    if (ind.delta && ind.delta.on) rows.push({ name: 'Delta (compra − venta)', color: ind.delta.upColor, hidden: !!ind.delta.hide, toggle: () => { ind.delta.hide = !ind.delta.hide; }, remove: () => { ind.delta.on = false; ind.delta.hide = false; }, kind: 'ind' });
+    if (ind.cvd && ind.cvd.on) rows.push({ name: 'Delta acumulado (CVD)', color: ind.cvd.color, hidden: !!ind.cvd.hide, toggle: () => { ind.cvd.hide = !ind.cvd.hide; }, remove: () => { ind.cvd.on = false; ind.cvd.hide = false; }, kind: 'ind' });
     if (ind.pivots && ind.pivots.on) rows.push({ name: `Pivotes (${ind.pivots.type})`, color: '#ff9800', hidden: !!ind.pivots.hide, toggle: () => { ind.pivots.hide = !ind.pivots.hide; }, remove: () => { ind.pivots.on = false; ind.pivots.hide = false; }, kind: 'ind' });
     vc.mas.forEach((ma) => {
       if (!(vc.maOn || {})[ma.type]) return;
@@ -723,9 +749,11 @@
     tpls.forEach((tp) => {
       const row = el('div', 'ctx-item db-row');
       row.append(el('span', 'db-label', tp.name));
-      const del = el('button', 'fav-star'); del.innerHTML = svg('trash', 14); del.title = 'Borrar esta plantilla';
-      del.onclick = (e) => { e.stopPropagation(); store.deleteTemplate(type, tp.id); openTplMenu(anchor, sym, id, refill); };
-      row.appendChild(del);
+      if (!tp.builtin) {
+        const del = el('button', 'fav-star'); del.innerHTML = svg('trash', 14); del.title = 'Borrar esta plantilla';
+        del.onclick = (e) => { e.stopPropagation(); store.deleteTemplate(type, tp.id); openTplMenu(anchor, sym, id, refill); };
+        row.appendChild(del);
+      }
       row.onclick = () => { store.applyTemplate(sym, id, tp.id); closeTpl(); refill(); };
       m.appendChild(row);
     });
@@ -749,6 +777,7 @@
     props = state;
     X.openModal((box) => {
       const cur = () => store.get(sym, id);
+      const cur0 = cur;
       const patch = (o) => { if (cur()) store.patch(sym, id, o); };
       const d0 = cur();
       const t = d0.type;
@@ -918,6 +947,28 @@
           field('Color de línea', colorIn(d.color, (v) => patch({ color: v })));
           field('Grosor', numIn(d.width || 1, 1, 8, 1, (v) => patch({ width: v })));
           field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })));
+          if (t === 'poly') {
+            body.appendChild(el('h4', '', 'Textos de los puntos (también: pasa el mouse por un punto con la polilínea seleccionada)'));
+            d.pts.forEach((_, i) => {
+              const inp = el('input'); inp.type = 'text'; inp.placeholder = 'Texto o número'; inp.value = (d.labels && d.labels[i]) || '';
+              inp.onkeydown = (e) => e.stopPropagation();
+              inp.oninput = () => { const cur = cur0(); if (!cur) return; const labels = Object.assign({}, cur.labels || {}); if (inp.value.trim()) labels[i] = inp.value; else delete labels[i]; patch({ labels }); };
+              field(`Punto ${i + 1}`, inp);
+            });
+            if (d.pts.length > 1) {
+              body.appendChild(el('h4', '', 'Tramos (color propio o eliminar)'));
+              for (let i = 0; i < d.pts.length - 1; i++) {
+                const sg = (d.segs && d.segs[i]) || {};
+                const wrapS = el('div', 'seg-row');
+                const setS = (v) => { const cur = cur0(); if (!cur) return; const s2 = Object.assign({}, cur.segs || {}); const o = Object.assign({}, s2[i] || {}, v); Object.keys(o).forEach((k) => { if (o[k] === false || o[k] === null) delete o[k]; }); if (Object.keys(o).length) s2[i] = o; else delete s2[i]; patch({ segs: s2 }); };
+                const cIn = colorIn(sg.color || d.color, (v) => setS({ color: v }));
+                const rst = el('button', 'btn secondary', 'Color original'); rst.onclick = () => { setS({ color: null }); cIn.value = hexOk(cur0().color); };
+                const hid = checkIn(sg.hidden, (v) => setS({ hidden: v }));
+                wrapS.append(cIn, rst, el('span', '', 'Eliminar'), hid);
+                field(`Tramo ${i + 1} (puntos ${i + 1}–${i + 2})`, wrapS);
+              }
+            }
+          }
           if (t === 'trend' || t === 'channel' || t === 'fib' || t === 'rect') {
             field('Ampliar a la izquierda', checkIn(d.extL, (v) => patch({ extL: v })));
             field('Ampliar a la derecha', checkIn(d.extR, (v) => patch({ extR: v })));
@@ -1060,7 +1111,7 @@
     buildBar();
     store.on((kind, info) => {
       if (kind === 'props') { openProps(info.sym, info.id); return; }
-      if (kind === 'ctx') { showCtx(info.x, info.y, info.sym, info.id); return; }
+      if (kind === 'ctx') { showCtx(info.x, info.y, info.sym, info.id, info.seg); return; }
       if (kind === 'zoom') { updateZoomOut(); return; }
       if (kind === 'tool' || kind === 'templates') { renderBar(); renderFav(); return; }
       renderSel(); renderTree();

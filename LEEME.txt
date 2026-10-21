@@ -1,34 +1,27 @@
-AR_TRADING - VERSION 0.16.0
+AR_TRADING - VERSION 0.17.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.16)
-- VELAS DE N BLOQUES: cada vela agrupa N bloques de Bitcoin. En "+" hay botones para 1, 13, 21, 34, 55, 89, 144, 233,
-  377, 610, 987, 1597 y 2016 bloques ("Agregar todas a la barra" los pone todos), o escribe cualquier numero con la
-  unidad "bloques de Bitcoin". Los grupos se alinean por altura: una vela abre cuando la altura del bloque es multiplo
-  de N (asi 2016 coincide con cada cambio de dificultad y los grupos no se mueven al reabrir el programa).
-- PRECIO: velas del exchange entre el bloque anterior al grupo y el ultimo del grupo (resolucion segun N: hasta 55
-  bloques velas de 1 min, hasta 233 de 5 min, hasta 610 de 15 min, desde 987 de 1 hora).
-- VELA EN FORMACION: el grupo del ultimo bloque se muestra "EN FORMACION" y se actualiza cada 30 s con el precio.
-- DATOS EN LA LEYENDA (al pasar el mouse): bloques del grupo, DURACION real, volumen en cadena (BTC), BTC POR MINUTO,
-  transacciones y comisiones. Barras de volumen abajo = BTC movidos en cadena.
-- CACHE EN DISCO: los bloques se bajan una sola vez de mempool.space (15 por peticion) y quedan guardados. Aparecen
-  primero los mas recientes y el resto baja en segundo plano (barra de estado). Bajar un ano de bloques (~52.000)
-  puede tardar bastante la primera vez; la segunda vez es inmediato.
-- DIBUJOS: ahora se pueden hacer dibujos sobre las velas por bloque (lineas, rectangulos, Fibonacci...).
-
-NOTAS DE LA VERSION 0.15 (reemplazada por la 0.16)
-- VELAS POR BLOQUE DE BITCOIN: en "+" (temporalidades) pulsa "Velas por bloque de Bitcoin"; aparece el boton "Bloque".
-  Cada vela es un bloque minado. El PRECIO sale de las velas de 1 minuto del exchange del grafico, entre la hora del
-  bloque anterior y la del bloque (error de hasta ~1 minuto). El VOLUMEN (barras abajo) es el BTC movido en la cadena
-  en ese bloque, tomado de mempool.space. Al pasar el mouse se ve: numero de bloque, pool minero, volumen, cantidad
-  de transacciones y comisiones. Solo para simbolos de Bitcoin (BTCUSDT...). Se actualiza cada 30 s y el historial
-  se amplia al arrastrar hacia la izquierda.
-  OJO: el volumen de cadena incluye el "cambio" que vuelve al mismo dueño, asi que es mayor que el volumen real
-  de compra/venta. En este tipo de vela no hay dibujos, temporizador ni cruz sincronizada.
-  IMPORTANTE: solo se probo con bloques y precios simulados; falta probarlo con mempool.space real.
+NOVEDADES DE ESTA VERSION (v0.17)
+- NUEVO RUMBO: grafico de velas con datos reales y poco ruido, SIN automatizar analisis tecnico. Las velas por
+  bloque de Bitcoin (v0.15/v0.16) se QUITARON a peticion tuya; el programa vuelve a lo esencial.
+- DELTA Y CVD (Indicadores): dos paneles nuevos bajo el precio. Delta = compras agresivas menos ventas agresivas de
+  cada vela (barras verde/rojo). CVD = delta acumulado (linea). SOLO funcionan con Binance (es el unico que entrega
+  el volumen de compra en sus velas); en Bybit/KuCoin/Bitstamp el panel avisa "no disponible". El CVD empieza en 0
+  en la primera vela cargada, asi que lo importante es su forma, no su nivel.
+- PROBAR CONEXION (Ajustes): comprueba Binance spot y futuros, trades de futuros, descarga de data.binance.vision
+  (con velocidad), Bybit y Coinbase, y muestra OK/error de cada uno. Sirve para decidir las siguientes versiones
+  (velas hechas con operaciones reales). Pasame el resultado.
+- POLILINEA, TEXTO EN LOS PUNTOS: con la polilinea seleccionada, al pasar el mouse por un punto sale "＋ Texto".
+  Clic, escribe texto o numero, Enter guarda (Esc cancela). Tambien se editan en Propiedades > "Textos de los puntos".
+- POLILINEA, TRAMOS: clic derecho sobre un tramo: "Cambiar el color del tramo N", "Eliminar el tramo N", "Restaurar
+  tramos eliminados" y "Quitar colores de tramos". Tambien en Propiedades > "Tramos". Un tramo eliminado se ve
+  como un punteado tenue mientras el dibujo esta seleccionado.
+- PLANTILLAS DE LINEA DE TENDENCIA: 8 incluidas (fina gris, gruesa azul, soporte verde, resistencia roja,
+  proyeccion naranja, referencia punteada, larga amarilla, marcador magenta). No se pueden borrar; las tuyas si.
+- MENU DE PLANTILLAS: ya no se sale de la pantalla al abrirlo abajo; sube lo necesario y, si aun no cabe, tiene scroll.
 
 NOVEDADES DE LA VERSION ANTERIOR (v0.14)
 - LISTA DE OBJETOS, SELECCION POR RANGO: haz clic en un dibujo, manten Shift y haz clic en otro: quedan

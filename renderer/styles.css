@@ -334,3 +334,13 @@ input[type=color]:disabled { cursor: not-allowed; }
 .wl-results { max-height: 52vh; }
 #rightBar .rb-slot { display: contents; }
 #objPanel .obj-row { user-select: none; }
+.poly-chip { position: absolute; z-index: 6; display: none; padding: 2px 8px; font-size: 12px; font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--active); border-radius: 10px; cursor: pointer; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.poly-chip:hover { background: var(--active); color: var(--active-text); }
+.seg-row { display: flex; align-items: center; gap: 6px; }
+/* Menús largos (plantillas): nunca más altos que la pantalla; si no caben, se desplazan */
+.tpl-menu { max-height: calc(100vh - 16px); overflow-y: auto; }
+.ctx-sub { max-height: calc(100vh - 16px); overflow-y: auto; }
+.conn-out { margin: 6px 0 10px; }
+.conn-row { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.conn-row.ok b { color: #26a69a; }
+.conn-row.bad b { color: #ef5350; }
