@@ -253,7 +253,7 @@
       const tf = L.tfById(id);
       if (!seen.has(tf.id)) { seen.add(tf.id); list.push(tf); }
     }
-    const key = (t) => (t.kind === 'block' ? 2e12 : t.kind === 'vol' ? 1e12 + t.vol : t.sec);
+    const key = (t) => (t.kind === 'block' ? 2e12 + t.n : t.kind === 'vol' ? 1e12 + t.vol : t.sec);
     return list.sort((x, y) => key(x) - key(y));
   }
   function renderTfButtons() {
@@ -569,7 +569,7 @@
       const num = document.createElement('input');
       num.type = 'text'; num.inputMode = 'decimal'; num.placeholder = 'Ej: 4,3'; num.className = 'tf-num';
       const unit = document.createElement('select');
-      [['s', 'segundos'], ['m', 'minutos'], ['h', 'horas'], ['d', 'días'], ['w', 'semanas'], ['M', 'meses']].forEach(([v, t]) => {
+      [['s', 'segundos'], ['m', 'minutos'], ['h', 'horas'], ['d', 'días'], ['w', 'semanas'], ['M', 'meses'], ['b', 'bloques de Bitcoin']].forEach(([v, t]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = t; unit.appendChild(o);
       });
       unit.value = 'h';
@@ -609,16 +609,28 @@
         saveCfg();
         if (use) { closeModal(); setTimeframe(id); } else { renderTfButtons(); num.value = ''; check(); renderList(); }
       };
-      const blk = document.createElement('button'); blk.className = 'btn secondary'; blk.textContent = 'Velas por bloque de Bitcoin';
-      blk.title = L.describe(L.tfById('blk'));
-      blk.onclick = () => { if (!A.cfg.tfs.includes('blk')) A.cfg.tfs.push('blk'); saveCfg(); closeModal(); setTimeframe('blk'); };
+      // Velas por bloques de Bitcoin: cantidades habituales (Fibonacci, 144 ≈ un día, 2016 = un periodo de dificultad)
+      const blkBox = document.createElement('div');
+      blkBox.className = 'tf-chips';
+      const blkTitle = document.createElement('h4'); blkTitle.textContent = 'Velas por bloques de Bitcoin (cada vela agrupa N bloques)';
+      const BLK_SET = [1, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2016];
+      BLK_SET.forEach((n) => {
+        const b = document.createElement('button'); b.className = 'btn secondary'; b.textContent = n === 1 ? '1 bloque' : String(n);
+        b.title = L.describe(L.tfById('b:' + n)) + ' ' + (L.tfById('b:' + n).note || '');
+        b.onclick = () => { const id = 'b:' + n; if (!A.cfg.tfs.includes(id)) A.cfg.tfs.push(id); saveCfg(); closeModal(); setTimeframe(id); };
+        blkBox.appendChild(b);
+      });
+      const blkAll = document.createElement('button'); blkAll.className = 'btn'; blkAll.textContent = 'Agregar todas a la barra';
+      blkAll.onclick = () => { BLK_SET.forEach((n) => { const id = 'b:' + n; if (!A.cfg.tfs.includes(id)) A.cfg.tfs.push(id); }); saveCfg(); renderTfButtons(); renderList(); };
       const actions = document.createElement('div');
       actions.className = 'row-actions';
       const b1 = document.createElement('button'); b1.className = 'btn'; b1.textContent = 'Agregar y usar'; b1.onclick = () => addTf(true);
       const b2 = document.createElement('button'); b2.className = 'btn secondary'; b2.textContent = 'Solo agregar'; b2.onclick = () => addTf(false);
       actions.append(b1, b2);
       box.appendChild(actions);
-      box.appendChild(blk);
+      box.appendChild(blkTitle);
+      box.appendChild(blkBox);
+      box.appendChild(blkAll);
       num.onkeydown = (e) => { if (e.key === 'Enter') addTf(true); };
 
       const h4 = document.createElement('h4');

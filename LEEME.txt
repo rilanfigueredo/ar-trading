@@ -1,10 +1,25 @@
-AR_TRADING - VERSION 0.15.0
+AR_TRADING - VERSION 0.16.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.15)
+NOVEDADES DE ESTA VERSION (v0.16)
+- VELAS DE N BLOQUES: cada vela agrupa N bloques de Bitcoin. En "+" hay botones para 1, 13, 21, 34, 55, 89, 144, 233,
+  377, 610, 987, 1597 y 2016 bloques ("Agregar todas a la barra" los pone todos), o escribe cualquier numero con la
+  unidad "bloques de Bitcoin". Los grupos se alinean por altura: una vela abre cuando la altura del bloque es multiplo
+  de N (asi 2016 coincide con cada cambio de dificultad y los grupos no se mueven al reabrir el programa).
+- PRECIO: velas del exchange entre el bloque anterior al grupo y el ultimo del grupo (resolucion segun N: hasta 55
+  bloques velas de 1 min, hasta 233 de 5 min, hasta 610 de 15 min, desde 987 de 1 hora).
+- VELA EN FORMACION: el grupo del ultimo bloque se muestra "EN FORMACION" y se actualiza cada 30 s con el precio.
+- DATOS EN LA LEYENDA (al pasar el mouse): bloques del grupo, DURACION real, volumen en cadena (BTC), BTC POR MINUTO,
+  transacciones y comisiones. Barras de volumen abajo = BTC movidos en cadena.
+- CACHE EN DISCO: los bloques se bajan una sola vez de mempool.space (15 por peticion) y quedan guardados. Aparecen
+  primero los mas recientes y el resto baja en segundo plano (barra de estado). Bajar un ano de bloques (~52.000)
+  puede tardar bastante la primera vez; la segunda vez es inmediato.
+- DIBUJOS: ahora se pueden hacer dibujos sobre las velas por bloque (lineas, rectangulos, Fibonacci...).
+
+NOTAS DE LA VERSION 0.15 (reemplazada por la 0.16)
 - VELAS POR BLOQUE DE BITCOIN: en "+" (temporalidades) pulsa "Velas por bloque de Bitcoin"; aparece el boton "Bloque".
   Cada vela es un bloque minado. El PRECIO sale de las velas de 1 minuto del exchange del grafico, entre la hora del
   bloque anterior y la del bloque (error de hasta ~1 minuto). El VOLUMEN (barras abajo) es el BTC movido en la cadena

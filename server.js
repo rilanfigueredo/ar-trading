@@ -9,6 +9,7 @@ const core = require('./src/core');
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, 'renderer');
 const CONFIG = path.join(__dirname, 'data', 'config.json');
+core.setDataDir(path.join(__dirname, 'data'));
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',
@@ -24,7 +25,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/klines') return send(res, 200, await core.klines(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/aggtrades') return send(res, 200, await core.aggTrades(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/blocks') return send(res, 200, await core.blockBars(Object.fromEntries(url.searchParams)));
+    if (url.pathname === '/api/blockrecords') return send(res, 200, await core.blockRecords(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/symbols') return send(res, 200, await core.symbols(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/tickers') return send(res, 200, await core.tickers(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/config') {

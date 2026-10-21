@@ -387,78 +387,87 @@ async function tickers({ exchange, symbols: syms }) {
   return out;
 }
 
-// ---------- Velas por bloque de Bitcoin (v0.15): mempool.space (bloques) + velas de 1 minuto del exchange (precio) ----------
+// ---------- Velas por bloque de Bitcoin (v0.15/v0.16): bloques de mempool.space con caché en disco ----------
+// Cada bloque se guarda como [altura, hora (s), BTC de salidas en satoshis, comisiones en satoshis, transacciones, tamaño].
+// Los bloques ya minados no cambian, así que se descargan una sola vez (15 por petición) y quedan en la carpeta de datos.
+const fs = require('fs');
+const path = require('path');
 const MEMPOOL_HOSTS = ['https://mempool.space'];
-const MOCK_BLK_T0 = 1735689600; // 1-ene-2025, altura simulada 900000
+const BLK_CHUNK = 2016;          // un archivo por cada 2016 bloques (un periodo de dificultad)
+const BLK_SAFE = 12;             // los últimos bloques pueden cambiar por reorganizaciones: no se guardan en disco
+let blkDir = null;
+const blkMem = new Map();
+const blkLoaded = new Set();
+const blkDirty = new Set();
+let blkTimer = null;
+let blkTip = { h: 0, t: 0 };
+function setDataDir(dir) { blkDir = dir ? path.join(dir, 'blocks') : null; }
+const chunkFile = (i) => path.join(blkDir, `c${i}.json`);
+function loadChunk(i) {
+  if (blkLoaded.has(i)) return;
+  blkLoaded.add(i);
+  if (!blkDir) return;
+  try { for (const r of JSON.parse(fs.readFileSync(chunkFile(i), 'utf8'))) if (!blkMem.has(r[0])) blkMem.set(r[0], r); } catch (e) { /* aún no existe */ }
+}
+function flushBlocks() {
+  blkTimer = null;
+  if (!blkDir) { blkDirty.clear(); return; }
+  try { fs.mkdirSync(blkDir, { recursive: true }); } catch (e) { return; }
+  const safe = blkTip.h - BLK_SAFE;
+  for (const i of blkDirty) {
+    const rows = [];
+    for (let h = i * BLK_CHUNK; h < (i + 1) * BLK_CHUNK; h++) { const r = blkMem.get(h); if (r && h <= safe) rows.push(r); }
+    try { fs.writeFileSync(chunkFile(i) + '.tmp', JSON.stringify(rows)); fs.renameSync(chunkFile(i) + '.tmp', chunkFile(i)); } catch (e) { /* sin permiso de escritura: sigue en memoria */ }
+  }
+  blkDirty.clear();
+}
+function markBlk(h) { blkDirty.add(Math.floor(h / BLK_CHUNK)); if (!blkTimer) { blkTimer = setTimeout(flushBlocks, 2500); if (blkTimer.unref) blkTimer.unref(); } }
+const toRec = (b) => { const ex = b.extras || {}; return [b.height, b.timestamp, Number(ex.totalOutputAmt) || 0, Number(ex.totalFees) || 0, b.tx_count || 0, b.size || 0]; };
+
+const MOCK_BLK_T0 = 1735689600; // 1-ene-2025 = altura simulada 900000
 const mockBlkTs = (h) => MOCK_BLK_T0 + (h - 900000) * 600 + Math.round(hash(h) * 240 - 120);
 const mockTipHeight = () => 900000 + Math.floor((Date.now() / 1000 - MOCK_BLK_T0) / 600);
-function mockBlockRaw(h) {
+function mockRec(h) {
   const btc = 300 + 4200 * Math.pow(hash(h + 3), 2);
-  return {
-    height: h, id: 'mock' + h, timestamp: mockBlkTs(h), tx_count: Math.round(1500 + 2500 * hash(h + 7)), size: Math.round(1.2e6 + 6e5 * hash(h + 8)),
-    extras: { totalOutputAmt: Math.round(btc * 1e8), totalFees: Math.round((0.01 + 0.4 * hash(h + 11)) * 1e8), pool: { name: ['AntPool', 'Foundry USA', 'F2Pool', 'ViaBTC'][Math.floor(hash(h + 13) * 4)] } },
-  };
+  return [h, mockBlkTs(h), Math.round(btc * 1e8), Math.round((0.01 + 0.4 * hash(h + 11)) * 1e8), Math.round(1500 + 2500 * hash(h + 7)), Math.round(1.2e6 + 6e5 * hash(h + 8))];
 }
-// Devuelve los bloques con altura entre lo y hi (ambos incluidos), de menor a mayor altura.
-async function fetchBlockRange(lo, hi) {
-  if (MOCK()) { const out = []; for (let h = lo; h <= hi; h++) out.push(mockBlockRaw(h)); return out; }
-  const starts = [];
-  for (let h = hi; h >= lo; h -= 15) starts.push(h);
-  const out = new Map();
-  for (let i = 0; i < starts.length; i += 3) {
-    const group = await Promise.all(starts.slice(i, i + 3).map((st) => httpGet(`/api/v1/blocks/${st}`, null, MEMPOOL_HOSTS)));
-    for (const arr of group) for (const b of arr) if (b.height >= lo && b.height <= hi) out.set(b.height, b);
-  }
-  const res = Array.from(out.values()).sort((a, b) => a.height - b.height);
-  if (res.length < hi - lo + 1) throw new Error('mempool.space entregó bloques incompletos. Vuelve a intentarlo en un momento.');
-  return res;
+async function blockTip() {
+  if (MOCK()) return mockTipHeight();
+  if (blkTip.h && Date.now() - blkTip.t < 15000) return blkTip.h;
+  const h = Number(await httpGet('/api/blocks/tip/height', null, MEMPOOL_HOSTS));
+  if (!(h > 0)) throw new Error('mempool.space no entregó la altura del último bloque.');
+  blkTip = { h, t: Date.now() };
+  return h;
 }
-// Devuelve { tip, rows: [{ height, time, open, high, low, close, volume, fees, txs, size, pool }] } de menor a mayor altura.
-// Cada vela es un bloque: va desde la hora del bloque anterior hasta la suya. El volumen es el total de BTC movido por
-// las salidas del bloque (incluye el "cambio" que vuelve al mismo dueño, por eso es mayor que el volumen económico real).
-async function blockBars({ symbol, exchange, endHeight, count }) {
-  if (!/^[A-Z0-9]{3,20}$/.test(String(symbol))) throw new Error('Símbolo inválido');
-  if (!/^(BTC|XBT)/.test(String(symbol))) throw new Error('Las velas por bloque solo existen para Bitcoin (un símbolo que empiece con BTC, por ejemplo BTCUSDT).');
-  const n = Math.max(1, Math.min(Number(count) || 150, 300));
-  const tip = MOCK() ? mockTipHeight() : Number(await httpGet('/api/blocks/tip/height', null, MEMPOOL_HOSTS));
-  if (!(tip > 0)) throw new Error('mempool.space no entregó la altura del último bloque.');
-  const hi = Math.min(tip, hasVal(endHeight) ? Math.floor(Number(endHeight)) : tip);
-  const lo = Math.max(0, hi - n);
-  if (hi <= lo) return { tip, rows: [] };
-  const raws = await fetchBlockRange(lo, hi);
-  // precio: velas de 1 minuto que cubren desde el bloque "lo" hasta el último
-  const t0 = raws[0].timestamp * 1000 - 60000, t1 = raws[raws.length - 1].timestamp * 1000;
-  const mins = [];
-  let from = Math.floor(t0 / 60000) * 60000;
-  for (let req = 0; req < 12 && from <= t1; req++) {
-    const rows = await klines({ exchange, symbol, interval: '1m', startTime: from, endTime: t1, limit: 1000 });
-    if (!rows.length) break;
-    for (const r of rows) mins.push([Number(r[0]), parseFloat(r[1]), parseFloat(r[2]), parseFloat(r[3]), parseFloat(r[4])]);
-    const next = Number(rows[rows.length - 1][0]) + 60000;
-    if (next <= from) break;
-    from = next;
+// Asegura (con un máximo de "budget" peticiones) los bloques lo..hi y devuelve los que ya se tienen, de menor a mayor altura.
+// Se descargan primero los más nuevos. missing = cuántos faltan todavía (el que llama repite hasta que sea 0).
+async function blockRecords({ lo, hi, budget, refresh, tipOnly }) {
+  const tip = await blockTip();
+  if (tipOnly) return { tip };
+  const H = Math.min(tip, hasVal(hi) ? Math.floor(Number(hi)) : tip);
+  const L0 = Math.max(0, hasVal(lo) ? Math.floor(Number(lo)) : H - 150);
+  if (H < L0) return { tip, rows: [], missing: 0, total: 0 };
+  if (MOCK()) { const rows = []; for (let h = L0; h <= H; h++) rows.push(mockRec(h)); return { tip, rows, missing: 0, total: rows.length }; }
+  for (let i = Math.floor(L0 / BLK_CHUNK); i <= Math.floor(H / BLK_CHUNK); i++) loadChunk(i);
+  if (refresh) for (let h = tip - 14; h <= tip; h++) blkMem.delete(h);
+  let reqs = 0;
+  const maxReq = Math.max(1, Math.min(Number(budget) || 12, 40));
+  while (reqs < maxReq) {
+    const starts = [];
+    for (let h = H; h >= L0 && starts.length < 2; h--) {
+      if (blkMem.has(h)) continue;
+      if (starts.length && starts[0] - h < 15) continue;   // ya lo cubre la otra petición
+      starts.push(h);
+    }
+    if (!starts.length) break;
+    const res = await Promise.all(starts.map((st) => httpGet(`/api/v1/blocks/${st}`, null, MEMPOOL_HOSTS)));
+    reqs += starts.length;
+    for (const arr of res) for (const b of arr) { blkMem.set(b.height, toRec(b)); markBlk(b.height); }
   }
-  mins.sort((a, b) => a[0] - b[0]);
-  if (!mins.length) throw new Error('No hay velas de 1 minuto para calcular el precio de cada bloque.');
-  const out = [];
-  let lastClose = null, lastTime = 0, mi = 0;
-  for (let i = 1; i < raws.length; i++) {
-    const b = raws[i], a = raws[i - 1];
-    const startMs = a.timestamp * 1000, endMs = b.timestamp * 1000;
-    while (mi < mins.length && mins[mi][0] + 60000 <= startMs) mi++;
-    let o = null, h = -Infinity, l = Infinity, c = null, j = mi;
-    while (j < mins.length && mins[j][0] < endMs) { const m = mins[j]; if (o === null) o = m[1]; h = Math.max(h, m[2]); l = Math.min(l, m[3]); c = m[4]; j++; }
-    if (o === null) { if (lastClose === null) continue; o = h = l = c = lastClose; }   // sin velas en ese rato: se mantiene el último precio
-    lastClose = c;
-    const time = Math.max(b.timestamp, lastTime + 1);   // la hora de un bloque puede ser menor que la del anterior; el gráfico necesita tiempos crecientes
-    lastTime = time;
-    const ex = b.extras || {};
-    out.push({
-      height: b.height, time, open: o, high: h, low: l, close: c,
-      volume: (Number(ex.totalOutputAmt) || 0) / 1e8, fees: (Number(ex.totalFees) || 0) / 1e8, txs: b.tx_count, size: b.size, pool: (ex.pool && ex.pool.name) || '',
-    });
-  }
-  return { tip, rows: out };
+  const rows = [];
+  let missing = 0;
+  for (let h = L0; h <= H; h++) { const r = blkMem.get(h); if (r) rows.push(r); else missing++; }
+  return { tip, rows, missing, total: H - L0 + 1 };
 }
 
-module.exports = { klines, symbols, aggTrades, blockBars, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { klines, symbols, aggTrades, blockRecords, setDataDir, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

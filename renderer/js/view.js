@@ -451,7 +451,7 @@
     const drawEnv = {
       host, chartEl,
       series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol, chart: () => vcfg.id,
-      active: () => !!(s.chart && s.series && s.bars.length && !s.loading && !isVol()),
+      active: () => !!(s.chart && s.series && s.bars.length && !s.loading && tfNow().kind !== 'vol'),
       xOfTime(t) { const lg = logicalAtTime(t); return lg === null ? null : xOfLogical(lg); },
       timeOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? timeAtLogical(lg) : null; },
       logicalOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? lg : null; },
@@ -740,9 +740,10 @@
       [['A', b.open], ['M', b.high], ['m', b.low], ['C', b.close]].forEach(([k, v]) => o.appendChild(el('b', '', `${k} ${fmtVal(v)}`)));
       o.appendChild(el('b', '', `${chg >= 0 ? '+' : ''}${fmtVal(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`));
       legendEl.appendChild(o);
-      if (tf.kind === 'block' && b.height) {
+      if (tf.kind === 'block' && b.h0 !== undefined) {
         const f = (x, d) => (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es', { maximumFractionDigits: d });
-        legendEl.appendChild(el('div', 'lg-note', `Bloque #${b.height}${b.pool ? ' · ' + b.pool : ''} · Volumen cadena ${f(b.volume, 2)} BTC · ${b.txs} transacciones · comisiones ${f(b.fees, 3)} BTC`));
+        const dur = b.durMin >= 120 ? f(b.durMin / 60, 1) + ' h' : f(b.durMin, 1) + ' min';
+        legendEl.appendChild(el('div', 'lg-note', `${b.blocks > 1 ? `Bloques #${b.h0}–#${b.h1} (${b.blocks})` : `Bloque #${b.h0}`}${b.partial ? ' · EN FORMACIÓN' : ''} · duración ${dur} · Vol. cadena ${f(b.volume, 1)} BTC (${f(b.volPerMin, 2)} BTC/min) · ${b.txs.toLocaleString('es')} tx · comisiones ${f(b.fees, 3)} BTC`));
       }
 
       const masDiv = el('div', 'lg-mas');
@@ -894,7 +895,7 @@
       const m = /^(.+?)(USDT|USDC|FDUSD|BUSD|TUSD|USD|EUR|BTC|ETH|BNB)$/.exec(vcfg.symbol);
       return m ? m[1] : vcfg.symbol;
     }
-    function tfLabel(tf) { return tf.kind === 'block' ? 'Bloque' : tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
+    function tfLabel(tf) { return tf.kind === 'block' ? (tf.n === 1 ? 'Bloque' : tf.n + ' bloques') : tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
     function volNote() {
       const bits = [];
       if (s.vol && s.vol.market === 'spot') bits.push('Futuros no disponible: usando Spot');
@@ -1032,47 +1033,123 @@
       }
     }
 
-    // ---------- Velas por bloque de Bitcoin ----------
-    const BLK_COUNT = 150;
+    // ---------- Velas por bloques de Bitcoin ----------
+    // Los bloques (hora, volumen en cadena, comisiones, transacciones) vienen de mempool.space con caché en disco; el precio sale de las
+    // velas del exchange (caché IndexedDB). L.blockCandles arma cada vela de n bloques. El historial se descarga en segundo plano, de nuevo a antiguo.
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     function dropBlkVol() { if (s.blkVol) { try { s.chart.removeSeries(s.blkVol); } catch (e) { /* ya quitada */ } s.blkVol = null; } }
     const blkVolPoint = (b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)' });
-    // Histograma del volumen en cadena (BTC movidos por bloque), en la parte baja del panel del precio.
+    // Histograma del volumen en cadena (BTC movidos), en la parte baja del panel del precio.
     function syncBlkVol() {
       if (!s.blkVol) {
-        s.blkVol = s.chart.addSeries(LC.HistogramSeries, {
-          priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false,
-        }, mainPaneIdx());
+        s.blkVol = s.chart.addSeries(LC.HistogramSeries, { priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false }, mainPaneIdx());
         s.blkVol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
       }
       s.blkVol.setData(s.bars.map(blkVolPoint));
+    }
+    // Descarga bloques lo..hi (repite hasta que no falte ninguno). Devuelve false si se canceló.
+    async function blkEnsure(lo, hi, token, label) {
+      let retries = 0;
+      for (;;) {
+        let r;
+        try { r = await API.blockRecords({ lo, hi, budget: 12 }); } catch (e) {
+          if (token !== s.token || s.destroyed) return false;
+          if (++retries > 5) throw e;
+          setStatus('mempool.space pidió esperar: reintentando…', 'loading');
+          await sleep(6000 * retries);
+          continue;
+        }
+        if (token !== s.token || s.destroyed) return false;
+        retries = 0;
+        for (const x of r.rows) s.blkMap.set(x[0], x);
+        s.blkTip = r.tip;
+        if (!r.missing) return true;
+        setStatus(`${label} ${Math.round(100 * (1 - r.missing / r.total))} %`, 'loading');
+        await sleep(150);
+      }
+    }
+    async function blkMinutes(startMs, token) {
+      const iv = L.BLOCK_IV(tfNow().n), ms = L.IV_MS_BLOCK[iv];
+      const pages = Math.ceil((Date.now() - startMs) / (1000 * ms)) + 1;
+      const r = await TVHistory.fetchBack(vcfg.symbol, iv, undefined, pages, () => token !== s.token || s.destroyed, exId());
+      return r ? r.rows : null;
+    }
+    // Arma las velas con los bloques desde blkLo hasta el último.
+    async function blkAssemble(token) {
+      const N = tfNow().n;
+      const recs = [];
+      for (let h = s.blkLo; h <= s.blkTip; h++) { const r = s.blkMap.get(h); if (r) recs.push(r); }
+      if (!recs.length) return null;
+      const mins = await blkMinutes(recs[0][1] * 1000 - 60000, token);
+      if (!mins) return null;
+      return L.blockCandles(recs, mins, L.IV_MS_BLOCK[L.BLOCK_IV(N)], N, Date.now());
+    }
+    function blkApply(bars) {
+      const old = s.bars.length;
+      const range = old ? s.chart.timeScale().getVisibleLogicalRange() : null;
+      s.bars = bars;
+      s.precision = L.detectPrecision(s.bars);
+      if (!old || !s.series) buildMainSeries(); else s.series.setData(s.bars.map(toPoint));
+      syncBlkVol();
+      syncMas();
+      syncIndicators(true);
+      const n = s.bars.length;
+      if (!old) s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 7 });
+      else if (range) { const d = n - old; s.chart.timeScale().setVisibleLogicalRange({ from: range.from + d, to: range.to + d }); }
+      renderLegend(null);
+      if (view.draw) view.draw.repaint();
+    }
+    const blkStatus = () => (s.reachedStart ? 'En vivo · historial de bloques completo' : s.blkFilling ? 'En vivo · bajando más bloques…' : 'En vivo · cadena de bloques');
+    // Baja bloques más antiguos hasta blkCap, rearmando el gráfico cada ~1500 bloques.
+    async function blkFill(token) {
+      if (s.blkFilling) return;
+      s.blkFilling = true;
+      try {
+        const N = tfNow().n;
+        while (s.blkLo > s.blkCap && token === s.token && !s.destroyed) {
+          const lo = Math.max(s.blkCap, s.blkLo - Math.max(1500, N));
+          if (!(await blkEnsure(lo, s.blkLo - 1, token, 'Bajando bloques…'))) return;
+          s.blkLo = lo;
+          const bars = await blkAssemble(token);
+          if (!bars) return;
+          if (token !== s.token || s.destroyed) return;
+          blkApply(bars);
+          setStatus(blkStatus(), 'live');
+        }
+        if (s.blkLo <= 1) s.reachedStart = true;
+      } catch (e) {
+        if (token === s.token && !s.destroyed) setStatus('Error al bajar bloques: ' + e.message, 'err');
+      } finally { s.blkFilling = false; if (token === s.token) setStatus(blkStatus(), 'live'); }
     }
     async function loadBlk() {
       const token = ++s.token;
       stopPolling();
       hideOverlay();
-      s.loadingMore = false; s.reachedStart = false; s.loading = true; s.base = [];
+      s.loadingMore = false; s.reachedStart = false; s.loading = true; s.base = []; s.blkFilling = false;
+      s.blkMap = new Map();
       setStatus('Cargando bloques de Bitcoin…', 'loading');
       try {
-        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), count: BLK_COUNT });
+        if (!/^(BTC|XBT)/.test(vcfg.symbol)) throw new Error('las velas por bloque solo existen para Bitcoin (un símbolo que empiece con BTC, por ejemplo BTCUSDT).');
+        const N = tfNow().n;
+        const tip = (await API.blockRecords({ tipOnly: 1 })).tip;
         if (token !== s.token || s.destroyed) return;
-        if (!r.rows.length) throw new Error('No hay bloques para mostrar.');
-        s.bars = r.rows;
-        s.reachedStart = r.rows[0].height <= 1;
-        s.precision = L.detectPrecision(s.bars);
-        buildMainSeries();
-        syncBlkVol();
+        s.blkTip = tip;
+        const first = Math.min(Math.max(N * 3, 450), 6100);
+        s.blkLo = Math.max(1, tip - first);
+        s.blkCap = Math.max(1, tip - Math.min(Math.max(200 * N, 3000), 420000));
+        if (!(await blkEnsure(s.blkLo, tip, token, 'Cargando bloques…'))) return;
+        const bars = await blkAssemble(token);
+        if (!bars) return;
+        if (token !== s.token || s.destroyed) return;
+        if (!bars.length) throw new Error('no hay datos de precio para esos bloques.');
+        s.bars = [];
+        blkApply(bars);
         mainScale().applyOptions({ autoScale: true });
-        syncMas();
-        Object.keys(s.sub).forEach(dropSub);
-        removeEmptyPanes();
-        syncIndicators(true);
-        const n = s.bars.length;
-        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 7 });
-        renderLegend(null);
         s.loading = false;
-        setStatus('En vivo · cadena de bloques', 'live');
+        setStatus(blkStatus(), 'live');
         s.pollTimer = setInterval(poll, 30000);
         G.onLoaded(view);
+        blkFill(token);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
         s.loading = false;
@@ -1080,51 +1157,41 @@
         showOverlay('No se pudieron cargar los bloques: ' + e.message, true);
       }
     }
+    // Al llegar al borde izquierdo se amplía el tope de descarga.
     async function loadMoreBlk() {
-      if (s.loadingMore || s.reachedStart || !s.bars.length || s.loading) return;
-      s.loadingMore = true;
-      const token = s.token;
-      try {
-        setStatus('Cargando más bloques…', 'loading');
-        const endH = s.bars[0].height - 1;
-        if (endH <= 1) { s.reachedStart = true; return; }
-        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), endHeight: endH, count: BLK_COUNT });
-        if (token !== s.token || s.destroyed) return;
-        const firstTime = s.bars[0].time;
-        const older = r.rows.filter((x) => x.height < s.bars[0].height && x.time < firstTime);
-        if (!older.length) { s.reachedStart = true; return; }
-        const range = s.chart.timeScale().getVisibleLogicalRange();
-        s.bars = older.concat(s.bars);
-        s.series.setData(s.bars.map(toPoint));
-        syncBlkVol();
-        syncMas();
-        syncIndicators(true);
-        if (range) s.chart.timeScale().setVisibleLogicalRange({ from: range.from + older.length, to: range.to + older.length });
-        setStatus('En vivo · cadena de bloques', 'live');
-      } catch (e) {
-        setStatus('Error al cargar bloques', 'err');
-      } finally {
-        s.loadingMore = false;
-      }
+      if (s.blkFilling || s.reachedStart || !s.bars.length || s.loading) return;
+      const N = tfNow().n;
+      if (s.blkLo <= s.blkCap) s.blkCap = Math.max(1, s.blkCap - Math.max(100 * N, 3000));
+      blkFill(s.token);
     }
     async function pollBlk() {
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;
       const token = s.token;
       try {
-        const r = await API.blocks({ symbol: vcfg.symbol, exchange: exId(), count: 30 });
+        const N = tfNow().n;
+        const r = await API.blockRecords({ lo: Math.max(1, s.blkTip - 20), refresh: 1, budget: 4 });
         if (token !== s.token || s.destroyed) return;
-        const last = s.bars[s.bars.length - 1];
-        const fresh = r.rows.filter((x) => x.height > last.height);
-        if (fresh.length) {
-          if (fresh[0].height > last.height + 1) { load(); return; }   // se perdieron bloques (equipo dormido): se vuelve a cargar
-          const start = s.bars.length;
-          fresh.forEach((b) => { b.time = Math.max(b.time, s.bars[s.bars.length - 1].time + 1); s.bars.push(b); s.series.update(toPoint(b)); if (s.blkVol) s.blkVol.update(blkVolPoint(b)); });
+        for (const x of r.rows) s.blkMap.set(x[0], x);
+        s.blkTip = r.tip;
+        // se rearman solo los dos últimos grupos
+        const tailLo = Math.max(s.blkLo, (Math.floor(r.tip / N) - 1) * N - 1);
+        const recs = [];
+        for (let h = tailLo; h <= r.tip; h++) { const x = s.blkMap.get(h); if (x) recs.push(x); }
+        const mins = await blkMinutes(recs[0][1] * 1000 - 60000, token);
+        if (!mins || token !== s.token || s.destroyed) return;
+        const tail = L.blockCandles(recs, mins, L.IV_MS_BLOCK[L.BLOCK_IV(N)], N, Date.now());
+        if (tail.length) {
+          let i0 = s.bars.findIndex((b) => b.time >= tail[0].time);
+          if (i0 < 0) i0 = s.bars.length;
+          const start = i0;
+          s.bars = s.bars.slice(0, i0).concat(tail);
+          for (let i = start; i < s.bars.length; i++) { s.series.update(toPoint(s.bars[i])); if (s.blkVol) s.blkVol.update(blkVolPoint(s.bars[i])); }
           updateMasTail(start);
           syncIndicators(false, start);
           if (s.hoverTime === null) renderLegend(null);
         }
-        setStatus('En vivo · cadena de bloques', 'live');
+        setStatus(blkStatus(), 'live');
       } catch (e) {
         setStatus('Reconectando…', 'err');
       } finally {
