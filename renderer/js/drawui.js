@@ -949,6 +949,15 @@
           field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })));
           if (t === 'poly') {
             body.appendChild(el('h4', '', 'Textos de los puntos (también: pasa el mouse por un punto con la polilínea seleccionada)'));
+            const cwp = el('span', 'cwrap');
+            cwp.appendChild(colorIn(d.tColor || d.color, (v) => patch({ tColor: v })));
+            const sameP = el('button', 'btn secondary small', 'Como la línea');
+            sameP.onclick = () => { patch({ tColor: null }); fill(); };
+            cwp.appendChild(sameP);
+            field('Color del texto', cwp);
+            field('Tamaño (px)', numIn(d.tSize || 12, 8, 60, 1, (v) => patch({ tSize: v })));
+            field('Negrita', checkIn(d.tBold, (v) => patch({ tBold: v })));
+            field('Cursiva', checkIn(d.tItalic, (v) => patch({ tItalic: v })));
             d.pts.forEach((_, i) => {
               const inp = el('input'); inp.type = 'text'; inp.placeholder = 'Texto o número'; inp.value = (d.labels && d.labels[i]) || '';
               inp.onkeydown = (e) => e.stopPropagation();

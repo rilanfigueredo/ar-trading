@@ -27,19 +27,8 @@
   ];
   const DASHES = { solid: [], dashed: [8, 6], dotted: [2, 4] };
 
-  // Plantillas que vienen con el programa (no se pueden borrar). Se suman a las que guarda el usuario.
-  const BUILTIN_TPL = {
-    trend: [
-      { id: 'bt-fina', name: 'Fina gris', style: { color: '#787b86', width: 1, dash: 'solid', extL: false, extR: false } },
-      { id: 'bt-gruesa', name: 'Gruesa azul', style: { color: '#2962ff', width: 3, dash: 'solid', extL: false, extR: false } },
-      { id: 'bt-soporte', name: 'Soporte (verde, hacia la derecha)', style: { color: '#26a69a', width: 2, dash: 'solid', extL: false, extR: true } },
-      { id: 'bt-resist', name: 'Resistencia (roja, hacia la derecha)', style: { color: '#ef5350', width: 2, dash: 'solid', extL: false, extR: true } },
-      { id: 'bt-proy', name: 'Proyección (naranja, guiones)', style: { color: '#ff9800', width: 1, dash: 'dashed', extL: false, extR: true } },
-      { id: 'bt-ref', name: 'Referencia (gris, puntos)', style: { color: '#9598a1', width: 1, dash: 'dotted', extL: false, extR: false } },
-      { id: 'bt-larga', name: 'Larga (amarilla, a ambos lados)', style: { color: '#fdd835', width: 2, dash: 'solid', extL: true, extR: true } },
-      { id: 'bt-marca', name: 'Marcador (magenta, gruesa)', style: { color: '#e91e63', width: 4, dash: 'solid', extL: false, extR: false } },
-    ].map((t) => Object.assign(t, { builtin: true })),
-  };
+  // Plantillas incluidas: ninguna (solo las que guarda el usuario). Se deja la estructura por si se quisiera añadir alguna.
+  const BUILTIN_TPL = {};
   const FIB_BASE = [
     [0, '#787b86', true], [0.236, '#f23645', true], [0.382, '#ff9800', true], [0.5, '#4caf50', true],
     [0.618, '#089981', true], [0.786, '#00bcd4', true], [1, '#787b86', true], [1.618, '#2962ff', true],
@@ -58,7 +47,7 @@
       case 'hline': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
       case 'hray': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
       case 'channel': return Object.assign(base, { fill: true, fillOpacity: 12, extL: false, extR: false });
-      case 'poly': return base;
+      case 'poly': return Object.assign(base, { tColor: null, tSize: 12, tBold: false, tItalic: false });
       case 'fib': return {
         color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true, logScale: false,
         levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',

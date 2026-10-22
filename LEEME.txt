@@ -1,10 +1,15 @@
-AR_TRADING - VERSION 0.17.0
+AR_TRADING - VERSION 0.17.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.17)
+NOVEDADES DE ESTA VERSION (v0.17.1)
+- PLANTILLAS: se ELIMINARON las 8 plantillas de linea de tendencia que yo habia agregado sin que las pidieras.
+  Ahora solo existen las que guardas tu. El menu sigue mostrando todas y cabiendo en pantalla.
+- POLILINEA, TEXTOS: en Propiedades hay color, tamano, negrita y cursiva para los textos de los puntos.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.17)
 - NUEVO RUMBO: grafico de velas con datos reales y poco ruido, SIN automatizar analisis tecnico. Las velas por
   bloque de Bitcoin (v0.15/v0.16) se QUITARON a peticion tuya; el programa vuelve a lo esencial.
 - DELTA Y CVD (Indicadores): dos paneles nuevos bajo el precio. Delta = compras agresivas menos ventas agresivas de

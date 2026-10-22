@@ -294,7 +294,7 @@ console.log('draw.test.js v0.9 OK');
   const prefs2 = { templates: {}, favs: [], styles: {} }, root2 = {}, fold2 = {};
   const st = D2.createStore(() => root2, () => prefs2, () => {}, () => fold2);
   const tpls = st.templates('trend');
-  assert.ok(tpls.length >= 6 && tpls.every((t) => t.builtin), 'la línea de tendencia trae plantillas incluidas');
+  assert.strictEqual(tpls.length, 0, 'ya no hay plantillas incluidas');
   assert.ok(st.templates('rect').length === 0);
   st.saveTemplate('trend', 'Mía', Object.assign({ type: 'trend' }, D2.defaults('trend')));
   assert.strictEqual(st.templates('trend').length, tpls.length + 1);
