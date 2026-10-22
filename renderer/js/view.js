@@ -80,11 +80,19 @@
     maxBtn.onmousedown = (e) => e.stopPropagation();
     maxBtn.ondblclick = (e) => e.stopPropagation();
     maxBtn.onclick = (e) => { e.stopPropagation(); G.onMaximize(view); };
+    const camBtn = el('button', 'max-btn cam-btn', '📷');
+    camBtn.title = 'Capturar imagen de este gráfico';
+    camBtn.onmousedown = (e) => e.stopPropagation();
+    camBtn.ondblclick = (e) => e.stopPropagation();
+    camBtn.onclick = (e) => { e.stopPropagation(); const r = camBtn.getBoundingClientRect(); showCamMenu(r.left, r.bottom + 4); };
+    const rpBar = el('div', 'rp-bar hidden');
+    rpBar.onmousedown = (e) => e.stopPropagation();
+    rpBar.ondblclick = (e) => e.stopPropagation();
     const wmEl = el('div', 'wm hidden');
     const timerEl = el('div', 'ctimer hidden');
     const xhV = el('div', 'xh-v hidden'), xhH = el('div', 'xh-h hidden');
     const xhT = el('div', 'xh-label hidden'), xhP = el('div', 'xh-label hidden');
-    host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, maxBtn);
+    host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, rpBar, maxBtn);
 
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null,
@@ -253,6 +261,7 @@
       chart.applyOptions(themeOptions());
       chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
       chart.subscribeCrosshairMove(onCrosshair);
+      chart.subscribeClick(onChartClick);
       s.chart = chart;
       applyScaleMode();
     }
@@ -907,7 +916,7 @@
     }
     function updateTimer() {
       if (!s.chart || s.destroyed) return;
-      if (cfg().timer === false || !s.bars.length || s.loading || !s.series || isVol()) { timerEl.classList.add('hidden'); return; }
+      if (cfg().timer === false || !s.bars.length || s.loading || !s.series || isVol() || s.rp) { timerEl.classList.add('hidden'); return; }
       const bar = s.bars[s.bars.length - 1];
       const end = nextClose(tfNow(), bar);
       const y = s.series.priceToCoordinate(bar.close);
@@ -1129,7 +1138,7 @@
       return t;
     }
     async function pollTradeInfo() {
-      if (!trOn() || s.destroyed || !API.tradeStatus) return;
+      if (!trOn() || s.rp || s.destroyed || !API.tradeStatus) return;
       try { s.trInfo = await API.tradeStatus(); } catch (e) { s.trInfo = null; return; }
       if (!s.loading && s.bars.length) {
         const bad = s.trInfo && (s.trInfo.errors.length || (s.trInfo.live && s.trInfo.live.mode === 'rest'));
@@ -1140,6 +1149,7 @@
 
     async function load() {
       zoomStack.length = 0;
+      rpReset();
       if (tfNow().kind === 'vol') return loadVol();
       const token = ++s.token;
       stopPolling();
@@ -1214,6 +1224,7 @@
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
     async function loadMore(pagesOverride) {
+      if (s.rp) return false;   // en reproducción no se agrega historial
       if (tfNow().kind === 'vol') return loadMoreVol();
       if (s.loadingMore || s.reachedStart || !s.base.length || s.loading) return false;
       s.loadingMore = true;
@@ -1268,6 +1279,7 @@
     }
 
     async function poll() {
+      if (s.rp) return;
       if (tfNow().kind === 'vol') return pollVol();
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;
@@ -1390,6 +1402,216 @@
       G.onDoubleClick(view);
     });
 
+    // ---------- Captura de imagen (v0.19) ----------
+    // Imagen del gráfico (velas, paneles, ejes, dibujos) + los textos y logos que van encima (leyendas, marca de agua).
+    function captureCanvas() {
+      const base = s.chart.takeScreenshot(true, false);
+      const out = document.createElement('canvas');
+      out.width = base.width; out.height = base.height;
+      const ctx = out.getContext('2d');
+      ctx.drawImage(base, 0, 0);
+      const org = chartEl.getBoundingClientRect();
+      const k = base.width / Math.max(1, chartEl.clientWidth);
+      const opacityOf = (n, root) => { let o = 1; for (let e = n; e && e !== root.parentElement; e = e.parentElement) { const v = parseFloat(getComputedStyle(e).opacity); if (isFinite(v)) o *= v; } return o; };
+      const roots = Array.from(host.querySelectorAll('.legend, .wm, .pane-legend')).filter((r) => !r.closest('.hidden') && !r.classList.contains('hidden'));
+      roots.forEach((root) => {
+        const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+          const t = n.nodeValue;
+          const p = n.parentElement;
+          if (!t || !t.trim() || !p || p.closest('.pl-btns') || p.closest('.hidden')) continue;
+          const cs = getComputedStyle(p);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const rg = document.createRange(); rg.selectNodeContents(n);
+          const r = rg.getBoundingClientRect();
+          if (!r.width) continue;
+          ctx.save();
+          ctx.globalAlpha = opacityOf(p, root);
+          ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${parseFloat(cs.fontSize) * k}px ${cs.fontFamily}`;
+          ctx.fillStyle = cs.color; ctx.textBaseline = 'middle';
+          ctx.fillText(t.replace(/\s+/g, ' '), (r.left - org.left) * k, (r.top + r.height / 2 - org.top) * k);
+          ctx.restore();
+        }
+        root.querySelectorAll('img').forEach((im) => {
+          if (!im.complete || !im.naturalWidth || im.closest('.hidden')) return;
+          const r = im.getBoundingClientRect();
+          ctx.save(); ctx.globalAlpha = opacityOf(im, root);
+          try { ctx.drawImage(im, (r.left - org.left) * k, (r.top - org.top) * k, r.width * k, r.height * k); } catch (e) { /* imagen ajena: se omite */ }
+          ctx.restore();
+        });
+      });
+      return out;
+    }
+    function toast(text) {
+      const t = el('div', 'toast', text);
+      host.appendChild(t);
+      setTimeout(() => t.remove(), 3200);
+    }
+    function captureName() {
+      const d = new Date(), z = (n) => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}`;
+      return `${vcfg.symbol}_${tfLabel(tfNow())}_${stamp}.png`.replace(/[^\w.\-]+/g, '_');
+    }
+    function capture(mode) {
+      if (!s.chart || !s.bars.length) { toast('No hay gráfico para capturar.'); return; }
+      let cv;
+      try { cv = captureCanvas(); } catch (e) { toast('No se pudo capturar la imagen: ' + e.message); return; }
+      cv.toBlob(async (blob) => {
+        if (!blob) { toast('No se pudo crear la imagen.'); return; }
+        if (mode === 'copy') {
+          try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Imagen copiada: pégala con Ctrl+V.'); }
+          catch (e) { toast('No se pudo copiar al portapapeles (' + (e.message || e.name) + '). Usa "Guardar imagen".'); }
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = captureName();
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        toast('Imagen guardada: ' + a.download);
+      }, 'image/png');
+    }
+    function showCamMenu(x, y) {
+      closeAxisMenu();
+      const m = el('div', 'ctx-menu');
+      [['Guardar imagen (PNG)', () => capture('save')], ['Copiar imagen', () => capture('copy')]].forEach(([t, fn]) => {
+        const b = el('button', 'ctx-item');
+        b.append(el('span', 'ctx-check', ''), el('span', '', t));
+        b.onclick = () => { closeAxisMenu(); setTimeout(fn, 30); };
+        m.appendChild(b);
+      });
+      document.body.appendChild(m);
+      m.style.left = Math.min(x, window.innerWidth - m.offsetWidth - 6) + 'px';
+      m.style.top = Math.min(y, window.innerHeight - m.offsetHeight - 6) + 'px';
+      axisMenu = m;
+      document.addEventListener('mousedown', onDocDown, true);
+      document.addEventListener('keydown', onDocKey, true);
+    }
+
+    // ---------- Reproducción de barras (v0.19) ----------
+    // Se elige una vela del pasado; las posteriores se ocultan y se van mostrando de a una (a la temporalidad del gráfico).
+    // Indicadores, medias y dibujos se calculan solo con lo ya "ocurrido". Al salir se recargan los datos en vivo.
+    const RP_SPEEDS = [0.5, 1, 2, 5, 10, 30];
+    function applyBars() {
+      s.series.setData(s.bars.map(toPoint));
+      syncMas(); syncIndicators(true); renderLegend(null);
+      if (view.draw) view.draw.repaint();
+    }
+    function rpUi() {
+      rpBar.innerHTML = '';
+      if (s.rpPick) {
+        rpBar.classList.remove('hidden');
+        rpBar.append(el('span', 'rp-hint', 'Haz clic en la vela donde empieza la reproducción'));
+        const c = el('button', 'rp-btn', '✕'); c.title = 'Cancelar (Esc)'; c.onclick = () => rpReset(true);
+        rpBar.appendChild(c);
+        return;
+      }
+      if (!s.rp) { rpBar.classList.add('hidden'); return; }
+      rpBar.classList.remove('hidden');
+      const b = (txt, title, fn) => { const x = el('button', 'rp-btn', txt); x.title = title; x.onclick = fn; rpBar.appendChild(x); return x; };
+      b('⏮', 'Volver a la vela de inicio', () => rpGoto(s.rp.start));
+      b('◀', 'Una vela atrás (←)', () => { rpPause(); rpStep(-1); });
+      b(s.rp.playing ? '⏸' : '▶', 'Reproducir / pausar (barra espaciadora)', () => (s.rp.playing ? rpPause() : rpPlay()));
+      b('▶|', 'Una vela adelante (→)', () => { rpPause(); rpStep(1); });
+      const sel = el('select', 'rp-speed');
+      RP_SPEEDS.forEach((v) => { const o = el('option', '', v + ' vela/s'); o.value = String(v); sel.appendChild(o); });
+      sel.value = String(s.rp.speed); sel.title = 'Velocidad';
+      sel.onchange = () => { s.rp.speed = Number(sel.value); if (s.rp.playing) { rpPause(); rpPlay(); } };
+      rpBar.appendChild(sel);
+      const info = el('span', 'rp-info', ''); info.id = 'rpInfo'; rpBar.appendChild(info);
+      b('✕', 'Salir de la reproducción y volver al presente (Esc)', () => rpStop());
+      rpInfo();
+    }
+    function rpInfo() {
+      if (!s.rp) return;
+      const last = s.bars[s.bars.length - 1];
+      const t = last ? new Date(last.time * 1000).toLocaleString('es', { timeZone: cfg().tz === 'UTC' ? 'UTC' : undefined, day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+      const i = rpBar.querySelector('#rpInfo'); if (i) i.textContent = `${s.rp.k} / ${s.rp.full.length} · ${t}`;
+      setStatus(`Reproducción · vela ${s.rp.k} de ${s.rp.full.length}`, 'live');
+    }
+    function rpReset(notify) {
+      if (s.rp && s.rp.timer) clearInterval(s.rp.timer);
+      const was = !!(s.rp || s.rpPick);
+      s.rp = null; s.rpPick = false;
+      rpBar.classList.add('hidden'); rpBar.innerHTML = '';
+      if (was && notify && G.onReplay) G.onReplay(view);
+    }
+    function rpPickStart() {
+      if (!s.chart || s.loading || s.bars.length < 3) { toast('Espera a que cargue el gráfico para empezar la reproducción.'); return false; }
+      if (isVol()) return false;
+      if (s.rp) rpPause();
+      s.rpPick = true;
+      rpUi();
+      if (G.onReplay) G.onReplay(view);
+      return true;
+    }
+    function rpBegin(idx) {
+      const full = s.rp ? s.rp.full : s.bars;
+      const k = Math.max(1, Math.min(full.length - 1, idx + 1)); // al menos una vela queda oculta
+      s.rpPick = false;
+      stopPolling();
+      s.rp = { full, k, start: k, playing: false, speed: 2, timer: null };
+      s.bars = full.slice(0, k);
+      applyBars();
+      s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, k - 160), to: k + 7 });
+      rpUi();
+      if (G.onReplay) G.onReplay(view);
+    }
+    function rpGoto(k) {
+      if (!s.rp) return;
+      rpPause();
+      s.rp.k = Math.max(1, Math.min(s.rp.full.length, k));
+      s.bars = s.rp.full.slice(0, s.rp.k);
+      applyBars(); rpInfo();
+    }
+    function rpStep(d) {
+      const r = s.rp; if (!r) return false;
+      if (d > 0) {
+        if (r.k >= r.full.length) { rpPause(); return false; }
+        r.k++;
+        s.bars = r.full.slice(0, r.k);
+        const i = r.k - 1;
+        s.series.update(toPoint(s.bars[i]));
+        updateMasTail(i); syncIndicators(false, i);
+        renderLegend(null);
+        if (view.draw) view.draw.repaint();
+      } else {
+        if (r.k <= 1) return false;
+        r.k--; s.bars = r.full.slice(0, r.k); applyBars();
+      }
+      rpInfo();
+      return true;
+    }
+    function rpPlay() {
+      const r = s.rp; if (!r || r.playing) return;
+      if (r.k >= r.full.length) rpGoto(r.start);
+      r.playing = true;
+      r.timer = setInterval(() => { if (!rpStep(1)) { rpPause(); } }, Math.round(1000 / r.speed));
+      rpUi();
+    }
+    function rpPause() {
+      const r = s.rp; if (!r) return;
+      if (r.timer) clearInterval(r.timer);
+      r.timer = null;
+      if (r.playing) { r.playing = false; rpUi(); }
+    }
+    function rpStop() { rpReset(true); return load(); }
+    function onChartClick(param) {
+      if (!s.rpPick || !param || param.logical === undefined) return;
+      const n = s.bars.length;
+      rpBegin(Math.max(0, Math.min(n - 2, Math.round(param.logical))));
+    }
+    function onRpKey(e) {
+      if (!(s.rp || s.rpPick) || (!s.hover && index !== G.activeIndex())) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+      if (e.key === 'Escape') { e.preventDefault(); s.rp ? rpStop() : rpReset(true); }
+      else if (!s.rp) return;
+      else if (e.key === 'ArrowRight') { e.preventDefault(); rpPause(); rpStep(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); rpPause(); rpStep(-1); }
+      else if (e.key === ' ') { e.preventDefault(); s.rp.playing ? rpPause() : rpPlay(); }
+    }
+    document.addEventListener('keydown', onRpKey);
+
     // ---------- Interacción con la app ----------
     host.addEventListener('mousedown', () => G.onActivate(view), true);
     host.addEventListener('mouseenter', () => { s.hover = true; });
@@ -1469,6 +1691,9 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: to - w, to });
       },
       showCrosshairAt(info) { showXh(info); },
+      capture,
+      replayPick() { return rpPickStart(); },
+      replayStop() { if (s.rp) return rpStop(); rpReset(true); },
       // Fuente de datos del gráfico: 'candles' (velas del exchange) o 'trades' (velas armadas con operaciones reales)
       setSource(src, tr) {
         vcfg.src = src === 'trades' ? 'trades' : 'candles';
@@ -1478,6 +1703,8 @@
       destroy() {
         s.destroyed = true;
         clearInterval(s.trTimer);
+        document.removeEventListener('keydown', onRpKey);
+        if (s.rp && s.rp.timer) clearInterval(s.rp.timer);
         stopPolling();
         clearInterval(s.timerTimer);
         closeAxisMenu();
@@ -1492,6 +1719,7 @@
       subsHidden: { get: () => !!s.subsHidden },
       tf: { get: () => tfNow() },
       status: { get: () => s.status },
+      replayState: { get: () => (s.rp ? 'on' : (s.rpPick ? 'pick' : 'off')) },
       loading: { get: () => s.loading },
       chart: { get: () => s.chart },
     });

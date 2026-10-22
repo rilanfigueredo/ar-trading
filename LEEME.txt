@@ -1,10 +1,23 @@
-AR_TRADING - VERSION 0.18
+AR_TRADING - VERSION 0.19
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.18)
+NOVEDADES DE ESTA VERSION (v0.19)
+- CAPTURA DE IMAGEN: cada grafico tiene un boton de camara (arriba a la derecha, junto al eje de precios).
+  Clic: "Guardar imagen (PNG)" o "Copiar imagen" (la pegas con Ctrl+V en cualquier programa). La imagen incluye
+  velas, paneles de indicadores, ejes, dibujos, leyendas y marca de agua. Sin la cruz del mouse.
+- REPLAY (reproduccion de barras): boton "Replay" de la barra de arriba (actua sobre el grafico seleccionado).
+  1) Pulsa Replay.  2) Haz clic en la vela desde donde quieres empezar: las velas posteriores se ocultan.
+  3) Avanza con ▶| (o flecha derecha), retrocede con ◀ (flecha izquierda), ▶ reproduce solo (barra espaciadora),
+  elige la velocidad (0,5 a 30 velas por segundo), ⏮ vuelve a la vela de inicio. ✕ o Esc = salir y volver al presente.
+  Los indicadores y las medias se calculan solo con lo que ya "ocurrio". Puedes dibujar mientras reproduces.
+  Cada paso es UNA VELA completa de la temporalidad del grafico (no se ve la vela formandose por dentro).
+  Si cambias de activo o de temporalidad, la reproduccion termina y vuelve el grafico en vivo.
+- PROXIMAS: v0.20 scripts propios en JavaScript (indicadores) y v0.21 estrategias con resultados (backtest).
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.18)
 - VELAS CON OPERACIONES REALES (boton "Datos" de la barra de arriba): cada grafico puede armar sus velas con las
   operaciones reales de BTCUSDT de Binance FUTUROS (mercado fijo: si falla, avisa; nunca cambia solo a Spot).
   Cada operacion trae su lado (compra/venta agresiva), asi que el Delta y el CVD salen exactos. Funcionan TODAS

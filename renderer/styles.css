@@ -344,3 +344,15 @@ input[type=color]:disabled { cursor: not-allowed; }
 .conn-row { padding: 4px 0; border-bottom: 1px solid var(--border); }
 .conn-row.ok b { color: #26a69a; }
 .conn-row.bad b { color: #ef5350; }
+
+/* v0.19: captura de imagen y reproducción */
+.cam-btn { right: 104px; }
+#grid:not(.multi) .cam-btn { right: 80px; display: block; }
+.toast { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 12; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.4); max-width: 80%; text-align: center; }
+.rp-bar { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 11; display: flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid #00e5ee; border-radius: 8px; padding: 4px 6px; box-shadow: 0 6px 20px rgba(0,0,0,.4); font-size: 12px; color: var(--text); }
+.rp-bar.hidden { display: none; }
+.rp-btn { background: transparent; color: var(--text); border: 1px solid transparent; border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 13px; }
+.rp-btn:hover { background: var(--hover); }
+.rp-speed { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 2px 4px; font-size: 12px; }
+.rp-info, .rp-hint { padding: 0 8px; color: var(--muted); white-space: nowrap; }
+.rp-hint { color: var(--text); }

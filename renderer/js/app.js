@@ -157,6 +157,8 @@
     symbolInfo(sym, ex) { return ((A.symbolsBy || {})[ex || 'binance'] || []).find((x) => x.symbol === sym) || null; },
     onPaneSize() { saveCfg(); },
     onStatus(view) { if (view.index === A.cfg.active) renderStatus(); },
+    onReplay() { markActive(); },
+    activeIndex() { return A.cfg.active; },
     // Tiempo sincronizado: los demás gráficos alinean su borde derecho con el del gráfico que se mueve.
     onRange(view) {
       if (!A.cfg.sync.time || A.views.length < 2) return;
@@ -288,6 +290,7 @@
     $('syncGroup').classList.toggle('hidden', !multi);
     $('syncCross').classList.toggle('active', A.cfg.sync.cross);
     $('syncTime').classList.toggle('active', A.cfg.sync.time);
+    { const br = $('btnReplay'); if (br) { const st = activeView().replayState; br.classList.toggle('active', st !== 'off'); br.textContent = st === 'off' ? 'Replay' : (st === 'pick' ? 'Replay: elige vela' : 'Replay: activo'); } }
     { const bd = $('btnData'); if (bd) { const on = c.src === 'trades'; bd.textContent = 'Datos: ' + (on ? 'Operaciones' : 'Velas'); bd.classList.toggle('active', on); } }
     $('btnLayout').textContent = 'Diseño: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1);
     renderTfButtons();
@@ -1146,6 +1149,7 @@
     $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
+    $('btnReplay').onclick = () => { const v = activeView(); if (v.replayState === 'off') v.replayPick(); else v.replayStop(); markActive(); };
     $('btnData').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'data') closeModal(); else openDataPicker(); };
     $('syncCross').onclick = () => {
       A.cfg.sync.cross = !A.cfg.sync.cross;
