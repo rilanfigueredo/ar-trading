@@ -16,6 +16,7 @@ function readConfig() {
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
+ipcMain.handle('tradeStatus', async () => core.tradeStatus());
 ipcMain.handle('testConnection', async () => core.testConnection());
 ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
 ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
@@ -51,6 +52,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  core.setDataDir(app.getPath('userData'));
   Menu.setApplicationMenu(null);
   createWindow();
   app.on('activate', () => {
@@ -58,6 +60,7 @@ app.whenReady().then(() => {
   });
 });
 
+app.on('before-quit', () => core.shutdown());
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

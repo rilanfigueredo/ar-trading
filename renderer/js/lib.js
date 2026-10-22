@@ -205,12 +205,14 @@
       if (!cur || cur.time !== b) {
         cur = { time: b, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
         if (c.buy !== undefined) cur.buy = c.buy;
+        if (c.fv !== undefined) { cur.fv = c.fv; cur.fb = c.fb; }
         out.push(cur);
       } else {
         if (c.high > cur.high) cur.high = c.high;
         if (c.low < cur.low) cur.low = c.low;
         cur.close = c.close;
         cur.volume += c.volume;
+        if (c.fv !== undefined && cur.fv !== undefined) { cur.fv += c.fv; cur.fb += c.fb; }
         if (cur.buy !== undefined && c.buy !== undefined) cur.buy += c.buy; else delete cur.buy;   // sin volumen de compra en alguna vela: no se puede calcular el delta
       }
     }
@@ -227,6 +229,8 @@
     };
     const tb = k.length > 9 ? parseFloat(k[9]) : NaN;
     if (isFinite(tb)) c.buy = tb;
+    // Velas de operaciones reales (v0.18): columnas 12 y 13 = volumen y compra de las operaciones que pasan el filtro de tamaño
+    if (k.length > 13) { const fv = parseFloat(k[12]), fb = parseFloat(k[13]); if (isFinite(fv) && isFinite(fb)) { c.fv = fv; c.fb = fb; } }
     return c;
   }
   // Delta = compra agresiva - venta agresiva = 2*buy - volumen. null si la vela no trae volumen de compra.
@@ -618,12 +622,14 @@
     kucoin: { id: 'kucoin', name: 'KuCoin', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w', '1M'] },
     bitstamp: { id: 'bitstamp', name: 'Bitstamp', bases: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d'] },
   };
-  const exchangeName = (id) => (EXCHANGES[id] || EXCHANGES.binance).name;
+  // Velas armadas desde operaciones reales (v0.18): no es un exchange de la lista, es otra fuente de Binance Futuros; solo bases 1s/1m/1h/1d.
+  const TRADES_EX = { id: 'bnftrades', name: 'Binance Futuros · operaciones', bases: ['1s', '1m', '1h', '1d'] };
+  const exchangeName = (id) => (id === 'bnftrades' ? TRADES_EX.name : (EXCHANGES[id] || EXCHANGES.binance).name);
   // Lunes 14-ago-2017 (semana del inicio de Binance), en segundos: en otros exchanges los bloques de N días/semanas/meses se cuentan desde aquí (lunes, como las semanas de los exchanges).
   const GENESIS_SEC = Date.UTC(2017, 7, 14) / 1000;
   // Adapta una temporalidad a un exchange. Si no se puede armar con sus velas devuelve una copia con unavailable = true y un motivo.
   function tfFor(tf, exchange) {
-    const ex = EXCHANGES[exchange || 'binance'] || EXCHANGES.binance;
+    const ex = exchange === 'bnftrades' ? TRADES_EX : (EXCHANGES[exchange || 'binance'] || EXCHANGES.binance);
     if (tf.kind === 'vol' || ex.bases.includes(tf.base)) return tf;
     // Sin velas de semana ni de mes: se arman desde las de 1 día (semanas en bloques de lunes a domingo; meses naturales).
     if (tf.base === '1w' && ex.bases.includes('1d')) return Object.assign({}, tf, { base: '1d', ratio: tf.sec / DAY, kind: 'anchor', adapted: true });
@@ -634,7 +640,7 @@
     return Object.assign({}, tf, { base: b.id, ratio, kind: ratio === 1 ? 'native' : 'fixed', adapted: true });
   }
 
-  const lib = { deltaOf, cumDelta, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  const lib = { deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

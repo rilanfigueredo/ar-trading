@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const core = require('./src/core');
+core.setDataDir(path.join(__dirname, 'data'));
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, 'renderer');
@@ -24,6 +25,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/klines') return send(res, 200, await core.klines(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/aggtrades') return send(res, 200, await core.aggTrades(Object.fromEntries(url.searchParams)));
+    if (url.pathname === '/api/tradestatus') return send(res, 200, core.tradeStatus());
     if (url.pathname === '/api/testconnection') return send(res, 200, await core.testConnection());
     if (url.pathname === '/api/symbols') return send(res, 200, await core.symbols(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/tickers') return send(res, 200, await core.tickers(Object.fromEntries(url.searchParams)));
@@ -49,6 +51,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+process.on('SIGINT', () => { core.shutdown(); process.exit(0); });
+process.on('SIGTERM', () => { core.shutdown(); process.exit(0); });
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Ar_Trading en modo navegador: http://localhost:${PORT}`);
 });

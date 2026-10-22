@@ -96,9 +96,16 @@
 
     const cfg = () => G.cfg();
     const exId = () => vcfg.exchange || 'binance';
-    const exName = () => L.exchangeName(exId());
+    // Velas desde operaciones reales (v0.18): vcfg.src = 'trades', filtro en vcfg.tr = { min, max, mode: 'only'|'hl', days }
+    const trOn = () => vcfg.src === 'trades';
+    const dataEx = () => (trOn() ? 'bnftrades' : exId());
+    const trTr = () => Object.assign({ min: 0, max: 0, mode: 'only', days: 7 }, vcfg.tr || {});
+    const trParams = () => { if (!trOn()) return {}; const t = trTr(); return { minQty: t.min || 0, maxQty: t.max || 0, mode: t.mode, days: t.days }; };
+    const trHl = () => trOn() && trTr().mode === 'hl' && !!(trTr().min || trTr().max);   // "resaltar": las velas son completas y delta/CVD usan solo las operaciones del rango
+    const hlBar = (b) => (trHl() && b.fv !== undefined ? { volume: b.fv, buy: b.fb } : b);
+    const exName = () => L.exchangeName(dataEx());
     // La temporalidad ya adaptada al exchange de este gráfico (Bybit y KuCoin no tienen todas las velas base de Binance).
-    const tfNow = () => L.tfFor(L.tfById(vcfg.tf), exId());
+    const tfNow = () => L.tfFor(L.tfById(vcfg.tf), dataEx());
 
     function setStatus(text, kind) {
       s.status = { text: text || '', kind: kind || '' };
@@ -434,14 +441,14 @@
       // Delta: compra agresiva - venta agresiva de cada vela (volumen de compra de Binance). Solo hay datos en Binance.
       delta: {
         struct: (c) => ({ u: c.upColor, d: c.downColor }),
-        title: () => 'Delta (compra − venta)',
+        title: () => 'Delta (compra − venta)' + (trHl() ? ' · solo operaciones del filtro' : ''),
         build(chart, c, pane) {
           const ser = chart.addSeries(LC.HistogramSeries, { lastValueVisible: false, priceLineVisible: false, priceFormat: { type: 'volume' } }, pane);
           ser.priceScale().applyOptions(subMargins);
           return { main: ser, list: [ser] };
         },
         style() {},
-        compute(c, d) { return { main: d.bars.map((b) => L.deltaOf(b)) }; },
+        compute(c, d) { return { main: d.bars.map((b) => L.deltaOf(hlBar(b))) }; },
         pt(sub, k, i, v) { const c = vcfg.ind.delta; return { time: s.bars[i].time, value: v, color: v >= 0 ? c.upColor : c.downColor }; },
         data(vals) { const c = vcfg.ind.delta; const out = []; vals.main.forEach((v, i) => { if (v !== null && v !== undefined) out.push({ time: s.bars[i].time, value: v, color: v >= 0 ? c.upColor : c.downColor }); }); return { main: out }; },
         text(c, get, fmt) {
@@ -452,14 +459,14 @@
       // Delta acumulado (CVD): suma del delta desde la primera vela cargada (el nivel absoluto cambia al cargar más historial; vale la forma).
       cvd: {
         struct: () => ({}),
-        title: () => 'Delta acumulado (CVD)',
+        title: () => 'Delta acumulado (CVD)' + (trHl() ? ' · solo operaciones del filtro' : ''),
         build(chart, c, pane) {
           const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { priceFormat: { type: 'volume' }, lineWidth: 2 }), pane);
           ser.priceScale().applyOptions(subMargins);
           return { main: ser, list: [ser] };
         },
         style(sub, c) { sub.main.applyOptions({ color: c.color }); },
-        compute(c, d) { return { main: L.cumDelta(d.bars) }; },
+        compute(c, d) { return { main: L.cumDelta(d.bars.map(hlBar)) }; },
         data(vals) { return { main: pointsFrom(vals.main) }; },
         text(c, get, fmt) {
           if (!s.bars.some((b) => b.buy !== undefined)) return [{ color: '#787b86', t: `no disponible: ${exName()} no entrega el volumen de compra` }];
@@ -1068,7 +1075,7 @@
       const sec = L.baseSec(tf);
       const byTime = new Map();
       let reached = false;
-      if (sec && window.TVHistory && TVHistory.supported(tf.base)) {
+      if (sec && !trOn() && window.TVHistory && TVHistory.supported(tf.base)) {
         // historial local: lo ya descargado sale del disco
         const nBlocks = pages;
         const r = await TVHistory.fetchBack(vcfg.symbol, tf.base, endMs, nBlocks, () => token !== s.token || s.destroyed, exId());
@@ -1076,13 +1083,13 @@
         const rows = endMs === undefined ? r.rows : r.rows.filter((x) => x[0] <= endMs);
         return { candles: rows.map(L.parseKline), reached: r.reached };
       }
-      if (sec) {
+      if (sec && !trOn()) {
         const span = 1000 * sec * 1000;
         const first = endMs === undefined ? Date.now() : endMs;
         for (let p0 = 0; p0 < pages && !reached; p0 += 5) {
           const jobs = [];
           for (let p = p0; p < Math.min(pages, p0 + 5); p++) {
-            jobs.push(API.klines({ exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit: 1000, endTime: first - p * span }));
+            jobs.push(API.klines({ exchange: dataEx(), symbol: vcfg.symbol, interval: tf.base, limit: 1000, endTime: first - p * span }));
           }
           const results = await Promise.all(jobs);
           if (token !== s.token || s.destroyed) return null;
@@ -1094,7 +1101,7 @@
       } else {
         let end = endMs;
         for (let p = 0; p < pages; p++) {
-          const params = { exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit: 1000 };
+          const params = Object.assign({ exchange: dataEx(), symbol: vcfg.symbol, interval: tf.base, limit: 1000 }, trParams());
           if (end !== undefined) params.endTime = end;
           const rows = await API.klines(params);
           if (token !== s.token || s.destroyed) return null;
@@ -1109,7 +1116,27 @@
     }
 
     function stopPolling() { clearInterval(s.pollTimer); s.pollTimer = null; }
-    const okText = () => (s.reachedStart ? 'En vivo · historial completo' : 'En vivo');
+    // Operaciones reales: el servidor local informa de descargas, hueco por rellenar y estado de la transmisión.
+    function trLiveText() {
+      const i = s.trInfo;
+      let t = 'En vivo · operaciones reales';
+      if (!i) return t;
+      if (i.archive && i.archive.running) t += ` · descargando ${i.archive.running.day}` + (i.archive.running.total ? ` (${Math.round(100 * i.archive.running.bytes / i.archive.running.total)} %)` : '');
+      else if (i.archive && i.archive.done < i.archive.total - i.archive.missing.length) t += ' · descargando historial';
+      if (i.fill && i.fill.active && i.fill.total) t += ` · completando hueco (${Math.max(0, Math.round(100 * (1 - i.fill.remaining / i.fill.total)))} %)`;
+      if (i.live && i.live.mode === 'rest') t += ' · en vivo por consultas';
+      if (i.errors && i.errors.length) t += ` · ${i.errors.length} aviso${i.errors.length > 1 ? 's' : ''}`;
+      return t;
+    }
+    async function pollTradeInfo() {
+      if (!trOn() || s.destroyed || !API.tradeStatus) return;
+      try { s.trInfo = await API.tradeStatus(); } catch (e) { s.trInfo = null; return; }
+      if (!s.loading && s.bars.length) {
+        const bad = s.trInfo && (s.trInfo.errors.length || (s.trInfo.live && s.trInfo.live.mode === 'rest'));
+        setStatus(okText(), bad ? 'err' : 'live');
+      }
+    }
+    const okText = () => (trOn() ? trLiveText() : (s.reachedStart ? 'En vivo · historial completo' : 'En vivo'));
 
     async function load() {
       zoomStack.length = 0;
@@ -1124,12 +1151,21 @@
         showOverlay(tf.why, false);
         return;
       }
+      clearInterval(s.trTimer); s.trTimer = null; s.trInfo = null;
+      if (trOn()) {
+        if (vcfg.symbol !== 'BTCUSDT' || exId() !== 'binance') { // no se cambia en silencio: se avisa
+          s.loading = false; setStatus('Sin datos', 'err');
+          showOverlay('Las velas de operaciones reales funcionan solo con BTCUSDT de Binance (Futuros) en esta versión. Elige BTCUSDT de Binance o vuelve a «Velas del exchange» en el botón Datos.', false);
+          return;
+        }
+        s.trTimer = setInterval(pollTradeInfo, 2000);
+      }
       s.loadingMore = false; s.reachedStart = false; s.loading = true;
-      setStatus('Cargando historial…', 'loading');
+      setStatus(trOn() ? 'Cargando operaciones (la primera vez descarga archivos del día)…' : 'Cargando historial…', 'loading');
       try {
         s.anchor = 0;
         if (L.needsAnchor(tf)) {
-          if (exId() !== 'binance') s.anchor = L.GENESIS_SEC; // Bybit/KuCoin no dan "la primera vela": se cuenta desde la fecha de inicio de Binance
+          if (exId() !== 'binance' || trOn()) s.anchor = L.GENESIS_SEC; // Bybit/KuCoin no dan "la primera vela": se cuenta desde la fecha de inicio de Binance
           else {
             const first = await API.klines({ symbol: vcfg.symbol, interval: tf.base, startTime: 0, limit: 1 });
             if (token !== s.token || s.destroyed) return;
@@ -1173,7 +1209,7 @@
     // Mientras el usuario mira el gráfico, se va guardando en el equipo el historial anterior.
     function warmBack(token) {
       const tf = tfNow();
-      if (!window.TVHistory || !TVHistory.supported(tf.base) || !s.base.length || s.reachedStart) return;
+      if (trOn() || !window.TVHistory || !TVHistory.supported(tf.base) || !s.base.length || s.reachedStart) return;
       const blocks = Math.max(4, Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 300 : 40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
       TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
     }
@@ -1239,7 +1275,7 @@
       try {
         const tf = tfNow();
         const limit = Math.min(1000, Math.max(5, L.ratioOf(tf) * 2 + 2));
-        const rows = await API.klines({ exchange: exId(), symbol: vcfg.symbol, interval: tf.base, limit });
+        const rows = await API.klines(Object.assign({ exchange: dataEx(), symbol: vcfg.symbol, interval: tf.base, limit }, trParams()));
         if (token !== s.token || s.destroyed) return;
         const prevLast = s.bars[s.bars.length - 1].time;
         L.mergeCandles(s.base, rows.map(L.parseKline));
@@ -1433,8 +1469,15 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: to - w, to });
       },
       showCrosshairAt(info) { showXh(info); },
+      // Fuente de datos del gráfico: 'candles' (velas del exchange) o 'trades' (velas armadas con operaciones reales)
+      setSource(src, tr) {
+        vcfg.src = src === 'trades' ? 'trades' : 'candles';
+        if (tr) vcfg.tr = Object.assign({}, tr);
+        return load();
+      },
       destroy() {
         s.destroyed = true;
+        clearInterval(s.trTimer);
         stopPolling();
         clearInterval(s.timerTimer);
         closeAxisMenu();

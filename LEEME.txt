@@ -1,10 +1,29 @@
-AR_TRADING - VERSION 0.17.1
+AR_TRADING - VERSION 0.18
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.17.1)
+NOVEDADES DE ESTA VERSION (v0.18)
+- VELAS CON OPERACIONES REALES (boton "Datos" de la barra de arriba): cada grafico puede armar sus velas con las
+  operaciones reales de BTCUSDT de Binance FUTUROS (mercado fijo: si falla, avisa; nunca cambia solo a Spot).
+  Cada operacion trae su lado (compra/venta agresiva), asi que el Delta y el CVD salen exactos. Funcionan TODAS
+  tus temporalidades (1 s, 5 m, 40 m, 4 h, 1D...). El boton "Datos: Velas" deja el grafico como siempre.
+  * Historial: archivos diarios de data.binance.vision (7 dias por defecto; 3, 7, 14 o 30 a eleccion). Se bajan
+    una sola vez (unos 12 MB por dia) y quedan guardados en tu equipo, ya convertidos (unos 17 MB por dia).
+  * Hoy y ayer no estan aun en ese archivo: ese hueco se completa solo, con consultas a Binance (despacio, para no
+    pasar el limite). Veras "completando hueco (NN %)" arriba; las velas mas recientes aparecen primero.
+  * Vela en formacion: transmision en vivo (WebSocket). Si no se puede abrir, usa consultas cada segundo y lo dice
+    en la barra de estado y en la ventana Datos. Lo que se ve en vivo tambien se guarda.
+- FILTRO POR TAMANO (ventana Datos): minimo y/o maximo de operacion en BTC.
+  * "Quitar las que no cumplen": cada vela se arma solo con las operaciones dentro del rango.
+  * "Resaltar": la vela queda completa y los paneles Delta y CVD muestran SOLO las operaciones del rango.
+- La ventana Datos muestra el estado: dias descargados, desde cuando hay datos, huecos, vivo/consultas, espacio en
+  disco y los avisos de error.
+- Solo BTCUSDT en esta version. Si cambias el activo con esta fuente activa, el grafico avisa (no cambia solo).
+- PROXIMA VERSION (v0.18.1): perfil de volumen y huella (compra vs venta por nivel de precio de cada vela).
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.17.1)
 - PLANTILLAS: se ELIMINARON las 8 plantillas de linea de tendencia que yo habia agregado sin que las pidieras.
   Ahora solo existen las que guardas tu. El menu sigue mostrando todas y cabiendo en pantalla.
 - POLILINEA, TEXTOS: en Propiedades hay color, tamano, negrita y cursiva para los textos de los puntos.

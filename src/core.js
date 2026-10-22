@@ -264,7 +264,23 @@ async function klinesBitstamp({ symbol, interval, startTime, endTime, limit }) {
   return hasVal(startTime) ? rows.slice(0, lim) : rows.slice(-lim);
 }
 
-async function klines({ exchange, symbol, interval, startTime, endTime, limit }) {
+// ---------- Velas desde operaciones reales (v0.18) ----------
+const trades = require('./trades');
+let tradeStore = null, tradeDir = null;
+function setDataDir(dir) { tradeDir = dir; }
+function getTradeStore() {
+  if (!tradeStore) {
+    const path = require('path');
+    const dir = path.join(tradeDir || path.join(__dirname, '..', 'data'), 'trades' + (MOCK() ? '-simulado' : ''), 'BTCUSDT');
+    tradeStore = trades.createStore({ dir, deps: MOCK() ? trades.mockDeps() : trades.realDeps() });
+  }
+  return tradeStore;
+}
+function tradeStatus() { return getTradeStore().status(); }
+function shutdown() { if (tradeStore) tradeStore.shutdown(); }
+
+async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days }) {
+  if (exchange === 'bnftrades') return getTradeStore().bars({ symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days });
   const ex = exchange || 'binance';
   if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
   if (!/^[A-Z0-9]{3,20}$/.test(String(symbol))) throw new Error('Símbolo inválido');
@@ -454,4 +470,4 @@ async function testConnection() {
   return { mock: false, results: out };
 }
 
-module.exports = { testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { setDataDir, tradeStatus, shutdown, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

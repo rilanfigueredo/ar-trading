@@ -288,6 +288,7 @@
     $('syncGroup').classList.toggle('hidden', !multi);
     $('syncCross').classList.toggle('active', A.cfg.sync.cross);
     $('syncTime').classList.toggle('active', A.cfg.sync.time);
+    { const bd = $('btnData'); if (bd) { const on = c.src === 'trades'; bd.textContent = 'Datos: ' + (on ? 'Operaciones' : 'Velas'); bd.classList.toggle('active', on); } }
     $('btnLayout').textContent = 'Diseño: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1);
     renderTfButtons();
     if (window.TVDrawUI) window.TVDrawUI.refresh();
@@ -433,6 +434,77 @@
       b.onclick = (e) => { e.stopPropagation(); if (palEl) closePalette(); else openPalette(inp, b); };
       wrap.appendChild(b);
     });
+  }
+
+  // Datos del gráfico (v0.18): velas del exchange o armadas con operaciones reales (Binance Futuros, BTCUSDT) + filtro por tamaño.
+  function openDataPicker() {
+    let timer = null;
+    openModal((box) => {
+      box.dataset.kind = 'data';
+      const ac = activeCfg();
+      const mk = (tag, props) => Object.assign(document.createElement(tag), props || {});
+      box.appendChild(mk('h3', { textContent: `Datos del gráfico ${A.cfg.active + 1} · ${ac.symbol}` }));
+      const tr = Object.assign({ min: 0, max: 0, mode: 'only', days: 7 }, ac.tr || {});
+      const field = (label, el) => { const d = mk('div', { className: 'field' }); d.append(mk('span', { textContent: label }), el); box.appendChild(d); return d; };
+      const src = mk('select');
+      [['candles', 'Velas del exchange'], ['trades', 'Operaciones reales (Binance Futuros · BTCUSDT)']].forEach(([v, t]) => src.appendChild(mk('option', { value: v, textContent: t })));
+      src.value = ac.src === 'trades' ? 'trades' : 'candles';
+      field('Fuente de las velas', src);
+      const box2 = mk('div'); box.appendChild(box2);
+      const f2 = (label, el) => { const d = mk('div', { className: 'field' }); d.append(mk('span', { textContent: label }), el); box2.appendChild(d); };
+      const num = (v) => mk('input', { type: 'number', min: '0', step: 'any', value: v ? String(v) : '', placeholder: 'sin límite', style: 'width:110px' });
+      const minI = num(tr.min), maxI = num(tr.max);
+      f2('Tamaño mínimo de operación (BTC)', minI);
+      f2('Tamaño máximo de operación (BTC)', maxI);
+      const mode = mk('select');
+      [['only', 'Quitar las que no cumplen'], ['hl', 'Resaltar (velas completas)']].forEach(([v, t]) => mode.appendChild(mk('option', { value: v, textContent: t })));
+      mode.value = tr.mode; f2('Qué hacer con el filtro', mode);
+      const days = mk('select');
+      [3, 7, 14, 30].forEach((n) => days.appendChild(mk('option', { value: n, textContent: n + ' días' })));
+      days.value = String(tr.days); f2('Historial de operaciones', days);
+      box2.appendChild(mk('div', { className: 'hint', textContent: 'Quitar: cada vela se arma solo con las operaciones dentro del rango (máximos, mínimos, volumen y delta cambian). Resaltar: la vela es la completa y los paneles Delta y CVD muestran solo las operaciones del rango. Déjalo vacío para no filtrar. La primera vez se descargan archivos diarios de Binance (≈12 MB por día) y quedan guardados en este equipo.' }));
+      const warn = mk('div', { className: 'hint' }); box.appendChild(warn);
+      const stBox = mk('div', { className: 'conn-out' }); box.appendChild(stBox);
+      const showSt = () => { box2.style.display = src.value === 'trades' ? '' : 'none'; stBox.style.display = src.value === 'trades' ? '' : 'none'; };
+      src.onchange = showSt; showSt();
+      const wrongSym = ac.symbol !== 'BTCUSDT' || (ac.exchange || 'binance') !== 'binance';
+      const renderStatus = async () => {
+        if (src.value !== 'trades' || !API.tradeStatus) return;
+        let i;
+        try { i = await API.tradeStatus(); } catch (e) { stBox.innerHTML = ''; stBox.appendChild(mk('div', { className: 'conn-row bad', textContent: 'No se pudo leer el estado: ' + e.message })); return; }
+        stBox.innerHTML = '';
+        const row = (cls, t) => stBox.appendChild(mk('div', { className: 'conn-row ' + cls, textContent: t }));
+        const fmt = (ms) => new Date(ms).toLocaleString('es', { timeZone: A.cfg.tz === 'UTC' ? 'UTC' : undefined });
+        row('', `${i.market} · ${i.symbol}`);
+        row('', `Historial: ${i.archive.done} de ${i.archive.total - i.archive.missing.length} días descargados` + (i.archive.running ? ` (descargando ${i.archive.running.day}` + (i.archive.running.total ? `, ${Math.round(100 * i.archive.running.bytes / i.archive.running.total)} %` : '') + ')' : '') + (i.archive.missing.length ? ` · aún sin archivo: ${i.archive.missing.join(', ')} (se completa con consultas)` : ''));
+        if (i.first) row('', `Datos desde ${fmt(i.first)} hasta ${fmt(i.last)}`);
+        row(i.holes && !i.fill.active ? 'bad' : '', i.fill.active ? `Completando hueco: faltan ${i.fill.remaining.toLocaleString('es')} de ${i.fill.total.toLocaleString('es')} operaciones` : (i.holes ? `Operaciones faltantes: ${i.holes.toLocaleString('es')}` : 'Sin huecos'));
+        row(i.live.mode === 'ws' ? 'ok' : (i.live.mode === 'rest' ? 'bad' : ''), i.live.mode === 'ws' ? 'En vivo: transmisión (WebSocket)' : i.live.mode === 'rest' ? 'En vivo: consultas cada segundo. ' + (i.live.note || '') : 'En vivo: conectando…');
+        row('', `Guardado en este equipo: ${i.diskMB} MB`);
+        i.errors.forEach((e) => row('bad', '✗ ' + e));
+      };
+      if (wrongSym) {
+        warn.textContent = 'Este gráfico no es BTCUSDT de Binance: las operaciones reales solo existen para BTCUSDT en esta versión.';
+        const fix = mk('button', { className: 'btn secondary', textContent: 'Cambiar este gráfico a BTCUSDT de Binance' });
+        fix.onclick = () => { closeModal(); setSymbol('BTCUSDT', 'binance'); markActive(); openDataPicker(); };
+        box.appendChild(fix);
+      }
+      const apply = mk('button', { className: 'btn', textContent: 'Aplicar' });
+      apply.onclick = () => {
+        const mn = Math.max(0, parseFloat(String(minI.value).replace(',', '.')) || 0), mx = Math.max(0, parseFloat(String(maxI.value).replace(',', '.')) || 0);
+        if (mx && mn > mx) { warn.textContent = 'El mínimo no puede ser mayor que el máximo.'; return; }
+        if (src.value === 'trades' && wrongSym) { warn.textContent = 'Primero cambia este gráfico a BTCUSDT de Binance (botón de arriba).'; return; }
+        ac.tr = { min: mn, max: mx, mode: mode.value, days: Number(days.value) };
+        saveCfg();
+        activeView().setSource(src.value, ac.tr);
+        markActive();
+        warn.textContent = 'Aplicado.';
+        renderStatus();
+      };
+      const close = mk('button', { className: 'btn secondary', textContent: 'Cerrar' }); close.onclick = closeModal;
+      const row = mk('div', { className: 'row-actions' }); row.append(apply, close); box.appendChild(row);
+      renderStatus(); timer = setInterval(renderStatus, 2000);
+    }, { floating: true, onClose: () => clearInterval(timer) });
   }
 
   function openLayoutPicker() {
@@ -1074,6 +1146,7 @@
     $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
+    $('btnData').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'data') closeModal(); else openDataPicker(); };
     $('syncCross').onclick = () => {
       A.cfg.sync.cross = !A.cfg.sync.cross;
       if (!A.cfg.sync.cross) eachView((v) => v.showCrosshairAt(null));
@@ -1134,6 +1207,8 @@
       out.tf = L.normalizeId(out.tf);
       out.id = 'c' + (i + 1);
       if (!L.EXCHANGES[out.exchange]) out.exchange = 'binance';
+      out.src = out.src === 'trades' ? 'trades' : 'candles';   // v0.18: fuente de las velas
+      { const t = out.tr || {}; out.tr = { min: Math.max(0, Number(t.min) || 0), max: Math.max(0, Number(t.max) || 0), mode: t.mode === 'hl' ? 'hl' : 'only', days: [3, 7, 14, 30].includes(Number(t.days)) ? Number(t.days) : 7 }; }
       if (!['candles', 'line', 'area'].includes(out.chartType)) out.chartType = 'candles';
       if (!['normal', 'log', 'percent'].includes(out.scale)) out.scale = 'normal';
       out.invert = !!out.invert;
@@ -1293,7 +1368,7 @@
     const m = $('modal');
     if (m.classList.contains('hidden') || !m.classList.contains('floating')) return;
     const t = e.target;
-    if (t.closest && (t.closest('#modalBox') || t.closest('.pal-pop') || t.closest('.ctx-menu') || t.closest('.tpl-menu') || t.closest('#btnSettings'))) return;
+    if (t.closest && (t.closest('#modalBox') || t.closest('.pal-pop') || t.closest('.ctx-menu') || t.closest('.tpl-menu') || t.closest('#btnSettings') || t.closest('#btnData'))) return;
     closeModal();
   }, true);
 
