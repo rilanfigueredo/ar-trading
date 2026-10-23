@@ -17,12 +17,13 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/js/draw.js`: **dibujos (sin DOM, con tests)**: tipos (`TYPES`), valores por defecto, geometría en píxeles (`geom`: rectas con extensión, rayo, canal, Fibonacci, distancia de toque, duración) y el **almacén** (`createStore`: lista por activo, selección, herramienta activa, deshacer/rehacer, duplicar, estilo recordado por tipo).
 - `renderer/js/drawlayer.js`: capa de un gráfico: primitiva de la serie principal (pinta en el panel de precios y etiquetas de precio de las horizontales) + ratón (crear, seleccionar, arrastrar, tiradores, imán, editor de texto interno). `view.js` le pasa un `env` con las conversiones tiempo/precio ↔ píxel.
 - `renderer/js/drawui.js`: barra lateral con menús y favoritos, barra del objeto seleccionado, ventana de propiedades (Fibonacci con niveles), panel Objetos, menú de clic derecho y atajos.
+- `renderer/js/scriptcore.js` (v0.20): motor de scripts, lógica pura (corre en el Worker y en Node; `test/script.test.js`): API `indicator/input/inputColor/plot/histogram/hline/ta.*`, validación, errores con línea (`explainError`). `scriptworker.js` (Worker: `importScripts('scriptcore.js')`), `scriptrunner.js` (un Worker nuevo por ejecución, límite 3 s con `terminate()`; si no se puede crear el Worker muestra error, nunca ejecuta en el hilo principal), `scripthost.js` (por gráfico: ejecuta, dibuja series/niveles/rótulos, ejecuciones agrupadas), `scriptui.js` (ventana editor/biblioteca/parámetros), `scriptexamples.js` (3 ejemplos).
 - `renderer/js/app.js`: estado global, configuración, barra superior, selector de diseño, panel de indicadores, Ajustes (ventana movible), paleta, plantillas, migración de configuración.
 - `renderer/assets/`: logos (horizontal/vertical × oscuro/claro).
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.19.0)
+## 3. Funciones actuales (v0.20.0)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -56,6 +57,14 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Listas — buscador (v0.12):** `openAdd()` en watch.js (búsqueda con ranking, pestañas por exchange, teclado). Iconos: jsDelivr (spothq/cryptocurrency-icons) → CoinCap → letra; permitidos en la CSP de index.html (`img-src`).
 - **Fallo de indicadores que "desaparecían" (v0.12):** el doble clic sobre las flechas del panel llegaba al gráfico (el botón se redibuja) y `toggleSubs` ocultaba todos los indicadores. Ahora se ignora el doble clic sobre `.pane-legend` y justo después de pulsar una flecha (`s.lastLegendClick`).
 
+### Scripts propios (v0.20)
+- Biblioteca global `cfg.scripts = [{id,name,code}]`; aplicados por gráfico `vcfg.scripts = [{uid,scriptId,params,hide}]` (params por etiqueta de `input`). `cfg.version` = 10 (`cleanScriptLib`/`cleanApplied` en `migrate`).
+- Ganchos en view.js: `s.scr.update()` al final de `syncIndicators` (se llama con velas nuevas, carga y cada paso del replay), `s.scr.legend()` al final de `renderLegend`, `s.scr.destroy()`. Los paneles de script se crean al final (`panes().length`) y no entran en `SUB_ORDER` (no tienen flechas de orden).
+- Un hueco es `NaN` (se envía como punto sin valor); `null`/`Infinity` pasan a hueco. Las `ta.*` del núcleo toleran NaN al inicio y coinciden con lib.js en datos limpios (probado).
+- Línea del error: `<anonymous>:L:C` de la pila menos 2; errores de sintaxis: se compila por prefijos hasta que falle. El script se compila con `"use strict"` en la misma línea 1 del usuario.
+- Aislamiento: Worker + terminate(); parámetros que tapan `fetch`, `self`, etc. NO es una barrera de seguridad (el usuario ejecuta su propio código).
+- CSP: `worker-src 'self'` en index.html. El Worker se sirve sin CSP propia en modo navegador (permite `new Function`).
+
 ## 4. Decisiones de diseño tomadas
 - Un gráfico = un objeto de configuración independiente; nada global salvo tema, zona horaria, temporizador, paleta, plantillas y sincronización.
 - Defaults de TradingView en indicadores. Rejilla y marca de agua apagadas por defecto.
@@ -87,6 +96,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.20: scripts propios en JavaScript para indicadores (editor, biblioteca, Worker con límite de 3 s, errores con línea, parámetros/colores por gráfico, 3 ejemplos, replay). `cfg.version` 10. Pruebas: `npm test` (test/script.test.js) y `tools/prueba_v20.py` (Playwright, datos simulados).
 - v0.1/0.2 Fase 1 (base): gráfico, símbolos, temporalidades personalizadas, tipos, escalas, estilo de velas.
 - v0.3 Fase 2: indicadores y multigráfico.
 - v0.4/0.4.1 velas por volumen (retiradas).
@@ -109,6 +119,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.11: Listas + Bybit + KuCoin. Se probó con datos simulados y con `fetch` falso (test/exchanges.test.js, `npm test`). Sin probar con datos reales: formato de velas/tickers de Bybit y KuCoin (alineación diaria/semanal de KuCoin, límites de peticiones), ni en Windows/Electron. Pendiente ver: las anclas con GENESIS_SEC pueden no coincidir con las de TradingView.
 
 ## 9. Pendientes conocidos
+- **v0.20 (probado solo en el navegador con datos simulados; sin probar: Electron/Windows, Binance real):** crear el Worker desde `file://` en Electron y su CSP (si falla, la ventana muestra «No se pudo crear el entorno aislado…»; no hay plan B silencioso); rendimiento con muchas velas (1 Worker por ejecución, recálculo completo en cada vela nueva). Ideas (no pedidas): flechas de orden en los paneles de script, scripts dentro de las plantillas de gráfico, resaltado de sintaxis/autocompletado, marcadores (flechas/etiquetas), importar/exportar scripts a archivo.
 - **v0.19 (probado solo en el navegador con datos simulados; sin probar: Electron/Windows):** diálogo de guardado y portapapeles de imagen en Electron; replay con la fuente de operaciones y con muchas velas. Ideas (no pedidas): vela formándose por dentro en el replay, captura con la cruz o solo el panel de precios.
 - **v0.18 (probado solo con datos simulados y pruebas de Node; sin probar: Binance real, Windows/Electron):** formato real del .zip/CSV de data.binance.vision (columnas y cabecera), disponibilidad del archivo de ayer, WebSocket real (`/market/ws/...`), límites de peso al rellenar el hueco (1 petición/1,1 s ≈ 1.100 de 2.400 por minuto), tiempo real de la primera carga (≈6 s por día descargado + 3 s de conversión), uso de memoria con días de 2–3 M operaciones. Pendiente v0.18.1: perfil de volumen y huella (el almacén ya guarda precio, cantidad y lado de cada operación; falta agregarlas por nivel de precio). Ideas: botón para borrar lo guardado, otros símbolos/exchanges, retención automática de disco.
 - Probar en Windows/Electron y con Binance real: 1 s (profundidad e límites), caché IndexedDB en Electron, rendimiento.

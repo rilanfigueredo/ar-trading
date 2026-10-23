@@ -674,6 +674,7 @@
         s.pivotNote = r.ok ? '' : 'Pivotes no disponibles: ' + r.reason.toLowerCase();
       }
       renderLegend(null);
+      if (s.scr) s.scr.update();
     }
 
     // Autocuración de los paneles de indicadores tras moverlos: escala automática con rango 0–100,
@@ -807,6 +808,7 @@
       const notes = [hiddenNote, s.pivotNote, tf.kind === 'vol' ? volNote() : ''].filter(Boolean);
       if (notes.length) legendEl.appendChild(el('div', 'lg-note', notes.join(' · ')));
       renderSubLegends(hovering ? param : null);
+      if (s.scr) s.scr.legend(hovering ? param : null, legendEl);
     }
     function onCrosshair(param) {
       s.hoverTime = param && param.time !== undefined ? param.time : null;
@@ -1664,7 +1666,7 @@
       },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
       setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
-      applyTheme() { applyLook(); },
+      applyTheme() { applyLook(); if (s.scr) s.scr.update(); },
       applyLook,
       applyTimer() { updateTimer(); },
       applyCandleStyle() { applyHostVars(); if (s.series && vcfg.chartType === 'candles') s.series.applyOptions(mainOptions()); renderLegend(null); },
@@ -1702,6 +1704,7 @@
       },
       destroy() {
         s.destroyed = true;
+        if (s.scr) s.scr.destroy();
         clearInterval(s.trTimer);
         document.removeEventListener('keydown', onRpKey);
         if (s.rp && s.rp.timer) clearInterval(s.rp.timer);
@@ -1723,6 +1726,12 @@
       loading: { get: () => s.loading },
       chart: { get: () => s.chart },
     });
+    // Scripts propios (v0.20)
+    if (window.TVScriptHost && window.TVScriptRunner) {
+      s.scr = window.TVScriptHost.create({ s, vcfg, LC, L, el, fmtVal, themeName, tfNow, G, view, legendEl: () => legendEl });
+      view.scriptInfo = (uid) => s.scr.info(uid);
+      view.refreshScripts = (force) => (force ? s.scr.refresh() : s.scr.update());
+    }
     createChart();
     renderWatermark();
     return view;

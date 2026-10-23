@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.jsdelivr.net https://assets.coincap.io; connect-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.jsdelivr.net https://assets.coincap.io; connect-src 'self'; worker-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ar_Trading</title>
   <link rel="stylesheet" href="styles.css">
@@ -30,6 +30,7 @@
     <button id="btnAuto" class="tb-btn" title="Volver al ajuste automático de la escala vertical (doble clic en la barra de precios también)">Auto</button>
     <span class="sep"></span>
     <button id="btnReplay" class="tb-btn" title="Reproducción de barras: elige una vela del pasado y mira cómo se formó el mercado vela a vela">Replay</button>
+    <button id="btnScripts" class="tb-btn" title="Scripts propios en JavaScript para crear indicadores (clic otra vez para cerrar)">Scripts</button>
     <button id="btnData" class="tb-btn" title="Fuente de las velas: del exchange o armadas con operaciones reales (con filtro por tamaño)">Datos: Velas</button>
     <button id="btnLayout" class="tb-btn" title="Elegir cuántos gráficos ver (1 a 4)">Diseño: 1</button>
     <div id="syncGroup" class="group hidden">
@@ -70,9 +71,13 @@
   <script src="js/history.js"></script>
   <script src="js/draw.js"></script>
   <script src="js/drawlayer.js"></script>
+  <script src="js/scriptrunner.js"></script>
+  <script src="js/scripthost.js"></script>
   <script src="js/view.js"></script>
   <script src="js/drawui.js"></script>
   <script src="js/watch.js"></script>
+  <script src="js/scriptexamples.js"></script>
+  <script src="js/scriptui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

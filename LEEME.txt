@@ -1,10 +1,27 @@
-AR_TRADING - VERSION 0.19
+AR_TRADING - VERSION 0.20
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.19)
+NOVEDADES DE ESTA VERSION (v0.20) - SCRIPTS PROPIOS (JavaScript) PARA INDICADORES
+- Boton "Scripts" de la barra de arriba (clic otra vez cierra). La ventana se puede mover.
+  1) Pulsa Scripts.  2) Elige un ejemplo en "Ejemplos..." (media, RSI propio o presion de compra con volumen de compra)
+  o pulsa "+ Nuevo" y escribe el tuyo.  3) "Guardar y aplicar al gráfico" lo dibuja en el grafico seleccionado.
+  Puedes guardar, ponerle nombre, copiar el codigo y borrar. Ctrl+S guarda.
+- El script recibe las velas (open, high, low, close, volume y, si el grafico lo tiene, buy/sell/delta) y funciones
+  listas: ta.sma, ta.ema, ta.rsi, ta.macd, ta.stoch, ta.bb, ta.atr, etc. Dibuja con plot (lineas), histogram,
+  hline (niveles) y colores. Abre "Ayuda rapida" dentro de la ventana para ver todo.
+- Se dibuja sobre el precio (overlay: true) o en un panel aparte (overlay: false) y se recalcula solo con cada vela
+  nueva y durante el replay (usa solo las velas que ya "ocurrieron").
+- Corre en un entorno aislado (Worker): un error o un bucle infinito no congela el programa; limite de 3 segundos.
+- Errores claros: "Linea N: mensaje" en la ventana (con la linea resaltada) y en el rotulo del grafico. Si un script
+  falla NO se dibuja nada de el (nunca un resultado falso).
+- Cada script se aplica por grafico y guarda sus parametros (numeros, opciones) y colores, con "Valores por defecto".
+- Pasa a ser version de configuracion 10 (tu configuracion anterior se conserva).
+- LIMITES: aun no hay estrategias ni backtest (eso es la v0.21). Los scripts no entran en las plantillas de graficos.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.19)
 - CAPTURA DE IMAGEN: cada grafico tiene un boton de camara (arriba a la derecha, junto al eje de precios).
   Clic: "Guardar imagen (PNG)" o "Copiar imagen" (la pegas con Ctrl+V en cualquier programa). La imagen incluye
   velas, paneles de indicadores, ejes, dibujos, leyendas y marca de agua. Sin la cruz del mouse.
@@ -15,7 +32,7 @@ NOVEDADES DE ESTA VERSION (v0.19)
   Los indicadores y las medias se calculan solo con lo que ya "ocurrio". Puedes dibujar mientras reproduces.
   Cada paso es UNA VELA completa de la temporalidad del grafico (no se ve la vela formandose por dentro).
   Si cambias de activo o de temporalidad, la reproduccion termina y vuelve el grafico en vivo.
-- PROXIMAS: v0.20 scripts propios en JavaScript (indicadores) y v0.21 estrategias con resultados (backtest).
+- PROXIMA: v0.21 estrategias con resultados (backtest).
 
 NOVEDADES DE LA VERSION ANTERIOR (v0.18)
 - VELAS CON OPERACIONES REALES (boton "Datos" de la barra de arriba): cada grafico puede armar sus velas con las

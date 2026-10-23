@@ -63,7 +63,7 @@
   function newChart(symbol, tf) {
     return {
       symbol: symbol || 'BTCUSDT', exchange: 'binance', tf, chartType: 'candles', scale: 'normal', invert: false,
-      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
+      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, scripts: [], candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
     };
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
@@ -75,7 +75,7 @@
   }
   function defaultConfig() {
     return {
-      version: 9, layout: '1', active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
+      version: 10, layout: '1', scripts: [], active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       lists: defaultLists(), listActive: 'l1',
@@ -136,6 +136,16 @@
     onDoubleClick(view) {
       if (A.views.length > 1 && A.max < 0) toggleMax(view.index);
       else view.toggleSubs();
+    },
+    scriptLib: () => A.cfg.scripts || [],
+    onScriptStatus(view) { if (window.TVScriptUI) TVScriptUI.onStatus(view); },
+    scriptAction(view, uid, action) {
+      const list = view.cfg.scripts || [];
+      const a = list.find((q) => q.uid === uid);
+      if (!a) return;
+      if (action === 'remove') { view.cfg.scripts = list.filter((q) => q.uid !== uid); saveCfg(); view.refreshScripts(); TVScriptUI.onStatus(view); return; }
+      if (view.index !== A.cfg.active) setActive(view.index);
+      TVScriptUI.open(a.scriptId);
     },
     indAction(view, name, action) {
       const c = view.cfg.ind[name];
@@ -1150,6 +1160,8 @@
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
     $('btnReplay').onclick = () => { const v = activeView(); if (v.replayState === 'off') v.replayPick(); else v.replayStop(); markActive(); };
+    TVScriptUI.init({ A, $, openModal, closeModal, activeView, saveCfg, decorate: decoratePalette });
+    $('btnScripts').onclick = () => TVScriptUI.toggle();
     $('btnData').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'data') closeModal(); else openDataPicker(); };
     $('syncCross').onclick = () => {
       A.cfg.sync.cross = !A.cfg.sync.cross;
@@ -1181,6 +1193,31 @@
   }
 
   // Une lo guardado (de cualquier versión anterior) con los valores por defecto.
+  // Scripts propios (v0.20): biblioteca global y scripts aplicados por gráfico.
+  function cleanScriptLib(src) {
+    const out = [], used = new Set();
+    (Array.isArray(src) ? src : []).forEach((q) => {
+      if (!q || typeof q !== 'object' || typeof q.code !== 'string') return;
+      let id = typeof q.id === 'string' && q.id ? q.id : 's' + Date.now().toString(36) + out.length;
+      while (used.has(id)) id += 'x';
+      used.add(id);
+      out.push({ id, name: String(q.name || 'Script sin nombre').slice(0, 60), code: q.code });
+    });
+    return out;
+  }
+  function cleanApplied(src) {
+    const out = [], used = new Set();
+    (Array.isArray(src) ? src : []).forEach((a) => {
+      if (!a || typeof a !== 'object' || typeof a.scriptId !== 'string') return;
+      let uid = typeof a.uid === 'string' && a.uid ? a.uid : 'a' + Date.now().toString(36) + out.length;
+      while (used.has(uid)) uid += 'x';
+      used.add(uid);
+      const params = {};
+      if (a.params && typeof a.params === 'object') Object.keys(a.params).forEach((k) => { const v = a.params[k]; if (['number', 'boolean', 'string'].includes(typeof v) && (typeof v !== 'number' || isFinite(v))) params[k] = v; });
+      out.push({ uid, scriptId: a.scriptId, params, hide: !!a.hide });
+    });
+    return out;
+  }
   function migrate(saved) {
     const def = defaultConfig();
     if (!saved || typeof saved !== 'object') return def;
@@ -1223,6 +1260,7 @@
       else { out.mas = defaultMas(); out.maOn = defaultMaOn(); } // formato anterior: se parte de los nuevos valores por defecto
       out.mas.forEach((m) => { if (!m.width) m.width = 1; });
       out.paneH = Object.assign({}, c.paneH || {});
+      out.scripts = cleanApplied(c.scripts);
       {
         const base = ['main', 'rsi', 'stoch', 'delta', 'cvd'];
         let ord = Array.isArray(c.order) ? c.order.filter((n) => base.includes(n)) : null;
@@ -1247,10 +1285,12 @@
     cfg.drawings = cleanDrawings(saved.drawings);
     cfg.draw = cleanDrawPrefs(saved.draw);
     cfg.folders = cleanFolders(saved.folders, cfg.drawings);
+    cfg.scripts = cleanScriptLib(saved.scripts);
+    cfg.charts.forEach((c) => { c.scripts = c.scripts.filter((a) => cfg.scripts.some((q) => q.id === a.scriptId)); });
     cfg.lists = cleanLists(saved.lists, saved.favorites);
     delete cfg.favorites;
     if (!cfg.lists.some((l) => l.id === cfg.listActive)) cfg.listActive = cfg.lists[0].id;
-    cfg.version = 9;
+    cfg.version = 10;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.
@@ -1372,7 +1412,7 @@
     const m = $('modal');
     if (m.classList.contains('hidden') || !m.classList.contains('floating')) return;
     const t = e.target;
-    if (t.closest && (t.closest('#modalBox') || t.closest('.pal-pop') || t.closest('.ctx-menu') || t.closest('.tpl-menu') || t.closest('#btnSettings') || t.closest('#btnData'))) return;
+    if (t.closest && (t.closest('#modalBox') || t.closest('.pal-pop') || t.closest('.ctx-menu') || t.closest('.tpl-menu') || t.closest('#btnSettings') || t.closest('#btnData') || t.closest('#btnScripts'))) return;
     closeModal();
   }, true);
 
