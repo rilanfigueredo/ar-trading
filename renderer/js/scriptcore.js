@@ -1,9 +1,11 @@
-// Motor de scripts propios (v0.20): ejecuta un script de JavaScript sobre las velas y devuelve lo que hay que dibujar.
+// Motor de scripts propios (v0.20) y estrategias (v0.21): ejecuta un script de JavaScript sobre las velas y devuelve lo que hay que dibujar
+// (y, si es una estrategia, las operaciones simuladas por backtest.js).
 // Es lógica pura: funciona dentro del Worker (scriptworker.js) y en Node (para las pruebas).
 // Reglas: el script solo ve los datos que se le pasan; nunca se inventan valores (un hueco es NaN y no se dibuja).
 (function (root) {
   'use strict';
 
+  const BT = (typeof module !== 'undefined' && module.exports) ? require('./backtest.js') : root.TVBacktest;
   const MAX_PLOTS = 16, MAX_LEVELS = 16, MAX_LEN = 100000;
   const DEFAULT_COLORS = ['#2962ff', '#ff9800', '#f23645', '#26a69a', '#7e57c2', '#00bcd4', '#e91e63', '#8bc34a'];
   // Globales que el script no debe poder usar (red, mensajes, etc.). Se tapan como parámetros "undefined".
@@ -11,11 +13,12 @@
     'indexedDB', 'caches', 'Worker', 'SharedWorker', 'BroadcastChannel', 'navigator', 'location'];
   // Nombres que el script recibe ya listos.
   const API_NAMES = ['indicator', 'input', 'inputColor', 'plot', 'histogram', 'hline', 'ta', 'open', 'high', 'low', 'close', 'volume',
-    'buy', 'sell', 'delta', 'hasBuy', 'time', 'n', 'symbol', 'timeframe', 'tfSec'];
+    'buy', 'sell', 'delta', 'hasBuy', 'time', 'n', 'symbol', 'timeframe', 'tfSec', 'strategy', 'entry', 'exit', 'onBar'];
 
   // Error "de usuario": se muestra tal cual (con su línea). Los demás errores del script también se traducen.
   function fail(msg) { const e = new Error(msg); e.user = true; return e; }
   const isNaNv = (v) => v !== v;
+  const isNum = (v) => typeof v === 'number' && isFinite(v);
 
   // ---------- Funciones técnicas (todas toleran huecos NaN al inicio y devuelven NaN donde no hay valor) ----------
   function mkNaN(len) { return new Array(len).fill(NaN); }
@@ -221,7 +224,56 @@
   // Devuelve { ok: true, ... } o lanza (el llamador usa explainError). Nunca devuelve resultados a medias.
   function run(req) {
     const t0 = Date.now();
-    const raw = req.data;
+    if (typeof req.code !== 'string' || !req.code.trim()) throw fail('El script está vacío.');
+    const fn = compile(req.code);
+    const out = exec(fn, req, req.data);
+    if (out.strategy) {
+      out.strategy.lookahead = lookaheadCheck(fn, req, out, Date.now() - t0);
+      delete out.strategy.signals;
+    }
+    out.ms = Date.now() - t0;
+    return out;
+  }
+
+  // Control de "datos del futuro" (segunda barrera; la primera es que, dentro de onBar, las listas no dejan leer más allá de la vela actual).
+  // Se vuelve a correr la estrategia con las primeras velas de la lista, cortando en varios puntos: si las órdenes de esas velas cambian,
+  // es que usó datos que aún no existían (por ejemplo una lista armada antes con close[i + 1]). Reduce el riesgo; no es una garantía absoluta.
+  function lookaheadCheck(fn, req, main, tMain) {
+    const raw = req.data, n = raw.close.length;
+    if (n < 60) return { checked: false, why: 'hay pocas velas para comprobarlo' };
+    if (tMain > 1200) return { checked: false, why: 'la estrategia es muy pesada para repetirla' };
+    const budget = Math.max(150, Math.min(1000, tMain * 6));
+    const same = (u, v) => {
+      if (u === v) return true;
+      if (typeof u === 'number' && typeof v === 'number') return Math.abs(u - v) <= 1e-9 * Math.max(1, Math.abs(u), Math.abs(v));
+      return false;
+    };
+    const keys = ['i', 'k', 'side', 'sl', 'tp', 'slPct', 'tpPct', 'size'];
+    const t0 = Date.now();
+    let done = 0;
+    for (const frac of [0.95, 0.85, 0.75, 0.65, 0.55, 0.45]) {
+      const cut = Math.floor(n * frac);
+      if (cut < 30) break;
+      if (done && Date.now() - t0 + tMain * frac > budget) break;
+      const sl = (a) => (a ? Array.prototype.slice.call(a, 0, cut) : a);
+      const part = { time: sl(raw.time), open: sl(raw.open), high: sl(raw.high), low: sl(raw.low), close: sl(raw.close), volume: sl(raw.volume), buy: raw.buy ? sl(raw.buy) : null };
+      let r2;
+      try { r2 = exec(fn, req, part); } catch (e) { return done ? { checked: true, cuts: done } : { checked: false, why: 'la estrategia no se pudo repetir con menos velas' }; }
+      const A = main.strategy.signals.filter((x) => x.i < cut), B = r2.strategy.signals.filter((x) => x.i < cut);
+      for (let k = 0; k < Math.max(A.length, B.length); k++) {
+        const a = A[k], b = B[k];
+        if (!a || !b || !keys.every((key) => same(a[key], b[key]))) {
+          const bar = Math.min(a ? a.i : Infinity, b ? b.i : Infinity);
+          throw fail(`La estrategia usa datos del futuro: sus órdenes cambian al quitarle las últimas velas (primera diferencia en la vela ${bar + 1}). Revisa que no leas velas siguientes (close[i + 1]) ni listas calculadas con todos los datos (por ejemplo el máximo de toda la lista).`);
+        }
+      }
+      done++;
+    }
+    return done ? { checked: true, cuts: done } : { checked: false, why: 'hay pocas velas para comprobarlo' };
+  }
+
+  // Ejecuta el script una vez sobre los datos dados (y, si es estrategia, la simula vela a vela).
+  function exec(fn, req, raw) {
     const n = raw.close.length;
     const arr = (a) => Array.from(a, (v) => (v === null || v === undefined ? NaN : v));
     const d = { n, time: arr(raw.time), open: arr(raw.open), high: arr(raw.high), low: arr(raw.low), close: arr(raw.close), volume: arr(raw.volume) };
@@ -237,11 +289,31 @@
       delta = d.volume.map((v, i) => 2 * buy[i] - v);
     } else { buy = noBuy(); sell = noBuy(); delta = noBuy(); }
 
+    // Primera barrera contra datos del futuro: en una estrategia, dentro de onBar las listas no dejan leer más allá de la vela actual.
+    const guardOn = /\bstrategy\s*\(/.test(req.code);
+    const guard = (arr) => {
+      if (!guardOn || !Array.isArray(arr)) return arr;
+      return new Proxy(arr, {
+        get(t, k) {
+          if (inBar && typeof k === 'string') {
+            const c = k.charCodeAt(0);
+            if (c >= 48 && c <= 57 && Number(k) > curBar) throw fail(`Estás en la vela ${curBar + 1} y pides la vela ${Number(k) + 1}: eso es usar datos del futuro. Dentro de onBar solo se puede leer hasta la vela i (por ejemplo close[i], close[i - 1]).`);
+          }
+          return t[k];
+        },
+      });
+    };
     const params = req.params || {};
     const meta = req.meta || {};
     const out = { name: meta.name || 'Script', overlay: false, precision: null, inputs: [], plots: [], levels: [] };
     const inputIds = new Set();
     let declared = false;
+    // Estrategia (v0.21)
+    let strat = null, simRef = null, inBar = false, curBar = -1;
+    const sizeOf = (fnName, label, v) => {
+      if (!isNum(v) || !(v > 0)) throw fail(`${fnName}(): "${label}" debe ser un número mayor que 0. Recibí: ${describeVal(v)}.`);
+      return v;
+    };
 
     function checkSeries(fnName, series, opts) {
       let s = series;
@@ -290,7 +362,7 @@
 
     const api = {
       indicator(o) {
-        if (declared) throw fail('indicator() solo se puede usar una vez.');
+        if (declared) throw fail(strat ? 'Un script es un indicador o una estrategia, no los dos: quita indicator() o strategy().' : 'indicator() solo se puede usar una vez.');
         declared = true;
         o = o || {};
         if (typeof o !== 'object') throw fail("indicator() recibe un objeto, por ejemplo indicator({ name: 'Mi indicador', overlay: true }).");
@@ -300,6 +372,66 @@
           if (!Number.isInteger(o.precision) || o.precision < 0 || o.precision > 8) throw fail('indicator(): "precision" debe ser un entero entre 0 y 8.');
           out.precision = o.precision;
         }
+      },
+      // strategy({ name, overlay, capital, size, commission, slippage }): convierte el script en una estrategia con backtest.
+      // Capital, tamaño, comisión y deslizamiento quedan como parámetros editables del gráfico.
+      strategy(o) {
+        if (declared) throw fail(strat ? 'strategy() solo se puede usar una vez.' : 'Un script es un indicador o una estrategia, no los dos: quita indicator() o strategy().');
+        declared = true;
+        o = o || {};
+        if (typeof o !== 'object') throw fail("strategy() recibe un objeto, por ejemplo strategy({ name: 'Mi estrategia', capital: 10000, size: 100, commission: 0.05, slippage: 0.02 }).");
+        if (o.name !== undefined) out.name = String(o.name).slice(0, 60);
+        out.overlay = o.overlay === undefined ? true : !!o.overlay;
+        out.mode = 'strategy';
+        const num = (key, label, def, min, max, step) => {
+          const v = o[key] === undefined ? def : o[key];
+          if (!isNum(v) || v < min || v > max) throw fail(`strategy(): "${key}" debe ser un número entre ${min} y ${max}. Recibí: ${describeVal(v)}.`);
+          const val = api.input(label, v, { min, max, step });
+          const it = out.inputs[out.inputs.length - 1]; it.builtin = true;
+          return val;
+        };
+        const settings = {
+          capital: num('capital', 'Capital inicial', 10000, 1, 1e12, 100),
+          size: num('size', 'Tamaño (% del capital por operación)', 100, 0.1, 100, 1),
+          commission: num('commission', 'Comisión (% por lado)', 0.05, 0, 5, 0.01),
+          slippage: num('slippage', 'Deslizamiento (% por orden de mercado)', 0.02, 0, 5, 0.01),
+        };
+        strat = { settings, onBar: null, signals: [] };
+      },
+      onBar(f) {
+        if (!strat) throw fail('onBar() es para estrategias: declara antes strategy({ ... }).');
+        if (strat.onBar) throw fail('onBar() solo se puede usar una vez.');
+        if (typeof f !== 'function') throw fail('onBar() recibe una función, por ejemplo onBar(function (i, pos) { ... }).');
+        strat.onBar = f;
+      },
+      // entry('long' | 'short', { sl, tp, slPct, tpPct, size }): orden de mercado que se ejecuta en la apertura de la vela siguiente.
+      entry(side, o) {
+        if (!inBar) throw fail("entry() solo se puede usar dentro de onBar(function (i, pos) { ... }).");
+        if (side !== 'long' && side !== 'short') throw fail(`entry(): el primer dato debe ser 'long' o 'short'. Recibí: ${describeVal(side)}.`);
+        o = o || {};
+        if (typeof o !== 'object') throw fail('entry(): el segundo dato es un objeto, por ejemplo entry(\'long\', { slPct: 2, tpPct: 4 }).');
+        const q = {};
+        if (o.sl !== undefined && o.slPct !== undefined) throw fail('entry(): usa "sl" (precio) o "slPct" (porcentaje), no los dos.');
+        if (o.tp !== undefined && o.tpPct !== undefined) throw fail('entry(): usa "tp" (precio) o "tpPct" (porcentaje), no los dos.');
+        ['sl', 'tp', 'slPct', 'tpPct'].forEach((k) => { if (o[k] !== undefined) q[k] = sizeOf('entry', k, o[k]); });
+        if (o.size !== undefined) { q.size = sizeOf('entry', 'size', o.size); if (q.size > 100) throw fail('entry(): "size" es un porcentaje del capital y no puede pasar de 100 (no hay apalancamiento).'); }
+        strat.signals.push({ i: curBar, k: 'entry', side, sl: q.sl, tp: q.tp, slPct: q.slPct, tpPct: q.tpPct, size: q.size });
+        simRef.queueEntry(side, q);
+      },
+      // exit(): cierra la posición en la apertura de la vela siguiente. exit({ sl, tp, slPct, tpPct }): mueve el stop/objetivo (null lo quita).
+      exit(o) {
+        if (!inBar) throw fail("exit() solo se puede usar dentro de onBar(function (i, pos) { ... }).");
+        if (o === undefined) { strat.signals.push({ i: curBar, k: 'exit' }); simRef.queueExit(); return; }
+        if (typeof o !== 'object' || o === null) throw fail('exit(): sin datos cierra la posición; con un objeto mueve el stop o el objetivo, por ejemplo exit({ sl: 95000 }).');
+        const q = {};
+        if (o.sl !== undefined && o.slPct !== undefined) throw fail('exit(): usa "sl" (precio) o "slPct" (porcentaje), no los dos.');
+        if (o.tp !== undefined && o.tpPct !== undefined) throw fail('exit(): usa "tp" (precio) o "tpPct" (porcentaje), no los dos.');
+        ['sl', 'tp', 'slPct', 'tpPct'].forEach((k) => { if (o[k] !== undefined && o[k] !== null) q[k] = sizeOf('exit', k, o[k]); else if (o[k] === null) q[k] = null; });
+        if (!Object.keys(q).length) throw fail('exit(): el objeto debe traer sl, tp, slPct o tpPct. Para cerrar la posición usa exit() sin datos.');
+        if (q.sl === null) { q.sl = undefined; q.slPct = null; }
+        if (q.tp === null) { q.tp = undefined; q.tpPct = null; }
+        strat.signals.push({ i: curBar, k: 'stops', sl: q.sl, tp: q.tp, slPct: q.slPct, tpPct: q.tpPct });
+        simRef.setStops(curBar, q);
       },
       input(label, def, o) {
         if (typeof label !== 'string' || !label) throw fail('input(): el primer dato es el nombre del parámetro (texto), por ejemplo input("Largo", 14).');
@@ -363,21 +495,40 @@
       },
     };
     const ta = makeTa(d);
+    if (guardOn) {
+      const wrapRes = (r) => (Array.isArray(r) ? guard(r) : (r && typeof r === 'object' ? Object.keys(r).reduce((o, k) => { o[k] = guard(r[k]); return o; }, {}) : r));
+      Object.keys(ta).forEach((k) => { const f = ta[k]; ta[k] = function () { return wrapRes(f.apply(this, arguments)); }; });
+    }
     const values = {
       indicator: api.indicator, input: api.input, inputColor: api.inputColor, plot: api.plot, histogram: api.histogram, hline: api.hline, ta,
-      open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume, buy, sell, delta, hasBuy, time: d.time, n,
+      open: guard(d.open), high: guard(d.high), low: guard(d.low), close: guard(d.close), volume: guard(d.volume),
+      buy: hasBuy ? guard(buy) : buy, sell: hasBuy ? guard(sell) : sell, delta: hasBuy ? guard(delta) : delta, hasBuy, time: guard(d.time), n,
       symbol: String(meta.symbol || ''), timeframe: String(meta.timeframe || ''), tfSec: Number(meta.tfSec) || 0,
+      strategy: api.strategy, entry: api.entry, exit: api.exit, onBar: api.onBar,
     };
-    if (typeof req.code !== 'string' || !req.code.trim()) throw fail('El script está vacío.');
-    const fn = compile(req.code);
     fn.apply(undefined, API_NAMES.map((k) => values[k]).concat(BLOCKED.map(() => undefined)));
-    if (!out.plots.length) {
+    if (strat) {
+      if (!strat.onBar) throw fail('La estrategia necesita onBar(function (i, pos) { ... }) con las reglas de entrada y salida.');
+      const sim = BT.create({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }, strat.settings);
+      simRef = sim; inBar = true;
+      try {
+        for (let i = 0; i < n; i++) {
+          sim.step(i); curBar = i;
+          try { strat.onBar(i, sim.view(i)); } catch (e) {
+            if (e && typeof e === 'object' && e.bar === undefined) { e.bar = i; e.barTime = d.time[i]; }
+            throw e;
+          }
+        }
+      } finally { inBar = false; }
+      const r = sim.finish();
+      out.strategy = { settings: strat.settings, trades: r.trades, equity: r.equity, report: r.report, signals: strat.signals };
+    }
+    if (!strat && !out.plots.length) {
       throw fail('El script no dibuja nada: usa plot(...) para una línea o histogram(...) para barras.');
     }
     if (out.overlay && out.plots.some((p) => p.kind === 'hist')) {
       throw fail("Los histogramas solo se pueden dibujar en un panel aparte: usa indicator({ overlay: false }) o cambia histogram por plot.");
     }
-    out.ms = Date.now() - t0;
     return out;
   }
 
@@ -433,6 +584,10 @@
     if (!(e && e.user)) {
       for (const [re, f] of tr) { const m = re.exec(msg); if (m) { shown = f(m); break; } }
       if (shown === msg && kind === 'syntax') shown = 'Error de sintaxis: ' + msg;
+    }
+    if (e && e.bar !== undefined) {
+      const t = e.barTime, dt = isNum(t) ? new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '';
+      shown += ` (ocurrió en la vela ${e.bar + 1}${dt ? ', ' + dt : ''})`;
     }
     return { kind, line, message: shown, original: shown === msg ? null : msg };
   }

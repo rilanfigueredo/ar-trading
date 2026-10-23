@@ -13,15 +13,29 @@
     const applied = () => (vcfg.scripts || []);
     const lib = () => (G.scriptLib ? G.scriptLib() : []);
     const state = (uid) => {
-      if (!st.has(uid)) st.set(uid, { uid, status: 'idle', error: null, result: null, sig: null, series: [], lines: [], drawSig: null, legendEl: null, textEl: null, ovEl: null });
+      if (!st.has(uid)) st.set(uid, { uid, isStrat: false, status: 'idle', error: null, result: null, sig: null, series: [], lines: [], drawSig: null, legendEl: null, textEl: null, ovEl: null });
       return st.get(uid);
     };
     function changed() { if (G.onScriptStatus) G.onScriptStatus(view); }
 
     // ---------- Dibujo ----------
+    function clearSel(x) {
+      (x.selLines || []).forEach((l) => { try { s.series.removePriceLine(l); } catch (e) { /* ya quitada */ } });
+      x.selLines = [];
+    }
+    // Lo propio de las estrategias: marcas en el gráfico, serie del capital y su rótulo.
+    function clearExtras(x) {
+      if (x.mk) { try { x.mk.detach(); } catch (e) { /* ok */ } x.mk = null; x.mkSeries = null; }
+      if (x.eqSer) { try { s.chart.removeSeries(x.eqSer); } catch (e) { /* ya quitada */ } x.eqSer = null; }
+      clearSel(x);
+      if (x.eqLegendEl && x.eqLegendEl.parentNode) x.eqLegendEl.parentNode.removeChild(x.eqLegendEl);
+      x.eqLegendEl = null; x.eq = null;
+    }
     function clearDrawing(x) {
+      clearExtras(x);
+      (x.lines || []).forEach((o) => { if (o.owner === s.series) { try { o.owner.removePriceLine(o.line); } catch (e) { /* ok */ } } });
       x.series.forEach((ser) => { try { s.chart.removeSeries(ser); } catch (e) { /* ya quitada */ } });
-      x.series = []; x.lines = []; x.drawSig = null; x.vals = null;
+      x.series = []; x.lines = []; x.drawSig = null; x.vals = null; x.mainSeries = null;
       if (x.legendEl && x.legendEl.parentNode) x.legendEl.parentNode.removeChild(x.legendEl);
       x.legendEl = null; x.textEl = null;
       try { removeEmptyPanes(); } catch (e) { /* sin gráfico */ }
@@ -47,10 +61,11 @@
     };
     function draw(x, res, times) {
       const prec = res.precision !== null ? res.precision : (res.overlay ? s.precision : 2);
-      const sig = JSON.stringify([res.overlay, prec, res.plots.map((p) => [p.kind, p.color, p.width, p.style, !!p.colors, p.title]), res.levels, themeName()]);
-      if (x.drawSig !== sig || x.chart !== s.chart || !x.series.length) {
+      const strat = res.strategy || null;
+      const sig = JSON.stringify([res.overlay, prec, res.plots.map((p) => [p.kind, p.color, p.width, p.style, !!p.colors, p.title]), res.levels, themeName(), strat ? strat.settings.capital : null]);
+      if (x.drawSig !== sig || x.chart !== s.chart || x.mainSeries !== s.series || (res.plots.length && !x.series.length)) {
         clearDrawing(x);
-        x.chart = s.chart;
+        x.chart = s.chart; x.mainSeries = s.series;
         const fmt = { type: 'price', precision: prec, minMove: Math.pow(10, -prec) };
         let pane = res.overlay ? s.series.getPane().paneIndex() : s.chart.panes().length;
         res.plots.forEach((p) => {
@@ -67,8 +82,9 @@
           if (i === 0) ser.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
         });
         res.levels.forEach((lv) => {
-          const ser = x.series[0];
-          x.lines.push(ser.createPriceLine({ price: lv.value, color: L.themedColor ? L.themedColor(lv.color, themeName()) : lv.color, lineWidth: lv.width, lineStyle: LSTYLE[lv.style], axisLabelVisible: !!lv.title || !res.overlay, title: lv.title }));
+          const ser = x.series[0] || (res.overlay ? s.series : null);
+          if (!ser) return;
+          x.lines.push({ owner: ser, line: ser.createPriceLine({ price: lv.value, color: L.themedColor ? L.themedColor(lv.color, themeName()) : lv.color, lineWidth: lv.width, lineStyle: LSTYLE[lv.style], axisLabelVisible: !!lv.title || !res.overlay, title: lv.title }) });
         });
         x.drawSig = sig;
         try { s.chart.applyOptions({}); } catch (e) { /* ok */ }
@@ -76,6 +92,62 @@
       res.plots.forEach((p, i) => x.series[i].setData(pointsOf(p, times)));
       x.vals = res.plots.map((p) => p.values);
       x.times = times;
+      if (strat) drawStrategy(x, strat, times); else clearExtras(x);
+    }
+
+    // ---------- Estrategias (v0.21): marcas de entrada/salida y capital en un panel aparte ----------
+    function buildMarkers(strat, times) {
+      const ms = [], showTxt = strat.trades.length <= 60;
+      const pct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+      strat.trades.forEach((t) => {
+        const long = t.side === 'long';
+        ms.push({ time: times[t.entryIdx], position: long ? 'belowBar' : 'aboveBar', color: long ? '#26a69a' : '#ef5350', shape: long ? 'arrowUp' : 'arrowDown', text: showTxt ? (long ? 'L' : 'C') : '', size: 1 });
+        if (!t.open) ms.push({ time: times[t.exitIdx], position: long ? 'aboveBar' : 'belowBar', color: t.pnl >= 0 ? '#26a69a' : '#ef5350', shape: 'circle', text: showTxt ? pct(t.pnlPct) : '', size: 1 });
+      });
+      return ms.sort((a, b) => a.time - b.time);
+    }
+    function drawStrategy(x, strat, times) {
+      if (!x.eqSer) {
+        const fmt = { type: 'price', precision: 2, minMove: 0.01 };
+        const pane = s.chart.panes().length;
+        x.eqSer = s.chart.addSeries(LC.LineSeries, { color: '#26a69a', lineWidth: 2, priceFormat: fmt, lastValueVisible: true, priceLineVisible: false, crosshairMarkerVisible: false }, pane);
+        x.eqSer.createPriceLine({ price: strat.settings.capital, color: '#787b86', lineWidth: 1, lineStyle: LSTYLE.dashed, axisLabelVisible: false, title: '' });
+        x.eqSer.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
+        try { s.chart.applyOptions({}); } catch (e) { /* ok */ }
+      }
+      x.eqSer.setData(strat.equity.map((v, i) => (v === v && v !== null ? { time: times[i], value: v } : { time: times[i] })));
+      x.eq = strat.equity;
+      const ms = buildMarkers(strat, times);
+      if (x.mk && x.mkSeries === s.series) x.mk.setMarkers(ms);
+      else {
+        if (x.mk) { try { x.mk.detach(); } catch (e) { /* ok */ } }
+        x.mk = LC.createSeriesMarkers(s.series, ms); x.mkSeries = s.series;
+      }
+      clearSel(x);
+      if (x.selTime !== undefined) markTrade(x, strat.trades.find((t) => t.entryTime === x.selTime));   // la operación elegida sigue marcada si el gráfico se redibuja
+    }
+    function markTrade(x, t) {
+      clearSel(x);
+      if (!t) return;
+      const long = t.side === 'long';
+      const line = (price, color, title) => s.series.createPriceLine({ price, color, lineWidth: 1, lineStyle: LSTYLE.dotted, axisLabelVisible: true, title });
+      x.selLines.push(line(t.entryPrice, long ? '#26a69a' : '#ef5350', 'Entrada ' + t.n));
+      if (!t.open) x.selLines.push(line(t.exitPrice, t.pnl >= 0 ? '#26a69a' : '#ef5350', 'Salida ' + t.n));
+    }
+    // Lleva el gráfico a una operación y marca su entrada y su salida con dos líneas de precio.
+    function goTo(uid, k) {
+      const x = st.get(uid);
+      if (!x || !x.result || !x.result.strategy || !s.chart || !s.series) return false;
+      const t = x.result.strategy.trades[k];
+      if (!t) return false;
+      const last = x.times.length - 1;
+      const lo = t.entryIdx, hi = t.open ? last : t.exitIdx;
+      const pad = Math.max(12, Math.round(Math.max(hi - lo, 4) * 0.8));
+      s.chart.timeScale().setVisibleLogicalRange({ from: lo - pad, to: hi + pad });
+      try { s.series.priceScale().applyOptions({ autoScale: true }); } catch (e) { /* ok */ }
+      x.selTime = t.entryTime;
+      markTrade(x, t);
+      return true;
     }
 
     // ---------- Ejecución ----------
@@ -105,7 +177,7 @@
       const n = data.close.length;
       if (!n) return;
       const last = n - 1;
-      const sig = [sc.code.length, hash(sc.code), JSON.stringify(a.params || {}), n, data.time[0], data.time[last], data.close[last], data.volume[last], data.buy ? data.buy[last] : '-', vcfg.symbol, vcfg.tf, themeName()].join('|');
+      const sig = [sc.code.length, hash(sc.code), JSON.stringify(a.params || {}), n, data.time[0], data.time[last], data.open[last], data.high[last], data.low[last], data.close[last], data.volume[last], data.buy ? data.buy[last] : '-', vcfg.symbol, vcfg.tf, themeName()].join('|');
       if (sig === x.sig && x.chart === s.chart && (x.status === 'ok' || x.status === 'error')) return;
       x.status = 'running';
       const tf = tfNow();
@@ -120,7 +192,7 @@
         x.status = 'error'; x.error = r.error; x.result = null;
         return;
       }
-      x.status = 'ok'; x.error = null; x.result = r.result;
+      x.status = 'ok'; x.error = null; x.result = r.result; x.isStrat = !!r.result.strategy;
       x.name = r.result.name || sc.name;
       draw(x, r.result, times);
     }
@@ -141,6 +213,8 @@
             await runOne(a, data, data.time);
           }
           try { renderOverlayLegend(); } catch (e) { /* ok */ }
+          // el panel del capital puede tardar un instante en existir en pantalla: se reintenta el rótulo
+          setTimeout(() => { if (!destroyed) { try { renderOverlayLegend(); } catch (e) { /* ok */ } } }, 80);
           changed();
         } while (dirty && !destroyed);
       } catch (e) {
@@ -158,7 +232,7 @@
     // ---------- Rótulos ----------
     function valuesAt(x, param) {
       const res = x.result;
-      if (!res || !x.vals) return [];
+      if (!res || !x.vals || !x.vals.length) return [];
       let idx = x.vals[0].length - 1;
       if (param && param.time !== undefined && x.times) { const j = x.times.indexOf(param.time); if (j >= 0) idx = j; }
       return res.plots.map((p, i) => {
@@ -169,7 +243,7 @@
     }
     function title(a, x) {
       const ps = a.params || {};
-      const inp = x.result ? x.result.inputs.filter((i) => i.type === 'number' || i.type === 'string').map((i) => i.value) : [];
+      const inp = x.result ? x.result.inputs.filter((i) => !i.builtin && (i.type === 'number' || i.type === 'string')).map((i) => i.value) : [];
       return (x.name || 'Script') + (inp.length ? ' (' + inp.join(', ') + ')' : '');
     }
     function btns(a, onGear, onClose) {
@@ -198,6 +272,29 @@
       valuesAt(x, param).forEach((p) => { const sp = el('span', 'pl-val', p.t); sp.style.color = L.themedColor ? L.themedColor(p.color, themeName()) : p.color; t.appendChild(sp); });
       x.legendEl.append(t, btns(a, act(a, 'settings'), act(a, 'remove')));
     }
+    // Rótulo del panel del capital (estrategias)
+    function eqLegend(a, x, param) {
+      if (!x.eqSer || !x.eq) return;
+      let h = null;
+      try { h = x.eqSer.getPane().getHTMLElement(); } catch (e) { return; }
+      if (!h) return;
+      if (!x.eqLegendEl || x.eqLegendEl.parentNode !== h) {
+        if (x.eqLegendEl && x.eqLegendEl.parentNode) x.eqLegendEl.parentNode.removeChild(x.eqLegendEl);
+        x.eqLegendEl = el('div', 'pane-legend');
+        h.style.position = 'relative';
+        h.appendChild(x.eqLegendEl);
+      }
+      let idx = x.eq.length - 1;
+      if (param && param.time !== undefined && x.times) { const j = x.times.indexOf(param.time); if (j >= 0) idx = j; }
+      const v = x.eq[idx];
+      x.eqLegendEl.innerHTML = '';
+      const t = el('span', 'pl-text');
+      t.appendChild(el('span', 'pl-title', 'Capital · ' + (x.name || 'Estrategia')));
+      const sp = el('span', 'pl-val', v === v && v !== null ? fmtVal(v, 2) : '—');
+      sp.style.color = '#26a69a';
+      t.appendChild(sp);
+      x.eqLegendEl.append(t, btns(a, act(a, 'settings'), act(a, 'remove')));
+    }
     function renderOverlayLegend() { legend(null, env.legendEl()); }
     // Se llama desde renderLegend: añade los scripts sobre el precio y los errores al rótulo principal.
     function legend(param, legendEl) {
@@ -215,26 +312,35 @@
         }
         if (x.status === 'hidden') return;
         if (x.status !== 'ok' || !x.result) return;
-        if (x.result.overlay) {
+        const strat = x.result.strategy;
+        if (x.result.overlay || strat) {
           const row = el('div', 'lg-scr lg-mas');
           row.appendChild(el('span', 'pl-title', title(a, x)));
-          valuesAt(x, param).forEach((p) => { const sp = el('span', '', p.t); sp.style.color = L.themedColor ? L.themedColor(p.color, themeName()) : p.color; row.appendChild(sp); });
+          if (x.result.overlay) valuesAt(x, param).forEach((p) => { const sp = el('span', '', p.t); sp.style.color = L.themedColor ? L.themedColor(p.color, themeName()) : p.color; row.appendChild(sp); });
+          if (strat) {
+            const r = strat.report;
+            const sp = el('span', '', `Estrategia: ${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}% · ${r.trades} operaciones${r.open ? ' + 1 abierta' : ''}`);
+            sp.style.color = r.totalPct >= 0 ? '#26a69a' : '#ef5350';
+            row.appendChild(sp);
+          }
           row.appendChild(btns(a, act(a, 'settings'), act(a, 'remove')));
           legendEl.appendChild(row);
-        } else paneLegend(a, x, param);
+        }
+        if (!x.result.overlay && x.series.length) paneLegend(a, x, param);
+        if (strat) eqLegend(a, x, param);
       });
     }
     function info(uid) {
       const x = st.get(uid);
       if (!x) return { status: 'idle', error: null, inputs: [] };
-      return { status: x.status, error: x.error, inputs: x.result ? x.result.inputs : [], name: x.name, ms: x.result ? x.result.ms : null, overlay: x.result ? x.result.overlay : null };
+      return { status: x.status, error: x.error, inputs: x.result ? x.result.inputs : [], name: x.name, ms: x.result ? x.result.ms : null, overlay: x.result ? x.result.overlay : null, isStrategy: !!x.isStrat, strategy: x.result && x.result.strategy ? x.result.strategy : null };
     }
     function destroy() {
       destroyed = true; clearTimeout(timer);
       st.forEach((x) => { if (x.legendEl && x.legendEl.parentNode) x.legendEl.parentNode.removeChild(x.legendEl); });
       st.clear();
     }
-    return { update, refresh, legend, info, destroy };
+    return { update, refresh, legend, info, destroy, goTo };
   }
 
   root.TVScriptHost = { create };

@@ -1730,6 +1730,7 @@
     if (window.TVScriptHost && window.TVScriptRunner) {
       s.scr = window.TVScriptHost.create({ s, vcfg, LC, L, el, fmtVal, themeName, tfNow, G, view, legendEl: () => legendEl });
       view.scriptInfo = (uid) => s.scr.info(uid);
+      view.scriptGoTo = (uid, k) => s.scr.goTo(uid, k);
       view.refreshScripts = (force) => (force ? s.scr.refresh() : s.scr.update());
     }
     createChart();

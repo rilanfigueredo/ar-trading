@@ -1,6 +1,6 @@
 // Worker de scripts (v0.20): ejecuta el script del usuario lejos del programa principal.
 // Si el script se cuelga, el programa lo corta desde fuera (terminate) y el gráfico sigue vivo.
-importScripts('scriptcore.js');
+importScripts('backtest.js', 'scriptcore.js');
 self.onmessage = (ev) => {
   const req = ev.data;
   try {

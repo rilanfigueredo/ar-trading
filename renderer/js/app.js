@@ -75,7 +75,7 @@
   }
   function defaultConfig() {
     return {
-      version: 10, layout: '1', scripts: [], active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
+      version: 11, layout: '1', scripts: [], bt: { h: 260, tab: 'report', collapsed: false }, active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
       palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
       lists: defaultLists(), listActive: 'l1',
@@ -138,7 +138,7 @@
       else view.toggleSubs();
     },
     scriptLib: () => A.cfg.scripts || [],
-    onScriptStatus(view) { if (window.TVScriptUI) TVScriptUI.onStatus(view); },
+    onScriptStatus(view) { if (window.TVScriptUI) TVScriptUI.onStatus(view); if (window.TVBt) TVBt.onStatus(view); },
     scriptAction(view, uid, action) {
       const list = view.cfg.scripts || [];
       const a = list.find((q) => q.uid === uid);
@@ -231,6 +231,7 @@
     applyMax();
     markActive();
     renderStatus();
+    if (window.TVBt) TVBt.render();
     saveCfg();
   }
   // Ampliar un gráfico a pantalla completa (y volver al diseño).
@@ -256,6 +257,7 @@
     markActive();
     renderStatus();
     if (!$('panel').classList.contains('hidden')) renderPanel();
+    if (window.TVBt) TVBt.render();
     saveCfg();
   }
 
@@ -1161,6 +1163,7 @@
     $('btnLayout').onclick = openLayoutPicker;
     $('btnReplay').onclick = () => { const v = activeView(); if (v.replayState === 'off') v.replayPick(); else v.replayStop(); markActive(); };
     TVScriptUI.init({ A, $, openModal, closeModal, activeView, saveCfg, decorate: decoratePalette });
+    TVBt.init({ A, $, activeView, saveCfg, openScript: (a) => TVScriptUI.open(a.scriptId) });
     $('btnScripts').onclick = () => TVScriptUI.toggle();
     $('btnData').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'data') closeModal(); else openDataPicker(); };
     $('syncCross').onclick = () => {
@@ -1290,7 +1293,11 @@
     cfg.lists = cleanLists(saved.lists, saved.favorites);
     delete cfg.favorites;
     if (!cfg.lists.some((l) => l.id === cfg.listActive)) cfg.listActive = cfg.lists[0].id;
-    cfg.version = 10;
+    { // panel del backtest (v0.21)
+      const b = saved.bt && typeof saved.bt === 'object' ? saved.bt : {};
+      cfg.bt = { h: Math.max(120, Math.min(900, Number(b.h) || 260)), tab: b.tab === 'trades' ? 'trades' : 'report', collapsed: !!b.collapsed };
+    }
+    cfg.version = 11;
     return cfg;
   }
   // Dibujos guardados: se descarta lo que no tenga sentido (tipo desconocido, puntos inválidos) en vez de romper el gráfico.

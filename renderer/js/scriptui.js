@@ -186,6 +186,7 @@
         const row = mk('div', { className: 'sc-arow' });
         const head = mk('div', { className: 'sc-ahead' });
         head.appendChild(mk('b', { textContent: sc ? sc.name : 'Script borrado' }));
+        if (inf.isStrategy) head.appendChild(mk('span', { className: 'sc-badge', textContent: 'estrategia' }));
         if (inf.status === 'error') head.appendChild(mk('span', { className: 'sc-badge err', textContent: 'con error' }));
         const eye = mk('button', { className: 'btn small secondary', textContent: a.hide ? 'Mostrar' : 'Ocultar' });
         eye.onclick = () => { a.hide = !a.hide; ctx.saveCfg(); v.refreshScripts(true); renderAll(); };
@@ -193,6 +194,11 @@
         edit.onclick = () => { if (sc) { select(sc.id); dirty = false; renderAll(); } };
         const rm = mk('button', { className: 'btn small secondary', textContent: 'Quitar' });
         rm.onclick = () => { v.cfg.scripts = appliedOf(v).filter((q) => q.uid !== a.uid); ctx.saveCfg(); v.refreshScripts(); renderAll(); };
+        if (inf.isStrategy && window.TVBt) {
+          const rep = mk('button', { className: 'btn small secondary', textContent: 'Ver informe', title: 'Mostrar el informe y las operaciones en el panel de abajo' });
+          rep.onclick = () => window.TVBt.show(a.uid);
+          head.appendChild(rep);
+        }
         head.append(eye, edit, rm);
         row.appendChild(head);
         if (inf.status === 'error') row.appendChild(mk('div', { className: 'sc-aerr', textContent: (inf.error.line ? `Línea ${inf.error.line}: ` : '') + inf.error.message }));
@@ -262,6 +268,8 @@
 <p><b>Funciones</b>: <code>ta.sma(close, 20)</code>, <code>ta.ema</code>, <code>ta.rma</code>, <code>ta.wma</code>, <code>ta.rsi</code>, <code>ta.macd(close,12,26,9)</code> → <code>{macd, signal, hist}</code>, <code>ta.stoch(14,1,3)</code> → <code>{k, d}</code>, <code>ta.bb(close,20,2)</code> → <code>{mid, upper, lower}</code>, <code>ta.atr(14)</code>, <code>ta.obv()</code>, <code>ta.stdev</code>, <code>ta.highest</code>, <code>ta.lowest</code>, <code>ta.sum</code>, <code>ta.change</code>, <code>ta.cum</code>, <code>ta.crossover(a,b)</code>, <code>ta.crossunder(a,b)</code>.</p>
 <p><b>Dibujar</b>: <code>indicator({ name, overlay: true|false })</code> (true = sobre el precio, false = panel aparte) · <code>plot(lista, { color, width, style, title })</code> · <code>histogram(lista, { colorUp, colorDown })</code> · <code>hline(precio, { color, style, title })</code> (nivel). Un hueco se escribe <code>NaN</code> y no se dibuja.</p>
 <p><b>Parámetros editables</b>: <code>input('Largo', 14)</code> (número, true/false o texto con <code>{ options: [...] }</code>) · <code>inputColor('Color', '#2962ff')</code>. Se cambian en «Aplicados en este gráfico» y se guardan por gráfico.</p>
+<p><b>Estrategias (backtest)</b>: en vez de <code>indicator</code> se declara <code>strategy({ name, overlay, capital, size, commission, slippage })</code> y las reglas van dentro de <code>onBar(function (i, pos) { ... })</code>, que se llama una vez por vela, en orden, con <code>i</code> = número de la vela y <code>pos</code> = posición actual (<code>pos.side</code> es <code>'long'</code>, <code>'short'</code> o <code>null</code>; también <code>entryPrice, sl, tp, bars, pnl, equity</code>). Primero se calculan las listas con <code>ta.*</code> (fuera de <code>onBar</code>) y dentro se lee la vela <code>i</code>, por ejemplo <code>rsi[i]</code>.</p>
+<p><code>entry('long')</code> / <code>entry('short')</code> (opciones: <code>sl</code> y <code>tp</code> en precio, o <code>slPct</code> y <code>tpPct</code> en %, y <code>size</code> en % del capital) · <code>exit()</code> cierra la posición · <code>exit({ sl: precio })</code> mueve el stop o el objetivo de la posición abierta. Las órdenes se ejecutan en la <b>apertura de la vela siguiente</b> (nunca con datos del futuro: si la estrategia mira velas que aún no existían, el programa lo detecta y da error). Con stop y objetivo en la misma vela se asume el stop. Capital, tamaño, comisión y deslizamiento se cambian en «Aplicados en este gráfico». Los resultados salen en el panel de abajo y el capital en un panel propio.</p>
 <p>Límite: 3 segundos por cálculo. Los scripts no tienen acceso a internet ni al resto del programa.</p>
 </div>`;
 

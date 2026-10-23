@@ -1,4 +1,4 @@
-// Ejemplos de scripts (v0.20) para copiar y cambiar.
+// Ejemplos de scripts (v0.20) y de estrategias (v0.21) para copiar y cambiar.
 (function (root) {
   'use strict';
   root.TVScriptExamples = [
@@ -56,6 +56,78 @@ const pct = buy.map(function (b, i) { return volume[i] > 0 ? (100 * b) / volume[
 plot(pct, { color: colorFino, width: 1, title: '% por vela' });
 plot(ta.sma(pct, suavizado), { color: colorLinea, width: 2, title: '% suavizado' });
 hline(50, { color: '#787b86', style: 'dashed' });
+`,
+    },
+    {
+      name: 'Cruce de medias (estrategia)',
+      code: `// Estrategia: compra cuando la media rápida cruza hacia arriba la lenta y vende (corto) cuando cruza hacia abajo.
+// Capital, tamaño, comisión y deslizamiento se cambian en «Aplicados en este gráfico». Las órdenes se ejecutan en la vela siguiente.
+strategy({ name: 'Cruce de medias', overlay: true });
+
+const rapida = input('Media rápida', 20, { min: 2, max: 200 });
+const lenta = input('Media lenta', 50, { min: 3, max: 400 });
+const soloLargos = input('Solo largos (sin cortos)', false);
+const stopPct = input('Stop loss % (0 = sin stop)', 3, { min: 0, max: 50, step: 0.5 });
+const objetivoPct = input('Objetivo % (0 = sin objetivo)', 6, { min: 0, max: 200, step: 0.5 });
+
+const mRapida = ta.ema(close, rapida);
+const mLenta = ta.ema(close, lenta);
+const sube = ta.crossover(mRapida, mLenta);
+const baja = ta.crossunder(mRapida, mLenta);
+
+plot(mRapida, { color: '#ff9800', title: 'Rápida' });
+plot(mLenta, { color: '#2962ff', title: 'Lenta' });
+
+function opciones() {
+  const o = {};
+  if (stopPct > 0) o.slPct = stopPct;
+  if (objetivoPct > 0) o.tpPct = objetivoPct;
+  return o;
+}
+
+onBar(function (i, pos) {
+  if (sube[i]) {
+    entry('long', opciones());            // si había un corto abierto, lo invierte
+  } else if (baja[i]) {
+    if (soloLargos) { if (pos.side === 'long') exit(); }
+    else entry('short', opciones());
+  }
+});
+`,
+    },
+    {
+      name: 'RSI con stop y objetivo (estrategia)',
+      code: `// Estrategia: compra cuando el RSI sale de la sobreventa (cruza hacia arriba el nivel bajo) y cierra cuando llega a la sobrecompra
+// (cruza hacia arriba el nivel alto). El stop se pone a "Distancia del stop" veces el ATR bajo el precio de entrada.
+strategy({ name: 'RSI con stop', overlay: true });
+
+const largo = input('Largo del RSI', 14, { min: 2, max: 100 });
+const bajo = input('Nivel de compra', 30, { min: 1, max: 49 });
+const alto = input('Nivel de cierre', 70, { min: 51, max: 99 });
+const atrLargo = input('Largo del ATR', 14, { min: 2, max: 100 });
+const veces = input('Distancia del stop (veces el ATR)', 2, { min: 0.5, max: 10, step: 0.5 });
+const objetivoPct = input('Objetivo % (0 = sin objetivo)', 0, { min: 0, max: 200, step: 0.5 });
+
+const rsi = ta.rsi(close, largo);
+const atr = ta.atr(atrLargo);
+const compra = ta.crossover(rsi, bajo);
+const cierre = ta.crossover(rsi, alto);
+
+onBar(function (i, pos) {
+  if (pos.side === null) {
+    if (compra[i] && !isNaN(atr[i])) {
+      const o = { sl: close[i] - veces * atr[i] };
+      if (objetivoPct > 0) o.tpPct = objetivoPct;
+      entry('long', o);
+    }
+  } else if (cierre[i]) {
+    exit();
+  } else if (pos.side === 'long' && !isNaN(atr[i])) {
+    // el stop sube con el precio (nunca baja)
+    const nuevo = close[i] - veces * atr[i];
+    if (nuevo > pos.sl && nuevo < close[i]) exit({ sl: nuevo });
+  }
+});
 `,
     },
   ];

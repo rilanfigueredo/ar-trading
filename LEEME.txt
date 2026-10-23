@@ -1,10 +1,36 @@
-AR_TRADING - VERSION 0.20
+AR_TRADING - VERSION 0.21
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.20) - SCRIPTS PROPIOS (JavaScript) PARA INDICADORES
+NOVEDADES DE ESTA VERSION (v0.21) - ESTRATEGIAS Y BACKTEST (nucleo)
+- Las estrategias se escriben en la MISMA ventana de Scripts. En vez de indicator(...) se declara strategy({...}) y las
+  reglas van dentro de onBar(function (i, pos) { ... }), que se llama una vez por vela, en orden.
+  Dentro: entry('long') / entry('short') (con sl y tp en precio, o slPct y tpPct en %), exit() para cerrar y
+  exit({ sl: precio }) para mover el stop o el objetivo de la posicion abierta. Hay 2 ejemplos en "Ejemplos...":
+  "Cruce de medias (estrategia)" y "RSI con stop y objetivo (estrategia)".
+- SIMULADOR vela a vela, largos y cortos. La orden dada al cerrar una vela se ejecuta en la APERTURA de la vela siguiente
+  (nunca con datos del futuro). Capital inicial, tamaño (% del capital por operacion), comision (% por lado) y
+  deslizamiento (%) son parametros que se cambian en "Aplicados en este gráfico" y se guardan por grafico.
+  Sin apalancamiento. Si en una misma vela se tocan el stop y el objetivo, se asume el STOP (lo mas desfavorable).
+- CONTROL DE DATOS DEL FUTURO: dentro de onBar las listas (close, ta.ema(...), etc.) no dejan leer mas alla de la vela
+  actual (close[i + 1] da error) y ademas se repite la estrategia con menos velas para detectar listas "adelantadas".
+  Reduce el riesgo, pero no es una garantia absoluta.
+- En el grafico: flechas de entrada (verde = largo, rojo = corto, letra L/C), circulos de salida con el % de la operacion,
+  y el CAPITAL (equity) en un panel aparte. El rotulo muestra el resultado total.
+- PANEL FIJO ABAJO (aparece solo si el grafico activo tiene una estrategia): pestaña "Informe" (capital final, resultado,
+  comparar con comprar y mantener, % de acierto, factor de beneficio, caida maxima, comisiones, largas/cortas...) y pestaña
+  "Operaciones" (lista). CLIC en una fila = el grafico va a esa operacion y marca su entrada y salida. Se puede
+  minimizar (▼), cambiar su altura arrastrando el borde de arriba y elegir entre varias estrategias.
+- Corre en el mismo entorno aislado (Worker) con limite de 3 segundos. Los errores salen con linea y numero de vela
+  ("Linea 3: ... (ocurrio en la vela 120, fecha)"). Funciona con el replay (se recalcula con las velas visibles).
+- Pasa a ser version de configuracion 11 (tu configuracion de la 0.20 se conserva).
+- ES UNA SIMULACION: no incluye financiacion ni falta de liquidez; el mercado real puede dar peores resultados.
+  Con los datos simulados de prueba los resultados no significan nada: pruebalo con Binance real.
+- LIMITES: una sola posicion a la vez, sin apalancamiento, sin optimizador de parametros, sin exportar operaciones.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.20) - SCRIPTS PROPIOS (JavaScript) PARA INDICADORES
 - Boton "Scripts" de la barra de arriba (clic otra vez cierra). La ventana se puede mover.
   1) Pulsa Scripts.  2) Elige un ejemplo en "Ejemplos..." (media, RSI propio o presion de compra con volumen de compra)
   o pulsa "+ Nuevo" y escribe el tuyo.  3) "Guardar y aplicar al gráfico" lo dibuja en el grafico seleccionado.
@@ -19,7 +45,7 @@ NOVEDADES DE ESTA VERSION (v0.20) - SCRIPTS PROPIOS (JavaScript) PARA INDICADORE
   falla NO se dibuja nada de el (nunca un resultado falso).
 - Cada script se aplica por grafico y guarda sus parametros (numeros, opciones) y colores, con "Valores por defecto".
 - Pasa a ser version de configuracion 10 (tu configuracion anterior se conserva).
-- LIMITES: aun no hay estrategias ni backtest (eso es la v0.21). Los scripts no entran en las plantillas de graficos.
+- LIMITES: los scripts no entran en las plantillas de graficos.
 
 NOVEDADES DE LA VERSION ANTERIOR (v0.19)
 - CAPTURA DE IMAGEN: cada grafico tiene un boton de camara (arriba a la derecha, junto al eje de precios).
