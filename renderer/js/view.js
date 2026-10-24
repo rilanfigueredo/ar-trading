@@ -95,7 +95,7 @@
     host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, rpBar, maxBtn);
 
     const s = {
-      base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null,
+      base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
       maSeries: new Map(), maLast: new Map(), sub: {}, overlays: {}, precision: 2,
       token: 0, loadingMore: false, reachedStart: false, polling: false, pollTimer: null,
       hover: false, hoverTime: null, loading: false, status: { text: '', kind: '' }, destroyed: false,
@@ -165,15 +165,26 @@
     function refreshFormatters() {
       fmtCache = {};
       s.chart.applyOptions({ localization: { timeFormatter }, timeScale: { tickMarkFormatter: tickFormatter, secondsVisible: isSub() } });
+      applyBarSpacingLimit();
+      if (s.fut) s.fut.refresh();
+    }
+    // v0.22: se puede alejar el gráfico lo bastante para ver (al menos) 2 años hacia adelante de la última vela; las fechas del futuro las pone futureaxis.js.
+    const FUTURE_SEC = 2 * 366 * 86400;
+    function applyBarSpacingLimit() {
+      if (!s.chart) return;
+      const sec = tfNow().sec;
+      const w = chartEl.clientWidth || 1200;
+      const min = sec > 0 ? Math.max(0.0001, Math.min(0.5, w / (FUTURE_SEC / sec + 50))) : 0.5;
+      s.chart.applyOptions({ timeScale: { minBarSpacing: min } });
     }
 
     // ---------- Gráfico ----------
     // Colores del gráfico: tema + fondo propio (si lo hay) + rejillas.
     function lookVars() {
       const dark = cfg().theme === 'dark';
-      const bg = vcfg.look.bg || (dark ? '#131722' : '#ffffff');
+      const bg = vcfg.look.bg || (dark ? '#0a102a' : '#ffffff');
       const m = /^#?([0-9a-f]{6})$/i.exec(bg);
-      const n = m ? parseInt(m[1], 16) : 0x131722;
+      const n = m ? parseInt(m[1], 16) : 0x0a102a;
       const luma = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
       const isDark = luma < 140;
       return {
@@ -263,6 +274,14 @@
       chart.subscribeCrosshairMove(onCrosshair);
       chart.subscribeClick(onChartClick);
       s.chart = chart;
+      if (window.TVFutureAxis) {
+        s.fut = window.TVFutureAxis.create({
+          bars: () => s.bars, tfSec: () => (tfNow().kind === 'vol' ? 0 : tfNow().sec), utc: () => isDaily() || cfg().tz === 'UTC',
+          tickFmt: (t, type) => tickFormatter(t, type), timeFmt: (t) => timeFormatter(t),
+          colors: () => { const lv = lookVars(); return { text: lv.text, crossBack: lv.isDark ? '#2a2e39' : '#4c525e' }; },
+        });
+      }
+      applyBarSpacingLimit();
       applyScaleMode();
     }
     function applyScaleMode() {
@@ -298,12 +317,14 @@
       const pi = mainPaneIdx();
       const old = s.series;
       if (old && s.pivot) { try { old.detachPrimitive(s.pivot); } catch (e) { /* ya quitado */ } }
+      if (old && s.fut) { try { old.detachPrimitive(s.fut); } catch (e) { /* ya quitado */ } }
       if (view.draw) view.draw.detach();
       const def = { candles: LC.CandlestickSeries, line: LC.LineSeries, area: LC.AreaSeries }[vcfg.chartType];
       s.series = s.chart.addSeries(def, mainOptions(), pi);
       s.series.setData(s.bars.map(toPoint));
       if (old) s.chart.removeSeries(old);
       if (s.pivot) s.series.attachPrimitive(s.pivot);
+      if (s.fut) s.series.attachPrimitive(s.fut);
       if (view.draw) view.draw.attach(s.series);
       applyScaleMode();
     }
@@ -585,7 +606,7 @@
       const top = pe.getBoundingClientRect().top - chartEl.getBoundingClientRect().top;
       legendEl.style.top = Math.max(0, top) + 8 + 'px';
     }
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => positionLegend()).observe(chartEl);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { positionLegend(); applyBarSpacingLimit(); }).observe(chartEl);
     function removeEmptyPanes() {
       let panes = s.chart.panes();
       for (let i = panes.length - 1; i >= 0; i--) {
@@ -812,6 +833,7 @@
     }
     function onCrosshair(param) {
       s.hoverTime = param && param.time !== undefined ? param.time : null;
+      if (s.fut) s.fut.setCrosshair(param && param.point ? param.point.x : null);
       renderLegend(param);
       if (s.hover) G.onCrosshair(view, hoverInfo(param));
     }

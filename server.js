@@ -6,10 +6,10 @@ const path = require('path');
 const { URL } = require('url');
 const core = require('./src/core');
 core.setDataDir(path.join(__dirname, 'data'));
+const store = require('./src/store').create(path.join(__dirname, 'data'));   // v0.22: configuración por ventana + parte compartida
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, 'renderer');
-const CONFIG = path.join(__dirname, 'data', 'config.json');
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',
@@ -30,14 +30,27 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/symbols') return send(res, 200, await core.symbols(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/tickers') return send(res, 200, await core.tickers(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/config') {
+      const w = url.searchParams.get('w') || 'w1';
       if (req.method === 'POST') {
         let data = '';
         for await (const chunk of req) data += chunk;
-        fs.mkdirSync(path.dirname(CONFIG), { recursive: true });
-        fs.writeFileSync(CONFIG, data);
-        return send(res, 200, { ok: true });
+        const r = store.setConfig(w, JSON.parse(data));
+        return send(res, 200, { ok: true, changed: r.changed });
       }
-      try { return send(res, 200, fs.readFileSync(CONFIG, 'utf8')); } catch (e) { return send(res, 200, 'null'); }
+      return send(res, 200, store.getConfig(w));
+    }
+    if (url.pathname === '/api/windows') return send(res, 200, store.listWindows().map((x) => x.id));
+    if (url.pathname === '/api/window/new' && req.method === 'POST') {
+      const id = store.newWindowId();
+      if (!id) return send(res, 200, { ok: false, error: `Máximo ${store.MAX_WINDOWS} ventanas a la vez. Cierra u olvida alguna.` });
+      store.addWindow(id);
+      return send(res, 200, { ok: true, id });
+    }
+    if (url.pathname === '/api/window/remove' && req.method === 'POST') {
+      const id = url.searchParams.get('w');
+      if (id === 'w1' && store.listWindows().length === 1) return send(res, 200, { ok: false, error: 'La última ventana no se puede olvidar.' });
+      store.removeWindow(id);
+      return send(res, 200, { ok: true });
     }
     let rel = decodeURIComponent(url.pathname);
     if (rel === '/') rel = '/index.html';

@@ -1,7 +1,7 @@
 :root { --font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
 body[data-theme="dark"] {
-  --bg: #131722; --panel: #1e222d; --border: #2a2e39; --text: #d1d4dc; --muted: #787b86;
-  --hover: #2a2e39; --active: #2962ff; --active-text: #ffffff; --input: #131722;
+  --bg: #0a102a; --panel: #1e222d; --border: #2a2e39; --text: #d1d4dc; --muted: #787b86;
+  --hover: #2a2e39; --active: #2962ff; --active-text: #ffffff; --input: #0a102a;
 }
 body[data-theme="light"] {
   --bg: #ffffff; --panel: #f8f9fd; --border: #e0e3eb; --text: #131722; --muted: #787b86;
@@ -429,3 +429,33 @@ input[type=color]:disabled { cursor: not-allowed; }
 #btPanel .bt-row:hover { background: var(--hover, rgba(128,128,128,.12)); }
 #btPanel .bt-row.sel { background: color-mix(in srgb, var(--active, #2962ff) 22%, transparent); }
 #btPanel .bt-row.open td:first-child { font-style: italic; }
+
+/* v0.22: menús desplegables (tipo de gráfico y escala), botones con contorno y botón del activo */
+.dd { position: relative; }
+.dd-list { position: absolute; top: calc(100% + 3px); left: 0; z-index: 60; display: flex; flex-direction: column; gap: 2px; min-width: 100%; padding: 3px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+.dd-list.hidden { display: none; }
+.dd-list .tb-btn { text-align: left; padding: 4px 10px; }
+.dd-cur { border-color: var(--border); }
+/* contorno azul en reposo; turquesa cuando está activo */
+.tb-btn.tb-out { border: 2px solid var(--active); padding: 3px 6px; }
+.tb-btn.tb-out.active, .tb-btn.tb-out.on { background: transparent; color: var(--text); border-color: #00e5ee; }
+.tb-btn.tb-out:hover { background: var(--hover); }
+/* botón del activo: contorno y letras naranja */
+.tb-btn.symbol { border: 2px solid #fe9900; color: #fe9900; padding: 3px 6px; }
+.tb-btn.symbol:hover { background: var(--hover); }
+
+/* v0.22: menús de diseños y ventanas */
+.dd-wide { min-width: 290px; max-width: 420px; padding: 6px; gap: 4px; }
+.dd-wide .dd-title { font-size: 12px; font-weight: 700; color: var(--muted); padding: 2px 4px 4px; }
+.dd-wide .dd-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; }
+.dd-wide .dd-row:hover { background: var(--hover); }
+.dd-wide .dd-row .dd-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-wide .dd-row .dd-name.cur { color: #00e5ee; font-weight: 700; }
+.dd-wide .dd-row button, .dd-wide .dd-new { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text); cursor: pointer; }
+.dd-wide .dd-row button:hover, .dd-wide .dd-new:hover:not(:disabled) { background: var(--active); color: var(--active-text); }
+.dd-wide .dd-new { font-size: 13px; font-weight: 600; padding: 5px 8px; border-color: var(--active); }
+.dd-wide .dd-new:disabled { opacity: .45; cursor: not-allowed; }
+.dd-wide .dd-hint { font-size: 11px; color: var(--muted); padding: 2px 4px; line-height: 1.4; }
+.dd-wide .dd-err { font-size: 12px; color: #ef5350; padding: 2px 4px; }
+.win-label { font-size: 13px; font-weight: 700; color: #00e5ee; padding: 0 6px; }
+.win-label.hidden { display: none; }

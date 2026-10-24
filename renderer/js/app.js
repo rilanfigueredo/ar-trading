@@ -120,8 +120,14 @@
   let saveTimer = null;
   function saveCfg() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { API.setConfig(A.cfg).catch(() => {}); }, 400);
+    saveTimer = setTimeout(() => { saveTimer = null; API.setConfig(A.cfg).catch(() => {}); }, 400);
   }
+  // Al cerrar la ventana no se pierde el último cambio (si había uno esperando para guardarse)
+  window.addEventListener('beforeunload', () => {
+    if (!saveTimer) return;
+    clearTimeout(saveTimer); saveTimer = null;
+    try { API.setConfigNow(A.cfg); } catch (e) { /* ok */ }
+  });
   const activeView = () => A.views[A.cfg.active] || A.views[0];
   const activeCfg = () => A.cfg.charts[A.cfg.active] || A.cfg.charts[0];
 
@@ -293,8 +299,9 @@
   }
   function markActive() {
     const c = activeCfg();
-    document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => b.classList.toggle('active', b.dataset.type === c.chartType));
-    document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => b.classList.toggle('active', b.dataset.scale === c.scale));
+    document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { const on = b.dataset.type === c.chartType; b.classList.toggle('active', on); if (on) $('typeCur').textContent = b.textContent + ' ▾'; });
+    document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { const on = b.dataset.scale === c.scale; b.classList.toggle('active', on); if (on) $('scaleCur').textContent = b.textContent + ' ▾'; });
+    syncOutlineButtons();
     $('btnSymbol').textContent = c.symbol + ((c.exchange || 'binance') !== 'binance' ? ' · ' + L.exchangeName(c.exchange) : '');
     document.body.dataset.theme = A.cfg.theme;
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
@@ -355,6 +362,7 @@
     box.style.left = box.style.top = '';
     build(box);
     $('modal').classList.remove('hidden');
+    syncOutlineButtons();
     if (floating) {
       // Ventana movible: se arrastra desde el título y deja ver el gráfico mientras se cambian los ajustes.
       const w = box.offsetWidth;
@@ -384,6 +392,23 @@
   function closeModal() {
     $('modal').classList.add('hidden'); closePalette();
     if (modalClose) { const f = modalClose; modalClose = null; f(); }
+    syncOutlineButtons();
+  }
+  // v0.22: Ajustes, Scripts y Datos se marcan (contorno turquesa) mientras su ventana está abierta.
+  function syncOutlineButtons() {
+    const open = !$('modal').classList.contains('hidden');
+    const kind = open ? $('modalBox').dataset.kind : '';
+    const set = (id, on) => { const b = $(id); if (b) b.classList.toggle('on', !!on); };
+    set('btnSettings', kind === 'settings'); set('btnScripts', kind === 'scripts'); set('btnData', kind === 'data');
+  }
+  // Menús desplegables de la barra (tipo de gráfico y escala)
+  function setupDropdown(curId, listId) {
+    const cur = $(curId), list = $(listId);
+    const close = () => list.classList.add('hidden');
+    cur.onclick = (e) => { e.stopPropagation(); const was = list.classList.contains('hidden'); document.querySelectorAll('.dd-list').forEach((l) => l.classList.add('hidden')); if (was) list.classList.remove('hidden'); };
+    list.addEventListener('click', close);
+    document.addEventListener('mousedown', (e) => { if (!list.classList.contains('hidden') && !e.target.closest('#' + listId) && e.target !== cur) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   }
 
   // ---------- Paleta de colores propia ----------
@@ -791,7 +816,7 @@
       title(`Solo el gráfico seleccionado: ${A.cfg.active + 1} · ${ac.symbol}`);
       const applyLook = () => { saveCfg(); av.applyLook(); };
       const bgOn = mk('input', { type: 'checkbox', checked: ac.look.bg !== null });
-      const bgCol = mk('input', { type: 'color', value: ac.look.bg || (A.cfg.theme === 'dark' ? '#131722' : '#ffffff') });
+      const bgCol = mk('input', { type: 'color', value: ac.look.bg || (A.cfg.theme === 'dark' ? '#0a102a' : '#ffffff') });
       const bgSync = () => { bgCol.disabled = !bgOn.checked; bgCol.style.opacity = bgOn.checked ? 1 : 0.35; };
       bgOn.onchange = () => { ac.look.bg = bgOn.checked ? bgCol.value : null; bgSync(); applyLook(); };
       bgCol.oninput = () => { ac.look.bg = bgCol.value; applyLook(); };
@@ -958,6 +983,93 @@
       box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance, Bybit, KuCoin y Bitstamp (API públicas y gratuitas). Tus cambios se guardan automáticamente.' }));
       decoratePalette(box);
     }, { floating: true });
+  }
+
+  // ---------- Ventanas y diseños (v0.22) ----------
+  const WIN = API.windowId || 'w1';
+  const winNum = (id) => Number(String(id).slice(1));
+  const hh = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  function setupMenu(btnId, listId, build) {
+    const btn = $(btnId), list = $(listId);
+    const close = () => list.classList.add('hidden');
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const wasHidden = list.classList.contains('hidden');
+      document.querySelectorAll('.dd-list').forEach((l) => l.classList.add('hidden'));
+      if (!wasHidden) return;
+      list.innerHTML = '';
+      await build(list, close);
+      list.classList.remove('hidden');
+    };
+    document.addEventListener('mousedown', (e) => { if (!list.classList.contains('hidden') && !e.target.closest('#' + listId) && e.target !== btn) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+  // «Cargar diseño»: aplica una plantilla de gráfico guardada (en Ajustes) al gráfico seleccionado o a todos los de esta ventana.
+  function buildTplMenu(list, close) {
+    list.appendChild(hh('div', 'dd-title', 'Cargar un diseño guardado'));
+    const tpls = A.cfg.templates || [];
+    if (!tpls.length) list.appendChild(hh('div', 'dd-hint', 'Todavía no tienes diseños. Deja un gráfico como te gusta y guárdalo en Ajustes → Plantillas.'));
+    tpls.forEach((t) => {
+      const r = hh('div', 'dd-row');
+      r.appendChild(hh('span', 'dd-name', t.name));
+      const b1 = hh('button', '', 'Aquí'); b1.title = 'Aplicar al gráfico seleccionado';
+      b1.onclick = () => { applyTemplate(activeView(), activeCfg(), t.data); close(); };
+      const b2 = hh('button', '', 'A todos'); b2.title = 'Aplicar a todos los gráficos de esta ventana';
+      b2.onclick = () => { A.views.forEach((v) => applyTemplate(v, v.cfg, t.data)); close(); };
+      r.append(r.firstChild, b1, b2);
+      list.appendChild(r);
+    });
+    list.appendChild(hh('div', 'dd-hint', 'El diseño cambia colores, velas, indicadores y medias; no cambia el activo ni la temporalidad.'));
+  }
+  // «Ventanas»: abrir una ventana nueva (hasta 10) y pasar de una a otra.
+  async function buildWinMenu(list, close) {
+    let ids = [];
+    try { ids = await API.listWindows(); } catch (e) { /* sin lista */ }
+    if (!ids.includes(WIN)) ids.push(WIN);
+    ids.sort((a, b) => winNum(a) - winNum(b));
+    const MAXW = 10;
+    list.appendChild(hh('div', 'dd-title', `Ventanas abiertas (${ids.length}/${MAXW})`));
+    const nb = hh('button', 'dd-new', '＋ Nueva ventana (gráfico limpio BTCUSDT, 1h)');
+    nb.disabled = ids.length >= MAXW;
+    const err = hh('div', 'dd-err');
+    nb.onclick = async () => {
+      nb.disabled = true;
+      try { const r = await API.openWindow(); if (r && r.ok) close(); else { err.textContent = (r && r.error) || 'No se pudo abrir la ventana.'; nb.disabled = false; } } catch (e) { err.textContent = 'No se pudo abrir la ventana: ' + e.message; nb.disabled = false; }
+    };
+    list.append(nb, err);
+    ids.forEach((id) => {
+      const r = hh('div', 'dd-row');
+      r.appendChild(hh('span', 'dd-name' + (id === WIN ? ' cur' : ''), 'Ventana ' + winNum(id) + (id === WIN ? ' (esta)' : '')));
+      if (id !== WIN) {
+        const go = hh('button', '', 'Ir'); go.title = 'Pasar a esta ventana';
+        go.onclick = () => { API.focusWindow(id); close(); };
+        const x = hh('button', '', window.desktopApi ? 'Cerrar' : 'Olvidar'); x.title = window.desktopApi ? 'Cerrar esa ventana (se pierde su configuración)' : 'Quitarla de la lista y borrar su configuración';
+        x.onclick = async () => { try { await API.closeWindow(id); } catch (e) { /* ok */ } close(); };
+        r.append(go, x);
+      }
+      list.appendChild(r);
+    });
+    list.appendChild(hh('div', 'dd-hint', 'Cada ventana tiene sus propios gráficos, activos, temporalidades e indicadores. Se comparten el tema, las plantillas, los scripts y las listas. Al cerrar y abrir el programa vuelven las ventanas que tenías.'));
+  }
+  // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
+  function applySharedPatch(p) {
+    if (!p || typeof p !== 'object') return;
+    ['templates', 'palette', 'lists', 'listActive', 'tfs', 'draw', 'scripts', 'timer'].forEach((k) => { if (p[k] !== undefined) A.cfg[k] = clone(p[k]); });
+    if (p.theme !== undefined && p.theme !== A.cfg.theme) { A.cfg.theme = p.theme; applyTheme(); }
+    if (p.tz !== undefined && p.tz !== A.cfg.tz) { A.cfg.tz = p.tz; eachView((v) => v.applyTz()); }
+    if (p.scripts !== undefined) eachView((v) => v.refreshScripts && v.refreshScripts(true));
+    if (p.tfs !== undefined) renderTfButtons();
+    if (p.timer !== undefined) eachView((v) => v.applyTimer());
+    if ((p.lists !== undefined || p.listActive !== undefined) && window.TVWatch) window.TVWatch.refresh();
+    if (p.draw !== undefined && window.TVDrawUI) window.TVDrawUI.refresh();
+  }
+  function setupWindowUi() {
+    document.title = WIN === 'w1' ? 'Ar_Trading' : 'Ar_Trading — Ventana ' + winNum(WIN);
+    const lb = $('winLabel');
+    if (lb && WIN !== 'w1') { lb.textContent = 'Ventana ' + winNum(WIN); lb.classList.remove('hidden'); }
+    setupMenu('btnTpl', 'tplList', buildTplMenu);
+    setupMenu('btnWin', 'winList', buildWinMenu);
+    if (API.onShared) API.onShared(applySharedPatch);
   }
 
   // ---------- Plantillas ----------
@@ -1158,6 +1270,8 @@
     document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { b.onclick = () => setChartType(b.dataset.type); });
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.onclick = () => setScale(b.dataset.scale); });
     $('btnSymbol').onclick = openSymbolPicker;
+    setupDropdown('typeCur', 'typeButtons'); setupDropdown('scaleCur', 'scaleButtons');
+    setupWindowUi();
     $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;

@@ -1,10 +1,25 @@
-AR_TRADING - VERSION 0.21
+AR_TRADING - VERSION 0.22
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.21) - ESTRATEGIAS Y BACKTEST (nucleo)
+NOVEDADES DE ESTA VERSION (v0.22) - VENTANAS NUEVAS Y BARRA MAS LIMPIA
+- VENTANAS: boton "Ventanas" (arriba). "Nueva ventana" abre otra con un grafico limpio (BTCUSDT, 1h). Cada ventana tiene
+  SUS PROPIOS graficos, activos, temporalidades, indicadores, dibujos y estrategias. Minimo 4 y maximo 10 a la vez.
+  Se comparten: tema, zona horaria, paleta, plantillas, scripts, listas de seguimiento. Al abrir el programa de nuevo
+  vuelven las ventanas que tenias, cada una con su configuracion. Cerrar una ventana mientras hay otras abiertas la
+  olvida; si cierras la ultima o sales del programa, se recuerdan todas. En el menu, "Olvidar" libera un lugar.
+- "Cargar diseño" (arriba): aplica una plantilla guardada a esta ventana ("Aqui") o a todos sus graficos ("A todos").
+  Cambia colores, velas, indicadores y medias; no cambia el activo ni la temporalidad.
+- Tipo de vela y escala (Normal/Log/%) ahora son listas desplegables: ocupan menos espacio.
+- Botones Ajustes, Replay, Scripts y Datos con contorno azul; turquesa (#00e5ee) cuando estan activos. El boton del activo
+  tiene contorno y letras #fe9900. Fondo del modo oscuro: #0a102a.
+- FECHAS AL FUTURO: el eje de abajo sigue mostrando fechas mas alla de la ultima vela (al menos 2 años), tambien en la cruz.
+  Las fechas futuras se calculan sumando la duracion de la temporalidad (en temporalidades de meses es aproximado).
+- Probado solo en el navegador con datos simulados. SIN probar: Electron/Windows (ventanas reales), Binance real.
+
+NOVEDADES DE LA VERSION ANTERIOR (v0.21) - ESTRATEGIAS Y BACKTEST (nucleo)
 - Las estrategias se escriben en la MISMA ventana de Scripts. En vez de indicator(...) se declara strategy({...}) y las
   reglas van dentro de onBar(function (i, pos) { ... }), que se llama una vez por vela, en orden.
   Dentro: entry('long') / entry('short') (con sl y tp en precio, o slPct y tpPct en %), exit() para cerrar y
