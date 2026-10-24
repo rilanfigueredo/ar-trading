@@ -11,8 +11,10 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_WINDOWS = 10;
-const SHARED_KEYS = ['version', 'scripts', 'draw', 'tfs', 'theme', 'tz', 'timer', 'palette', 'templates', 'lists', 'listActive'];
-const WINDOW_KEYS = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt'];
+const SHARED_KEYS = ['version', 'scripts', 'theme', 'tz', 'timer', 'palette', 'templates', 'lists'];
+const WINDOW_KEYS = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive'];
+// v0.22.2: temporalidades y preferencias de dibujo pasaron de compartidas a propias de cada pestaña; la pestaña 1 hereda lo que ya tenía guardado.
+const MOVED_KEYS = ['tfs', 'draw', 'listActive'];
 const ID_RE = /^w([1-9]|10)$/;
 
 function create(dir) {
@@ -79,6 +81,7 @@ function create(dir) {
       const legacy = pick(s, WINDOW_KEYS);                       // configuración de la v0.21 o menor
       w = Object.keys(legacy).length ? legacy : null;
     }
+    if (w && id === 'w1') MOVED_KEYS.forEach((k) => { if (w[k] === undefined && s[k] !== undefined) w[k] = s[k]; });
     const shared = pick(s, SHARED_KEYS);
     const snap = {};
     SHARED_KEYS.forEach((k) => { if (shared[k] !== undefined) snap[k] = JSON.stringify(shared[k]); });

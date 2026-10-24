@@ -348,6 +348,10 @@ input[type=color]:disabled { cursor: not-allowed; }
 /* v0.19: captura de imagen y reproducción */
 .cam-btn { right: 104px; }
 #grid:not(.multi) .cam-btn { right: 80px; display: block; }
+/* Pantalla completa (v0.22.2): debajo de la cámara */
+.fs-btn { right: 104px; top: 34px; }
+#grid:not(.multi) .fs-btn { right: 80px; display: block; }
+.fs-btn.on { opacity: 1; border-color: #00e5ee; color: #00e5ee; }
 .toast { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 12; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.4); max-width: 80%; text-align: center; }
 .rp-bar { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 11; display: flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid #00e5ee; border-radius: 8px; padding: 4px 6px; box-shadow: 0 6px 20px rgba(0,0,0,.4); font-size: 12px; color: var(--text); }
 .rp-bar.hidden { display: none; }

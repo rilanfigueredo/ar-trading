@@ -1,8 +1,16 @@
-AR_TRADING - VERSION 0.22.1
+AR_TRADING - VERSION 0.22.2
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.2 - PESTAÑAS AUTONOMAS Y PANTALLA COMPLETA
+- Cada pestaña es autonoma tambien en: botones de temporalidades (agregar/quitar solo afecta a esa pestaña), preferencias de
+  dibujo y LISTA DE SEGUIMIENTO ELEGIDA (la pestaña 3 puede quedarse con "Altcoins" aunque otra use "Favoritos").
+  Se comparten: el contenido de las listas (los activos de cada lista), las plantillas/diseños, scripts, tema, zona horaria,
+  temporizador y paleta. Las pestañas nuevas empiezan con las temporalidades de siempre; la pestaña 1 conserva las suyas.
+- Boton de PANTALLA COMPLETA (icono debajo de la camara, en la esquina del grafico): el programa ocupa toda la pantalla.
+  Se sale con el mismo boton o con Esc. Probado solo en navegador; en Windows/Electron falta confirmarlo.
 
 NOVEDADES DE LA v0.22.1 - PESTAÑAS, DATOS Y BITSTAMP
 - PESTAÑAS en vez de ventanas aparte: arriba hay una barra como la de Chrome. "+" crea una pestaña nueva (gráfico limpio BTCUSDT 1h,

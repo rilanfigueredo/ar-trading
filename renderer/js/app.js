@@ -133,12 +133,20 @@
   const activeCfg = () => A.cfg.charts[A.cfg.active] || A.cfg.charts[0];
 
   // ---------- Enlace con los gráficos ----------
+  document.addEventListener('fullscreenchange', () => { const on = !!document.fullscreenElement; (A.views || []).forEach((v) => v.setFullscreen && v.setFullscreen(on)); });
   let syncLockUntil = 0;
   const G = {
     cfg: () => A.cfg,
     save: saveCfg,
     onActivate(view) { setActive(view.index); },
     onMaximize(view) { toggleMax(view.index); },
+    // Pantalla completa (como TradingView): todo el programa ocupa la pantalla; Esc o el mismo botón para salir.
+    onFullscreen() {
+      try {
+        if (document.fullscreenElement) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); }
+        else { const p = document.documentElement.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+      } catch (e) { /* el sistema no lo permite */ }
+    },
     // Doble clic: con varios gráficos amplía/restaura el gráfico; con uno solo (o ya ampliado) oculta/muestra los indicadores de panel.
     onDoubleClick(view) {
       if (A.views.length > 1 && A.max < 0) toggleMax(view.index);
@@ -230,7 +238,7 @@
       cell.className = 'cell';
       grid.appendChild(cell);
       const v = window.TVView.create(cell, A.cfg.charts[i], G, i);
-      A.views.push(v);
+      A.views.push(v); if (document.fullscreenElement && v.setFullscreen) v.setFullscreen(true);
       v.load();
     }
     if (A.cfg.active >= def.n) A.cfg.active = 0;
@@ -1085,14 +1093,12 @@
   // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
   function applySharedPatch(p) {
     if (!p || typeof p !== 'object') return;
-    ['templates', 'palette', 'lists', 'listActive', 'tfs', 'draw', 'scripts', 'timer'].forEach((k) => { if (p[k] !== undefined) A.cfg[k] = clone(p[k]); });
+    ['templates', 'palette', 'lists', 'scripts', 'timer'].forEach((k) => { if (p[k] !== undefined) A.cfg[k] = clone(p[k]); });
     if (p.theme !== undefined && p.theme !== A.cfg.theme) { A.cfg.theme = p.theme; applyTheme(); }
     if (p.tz !== undefined && p.tz !== A.cfg.tz) { A.cfg.tz = p.tz; eachView((v) => v.applyTz()); }
     if (p.scripts !== undefined) eachView((v) => v.refreshScripts && v.refreshScripts(true));
-    if (p.tfs !== undefined) renderTfButtons();
     if (p.timer !== undefined) eachView((v) => v.applyTimer());
-    if ((p.lists !== undefined || p.listActive !== undefined) && window.TVWatch) window.TVWatch.refresh();
-    if (p.draw !== undefined && window.TVDrawUI) window.TVDrawUI.refresh();
+    if (p.lists !== undefined && window.TVWatch) window.TVWatch.refresh();
   }
   function setupWindowUi() {
     document.title = 'Ar_Trading';

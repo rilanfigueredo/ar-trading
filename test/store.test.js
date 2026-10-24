@@ -67,4 +67,25 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'artr-'));
   assert.deepStrictEqual(Store.create(d).listWindows().find((w) => w.id === 'w2').bounds, { x: 10, y: 20, width: 800, height: 600 });
   assert.throws(() => st.getConfig('../hack'), /no válida/);
 }
+// v0.22.2: temporalidades, preferencias de dibujo y lista activa son de cada pestaña; las listas y plantillas se comparten
+{
+  const d = tmp();
+  const st = Store.create(d);
+  st.addWindow('w2');
+  const a = { version: 11, layout: '1', active: 0, charts: [{ symbol: 'BTCUSDT', tf: 'm:60' }], tfs: ['m:60', 'm:5'], draw: { x: 1 }, listActive: 'l1', lists: [{ id: 'l1' }, { id: 'l2' }], templates: [] };
+  st.getConfig('w1'); st.getConfig('w2');
+  st.setConfig('w1', Object.assign({}, a, { listActive: 'l1' }));
+  st.setConfig('w2', Object.assign({}, a, { tfs: ['m:15'], listActive: 'l2', draw: { x: 2 } }));
+  const c1 = Store.create(d).getConfig('w1'), c2 = Store.create(d).getConfig('w2');
+  assert.deepStrictEqual(c1.tfs, ['m:60', 'm:5']); assert.deepStrictEqual(c2.tfs, ['m:15']);
+  assert.strictEqual(c1.listActive, 'l1'); assert.strictEqual(c2.listActive, 'l2');
+  assert.deepStrictEqual(c2.draw, { x: 2 });
+  assert.deepStrictEqual(c1.lists, c2.lists);
+  // pestaña 1 con configuración de la 0.22.1 (tfs/draw/listActive en lo compartido) los hereda
+  const d2 = tmp();
+  fs.writeFileSync(path.join(d2, 'config.json'), JSON.stringify({ version: 11, tfs: ['d:1'], draw: { y: 1 }, listActive: 'l9', lists: [] }));
+  fs.writeFileSync(path.join(d2, 'win-w1.json'), JSON.stringify({ layout: '1', active: 0, charts: [{}] }));
+  const m = Store.create(d2).getConfig('w1');
+  assert.deepStrictEqual(m.tfs, ['d:1']); assert.strictEqual(m.listActive, 'l9');
+}
 console.log('store.test.js OK');

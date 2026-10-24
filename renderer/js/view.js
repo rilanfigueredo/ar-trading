@@ -85,6 +85,11 @@
     camBtn.onmousedown = (e) => e.stopPropagation();
     camBtn.ondblclick = (e) => e.stopPropagation();
     camBtn.onclick = (e) => { e.stopPropagation(); const r = camBtn.getBoundingClientRect(); showCamMenu(r.left, r.bottom + 4); };
+    const fsBtn = el('button', 'max-btn fs-btn', '⛶');
+    fsBtn.title = 'Pantalla completa (Esc para salir)';
+    fsBtn.onmousedown = (e) => e.stopPropagation();
+    fsBtn.ondblclick = (e) => e.stopPropagation();
+    fsBtn.onclick = (e) => { e.stopPropagation(); if (G.onFullscreen) G.onFullscreen(); };
     const rpBar = el('div', 'rp-bar hidden');
     rpBar.onmousedown = (e) => e.stopPropagation();
     rpBar.ondblclick = (e) => e.stopPropagation();
@@ -92,7 +97,7 @@
     const timerEl = el('div', 'ctimer hidden');
     const xhV = el('div', 'xh-v hidden'), xhH = el('div', 'xh-h hidden');
     const xhT = el('div', 'xh-label hidden'), xhP = el('div', 'xh-label hidden');
-    host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, rpBar, maxBtn);
+    host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, fsBtn, rpBar, maxBtn);
 
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
@@ -1687,6 +1692,7 @@
         ps.setVisibleRange({ from: priceInternal(z.prange.from, z.log), to: priceInternal(z.prange.to, z.log) });
       },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
+      setFullscreen(on) { fsBtn.textContent = on ? '⤓' : '⛶'; fsBtn.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (Esc para salir)'; fsBtn.classList.toggle('on', !!on); },
       setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
       applyTheme() { applyLook(); if (s.scr) s.scr.update(); },
       applyLook,
