@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.0)
+## 3. Funciones actuales (v0.22.1)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -58,6 +58,9 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Fallo de indicadores que "desaparecían" (v0.12):** el doble clic sobre las flechas del panel llegaba al gráfico (el botón se redibuja) y `toggleSubs` ocultaba todos los indicadores. Ahora se ignora el doble clic sobre `.pane-legend` y justo después de pulsar una flecha (`s.lastLegendClick`).
 
 ### Ventanas y barra (v0.22)
+- **v0.22.1: las «ventanas» son PESTAÑAS** (`#tabBar` en `app.js`, `renderTabs/goTab`): una sola ventana de Electron; cambiar de pestaña guarda y recarga con `?w=ID`; `store.tabs/getActive/setActive/getMainBounds`; endpoints `/api/tabs`, `/api/window/active`; IPC `window:tabs/setActive/open/close/activeSync`. Ya no hay `BrowserWindow` extra ni menú «Ventanas».
+- Control de peticiones en `src/core.js` (`httpGet`: máx. 6 por servidor, peticiones iguales compartidas, reintento ante 429/418/5xx; `test/http.test.js`).
+- Bitstamp: `probe` en `klines` (compara con la primera vela real, `bitstampFirst`); `history.js` lo usa en `hasDataBefore`.
 - Varias ventanas (máx. 10): `src/store.js` guarda `config.json` (compartido + registro `windows`) y `win-<id>.json` (por ventana: layout, active, charts, sync, drawings, folders, bt). Solo se escribe de lo compartido lo que ESA ventana cambió. Una config antigua se lee como `w1`. Ventana nueva = gráfico limpio BTCUSDT 1h. Electron: `main.js` (mapa `wins`, IPC `window:*`, aviso `shared:update`); navegador: `/api/config?w=`, `/api/window/new|remove`, BroadcastChannel `artrading-shared`. UI: `#btnWin`, `#btnTpl` (Cargar diseño, Aquí / A todos) en `app.js` («Ventanas y diseños»).
 - Desplegables `#typeDd` y `#scaleDd`; botones `tb-out` (contorno azul, `#00e5ee` activo); `.symbol` #fe9900; fondo oscuro #0a102a.
 - `renderer/js/futureaxis.js`: primitiva con `timeAxisViews` que rotula fechas a la derecha de la última vela (`ticks()` puro, `test/futureaxis.test.js`); `applyBarSpacingLimit()` en `view.js` permite alejar ≥ 2 años.
@@ -109,6 +112,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.1: ventanas → pestañas en una sola ventana; control de peticiones (errores al abrir varias); Bitstamp: historial intradía ya no se corta por huecos sin operaciones (sin probar con Bitstamp real).
 - v0.22: ventanas nuevas (hasta 10, config propia, guardadas al reabrir), «Cargar diseño», desplegables de tipo/escala, contornos de botones, fondo #0a102a, fechas al futuro. Pruebas: `npm test` (store, futureaxis) y `tools/prueba_v22.py`. `cfg.version` sigue en 11.
 - v0.21: estrategias y backtest (núcleo): `strategy/onBar/entry/exit`, simulador vela a vela (largo/corto, tamaño, comisión, deslizamiento, stop/objetivo), control de datos del futuro, marcas de entrada/salida, capital en panel aparte, panel fijo inferior con informe y operaciones (clic → va a la operación), parámetros por gráfico, replay, 2 ejemplos. `cfg.version` 11. Pruebas: `npm test` (test/backtest.test.js) y `tools/prueba_v21.py` (Playwright, datos simulados, incluye migración desde versión 10).
 - v0.20: scripts propios en JavaScript para indicadores (editor, biblioteca, Worker con límite de 3 s, errores con línea, parámetros/colores por gráfico, 3 ejemplos, replay). `cfg.version` 10. Pruebas: `npm test` (test/script.test.js) y `tools/prueba_v20.py` (Playwright, datos simulados).

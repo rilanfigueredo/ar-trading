@@ -4,11 +4,10 @@ const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
 
-// v0.22: varias ventanas. Cada una (w1…w10) guarda su propia configuración; lo compartido (tema, plantillas, scripts…) se avisa a las demás.
+// v0.22: UNA sola ventana con pestañas (como un navegador). Cada pestaña (w1…w10) guarda su propia configuración;
+// lo compartido (tema, plantillas, scripts…) vive aparte. Cambiar de pestaña recarga la página con la otra configuración.
 let store = null;
-const wins = new Map();        // id -> BrowserWindow
-const removed = new Set();     // ventanas cerradas a propósito (no se vuelven a guardar al descargar su página)
-let quitting = false;
+let win = null;
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
@@ -17,42 +16,27 @@ ipcMain.handle('testConnection', async () => core.testConnection());
 ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
 ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
 
-function saveFrom(id, cfg) {
-  if (removed.has(id)) return { changed: {} };
-  const r = store.setConfig(id, cfg);
-  if (Object.keys(r.changed).length) {
-    wins.forEach((w, other) => {
-      if (other === id || w.isDestroyed()) return;
-      store.markShared(other, r.changed);
-      w.webContents.send('shared:update', r.changed);
-    });
-  }
-  return { changed: r.changed };
-}
 ipcMain.handle('config:get', async (_e, id) => store.getConfig(id || 'w1'));
-ipcMain.handle('config:set', async (_e, id, cfg) => saveFrom(id || 'w1', cfg));
-ipcMain.on('config:setSync', (e, id, cfg) => { try { saveFrom(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
+ipcMain.handle('config:set', async (_e, id, cfg) => ({ changed: store.setConfig(id || 'w1', cfg).changed }));
+ipcMain.on('config:setSync', (e, id, cfg) => { try { store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
+ipcMain.on('window:activeSync', (e) => { try { e.returnValue = store.getActive(); } catch (err) { e.returnValue = 'w1'; } });
 
-const byNumber = (a, b) => Number(a.slice(1)) - Number(b.slice(1));
+ipcMain.handle('window:tabs', async () => store.tabs());
+ipcMain.handle('window:setActive', async (_e, id) => { try { return store.setActive(id); } catch (err) { return false; } });
 ipcMain.handle('window:open', async () => {
-  const id = wins.size >= Store.MAX_WINDOWS ? null : store.newWindowId();
-  if (!id) return { ok: false, error: `Máximo ${Store.MAX_WINDOWS} ventanas abiertas a la vez.` };
+  const id = store.newWindowId();
+  if (!id) return { ok: false, error: `Máximo ${Store.MAX_WINDOWS} pestañas. Cierra alguna.` };
   store.addWindow(id);
-  createWindow(id, null);
   return { ok: true, id };
 });
-ipcMain.handle('window:list', async () => [...wins.keys()].sort(byNumber));
-ipcMain.handle('window:focus', async (_e, id) => {
-  const w = wins.get(id);
-  if (!w || w.isDestroyed()) return false;
-  if (w.isMinimized()) w.restore();
-  w.focus();
-  return true;
+ipcMain.handle('window:close', async (_e, id) => {
+  if (store.listWindows().length <= 1) return { ok: false, error: 'No se puede cerrar la última pestaña.' };
+  store.removeWindow(id);
+  return { ok: true };
 });
-ipcMain.handle('window:close', async (_e, id) => { const w = wins.get(id); if (w && !w.isDestroyed()) w.close(); return true; });
 
-function createWindow(id, bounds) {
-  removed.delete(id);
+function createWindow() {
+  const b = store.getMainBounds();
   const opts = {
     width: 1440, height: 860, minWidth: 900, minHeight: 560,
     backgroundColor: '#0a102a',
@@ -64,17 +48,12 @@ function createWindow(id, bounds) {
       nodeIntegration: false,
     },
   };
-  if (bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height)) {
-    Object.assign(opts, { width: bounds.width, height: bounds.height });
-    if (Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) Object.assign(opts, { x: bounds.x, y: bounds.y });
-  } else if (wins.size) {
-    // ventana nueva: misma medida que la última y un poco corrida para que se vea que hay otra
-    const last = [...wins.values()].filter((w) => !w.isDestroyed()).pop();
-    if (last) { const b = last.getBounds(); Object.assign(opts, { x: b.x + 32, y: b.y + 32, width: b.width, height: b.height }); }
+  if (b && Number.isFinite(b.width) && Number.isFinite(b.height)) {
+    Object.assign(opts, { width: b.width, height: b.height });
+    if (Number.isFinite(b.x) && Number.isFinite(b.y)) Object.assign(opts, { x: b.x, y: b.y });
   }
-  const win = new BrowserWindow(opts);
-  wins.set(id, win);
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { w: id } });
+  win = new BrowserWindow(opts);
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { w: store.getActive() } });
   // F12 abre las herramientas de desarrollo, F5 recarga.
   win.webContents.on('before-input-event', (_e, input) => {
     if (input.type !== 'keyDown') return;
@@ -84,28 +63,21 @@ function createWindow(id, bounds) {
   let t = null;
   const keepBounds = () => {
     clearTimeout(t);
-    t = setTimeout(() => { try { if (!win.isDestroyed() && !win.isMaximized() && !win.isMinimized() && !removed.has(id)) store.setBounds(id, win.getBounds()); } catch (e) { /* ok */ } }, 500);
+    t = setTimeout(() => { try { if (win && !win.isDestroyed() && !win.isMaximized() && !win.isMinimized()) store.setMainBounds(win.getBounds()); } catch (e) { /* ok */ } }, 500);
   };
   win.on('resize', keepBounds); win.on('move', keepBounds);
-  // Cerrar una ventana habiendo otras = se olvida. Al cerrar el programa (o la última ventana) quedan guardadas y vuelven al abrirlo.
-  win.on('close', () => {
-    if (!quitting && wins.size > 1) { removed.add(id); try { store.removeWindow(id); } catch (e) { /* ok */ } }
-  });
-  win.on('closed', () => { wins.delete(id); });
-  return win;
+  win.on('closed', () => { win = null; });
 }
 
 app.whenReady().then(() => {
   core.setDataDir(app.getPath('userData'));
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
-  store.listWindows().forEach((w) => createWindow(w.id, w.bounds));
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow('w1', null);
-  });
+  createWindow();
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('before-quit', () => { quitting = true; core.shutdown(); });
+app.on('before-quit', () => { core.shutdown(); });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

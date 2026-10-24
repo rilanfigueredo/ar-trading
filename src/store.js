@@ -119,7 +119,38 @@ function create(dir) {
     snaps.set(id, snap);
   }
 
-  return { getConfig, setConfig, markShared, listWindows, addWindow, removeWindow, newWindowId, setBounds, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };
+  // v0.22: pestañas. Texto corto de cada una ("BTCUSDT · 1h") y cuál estaba abierta al cerrar el programa.
+  const TF_UNIT = { s: 's', m: 'm', h: 'h', d: 'D', w: 'W', M: 'M' };
+  function tfLabel(tf) {
+    const m = /^([smhdwM]):(\d+)$/.exec(String(tf || ''));
+    if (!m) return '';
+    let n = Number(m[2]), u = m[1];
+    if (u === 'm' && n >= 60 && n % 60 === 0) { n /= 60; u = 'h'; }
+    return n + TF_UNIT[u];
+  }
+  function tabs() {
+    const s = readShared();
+    return listWindows().map((w) => {
+      let c = readJson(winFile(w.id));
+      if (!c && w.id === 'w1') c = pick(s, WINDOW_KEYS);
+      const ch = c && Array.isArray(c.charts) ? c.charts[Number(c.active) || 0] || c.charts[0] : null;
+      return { id: w.id, label: ch ? `${ch.symbol || 'BTCUSDT'} · ${tfLabel(ch.tf)}` : 'BTCUSDT · 1h' };
+    });
+  }
+  function getActive() {
+    const ids = listWindows().map((w) => w.id), s = readShared();
+    return ids.includes(s.activeWindow) ? s.activeWindow : ids[0];
+  }
+  function setActive(id) {
+    id = checkId(id);
+    if (!listWindows().some((w) => w.id === id)) return false;
+    const s = readShared(); if (s.activeWindow === id) return true;
+    s.activeWindow = id; writeJson(sharedFile(), s); return true;
+  }
+  const getMainBounds = () => readShared().mainBounds || null;
+  function setMainBounds(b) { const s = readShared(); s.mainBounds = b; writeJson(sharedFile(), s); }
+
+  return { tabs, getActive, setActive, getMainBounds, setMainBounds, tfLabel, getConfig, setConfig, markShared, listWindows, addWindow, removeWindow, newWindowId, setBounds, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };
 }
 
 module.exports = { create, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };

@@ -1,10 +1,21 @@
-AR_TRADING - VERSION 0.22
+AR_TRADING - VERSION 0.22.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
-NOVEDADES DE ESTA VERSION (v0.22) - VENTANAS NUEVAS Y BARRA MAS LIMPIA
+NOVEDADES DE LA v0.22.1 - PESTAÑAS, DATOS Y BITSTAMP
+- PESTAÑAS en vez de ventanas aparte: arriba hay una barra como la de Chrome. "+" crea una pestaña nueva (gráfico limpio BTCUSDT 1h,
+  hasta 10), un clic cambia de pestaña y la "x" la cierra (borra su configuracion, pide confirmacion). Cada pestaña tiene sus propios
+  graficos, activos, temporalidades, indicadores y dibujos; se comparten tema, plantillas, scripts y listas. Al abrir el programa
+  vuelve la pestaña que tenias abierta. Solo la pestaña visible pide datos. Ya no existe el boton "Ventanas".
+- DATOS: todas las peticiones a los exchanges pasan por un control comun (maximo 6 a la vez por exchange, peticiones iguales se
+  comparten y, si el exchange pide ir mas despacio, se reintenta solo con espera). Evita los errores al tener varios graficos/ventanas.
+- BITSTAMP: el historial en temporalidades menores (10 min a 12 h y personalizadas) se cortaba porque Bitstamp no tiene velas en los
+  minutos u horas sin operaciones y el programa lo tomaba como "fin del historial". Ahora compara con la primera vela real del activo.
+  No pude probar con Bitstamp real (sin acceso desde aqui): por favor revisalo en tu PC.
+
+NOVEDADES DE LA v0.22 - VENTANAS NUEVAS Y BARRA MAS LIMPIA
 - VENTANAS: boton "Ventanas" (arriba). "Nueva ventana" abre otra con un grafico limpio (BTCUSDT, 1h). Cada ventana tiene
   SUS PROPIOS graficos, activos, temporalidades, indicadores, dibujos y estrategias. Minimo 4 y maximo 10 a la vez.
   Se comparten: tema, zona horaria, paleta, plantillas, scripts, listas de seguimiento. Al abrir el programa de nuevo

@@ -56,27 +56,68 @@ function parseKucoinKlines(json) {
   return (json.data || []).map((r) => [Number(r[0]) * 1000, r[1], r[3], r[4], r[2], r[5]]).sort((a, b) => a[0] - b[0]);
 }
 
-async function httpGet(path, params, hosts) {
+// Control de peticiones (v0.22): TODAS las ventanas piden datos por aquí, así que se reparten con un solo control:
+// máximo de pedidos a la vez por servidor, peticiones iguales en curso compartidas y reintento con espera si el exchange pide ir más despacio.
+const MAX_PARALLEL = 6;
+const slots = {};          // host -> { active, waiting: [] }
+function acquire(host) {
+  const sl = slots[host] || (slots[host] = { active: 0, waiting: [] });
+  if (sl.active < MAX_PARALLEL) { sl.active++; return Promise.resolve(); }
+  return new Promise((resolve) => sl.waiting.push(resolve));
+}
+function release(host) {
+  const sl = slots[host];
+  const next = sl.waiting.shift();
+  if (next) next(); else sl.active--;
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const RETRIES = 3;
+const pending = new Map();
+
+async function fetchOnce(host, path, qs) {
+  await acquire(host);
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    let res;
+    try { res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal }); } finally { clearTimeout(timer); }
+    const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : 'Binance';
+    if (res.status === 429 || res.status === 418) {
+      const ra = Number(res.headers && res.headers.get && res.headers.get('retry-after'));
+      const e = new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
+      e.retryMs = ra > 0 ? Math.min(ra * 1000, 8000) : 0; e.transient = true;
+      throw e;
+    }
+    if (!res.ok) { const e = new Error(`${exName} respondió ${res.status}`); e.transient = res.status >= 500; throw e; }
+    return await res.json();
+  } finally { release(host); }
+}
+
+async function httpGetRaw(path, params, hosts) {
   const qs = new URLSearchParams(params || {}).toString();
   let lastErr = null;
   for (const host of hosts || HOSTS) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      const res = await fetch(`${host}${path}${qs ? '?' + qs : ''}`, { signal: ctrl.signal });
-      clearTimeout(timer);
-      const exName = host.includes('bybit') || host.includes('bytick') ? 'Bybit' : host.includes('kucoin') ? 'KuCoin' : host.includes('bitstamp') ? 'Bitstamp' : 'Binance';
-      if (res.status === 429 || res.status === 418) {
-        throw new Error(`${exName} pidió ir más despacio (límite de peticiones). Espera un momento.`);
+    for (let attempt = 0; attempt <= RETRIES; attempt++) {
+      try { return await fetchOnce(host, path, qs); } catch (e) {
+        lastErr = e;
+        const transient = e.transient;                       // solo límite de peticiones y errores 5xx; un fallo de red pasa de inmediato al siguiente servidor
+        if (!transient || attempt === RETRIES) break;
+        await sleep(e.retryMs || 700 * Math.pow(2, attempt));   // 0,7 s, 1,4 s, 2,8 s
       }
-      if (!res.ok) throw new Error(`${exName} respondió ${res.status}`);
-      return await res.json();
-    } catch (e) {
-      lastErr = e;
     }
   }
   const hs = (hosts || HOSTS)[0] || '';
   throw new Error('No se pudo conectar con ' + (hs.includes('bybit') ? 'Bybit' : hs.includes('kucoin') ? 'KuCoin' : hs.includes('bitstamp') ? 'Bitstamp' : 'Binance') + ': ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+}
+
+function httpGet(path, params, hosts) {
+  const key = (hosts || HOSTS).join(',') + path + '?' + new URLSearchParams(params || {}).toString();
+  if (pending.has(key)) return pending.get(key);
+  const p = httpGetRaw(path, params, hosts);
+  pending.set(key, p);
+  const done = () => pending.delete(key);
+  p.then(done, done);
+  return p;
 }
 
 // ---------- Datos simulados (solo para pruebas sin internet) ----------
@@ -249,11 +290,33 @@ async function klinesKucoin({ symbol, interval, startTime, endTime, limit }) {
   return hasVal(startTime) ? rows.slice(0, lim) : rows.slice(-lim);
 }
 
-async function klinesBitstamp({ symbol, interval, startTime, endTime, limit }) {
+// Primera vela que existe en Bitstamp para ese activo y paso (se pide desde el año 0: devuelve la más antigua). Se guarda en memoria.
+const bitstampFirstCache = {};
+async function bitstampFirst(native, step) {
+  const key = native + '|' + step;
+  if (bitstampFirstCache[key] !== undefined) return bitstampFirstCache[key];
+  let first = null;
+  for (const st of step === 86400 ? [86400] : [step, 86400]) {
+    const json = await httpGet(`/api/v2/ohlc/${native}/`, { step: String(st), limit: '1', start: '0' }, EX_HOSTS.bitstamp);
+    const rows = parseBitstampKlines(json);
+    if (rows.length) { first = rows[0]; break; }
+  }
+  if (first) bitstampFirstCache[key] = first;      // si no se pudo saber, no se guarda (se vuelve a intentar)
+  return first;
+}
+
+async function klinesBitstamp({ symbol, interval, startTime, endTime, limit, probe }) {
   const step = BITSTAMP_STEP[interval];
   if (!step) throw new Error(`Bitstamp no ofrece velas de ${interval}.`);
   const lim = Math.min(Number(limit) || 500, 1000);
   const native = await nativeSymbol('bitstamp', symbol);
+  // Sondeo "¿hay velas más antiguas?": Bitstamp NO tiene velas en los minutos/horas sin operaciones, así que una ventana vacía
+  // no significa que se acabó el historial. Se compara con la primera vela real del activo.
+  if (probe) {
+    const first = await bitstampFirst(native, step);
+    const end = hasVal(endTime) ? Number(endTime) : Date.now();
+    return first && first[0] <= end ? [first] : [];
+  }
   // Bitstamp trabaja en segundos; se pide una ventana de exactamente "limit" velas.
   let a, b;
   if (hasVal(startTime)) { a = Math.ceil(Number(startTime) / 1000); b = hasVal(endTime) ? Math.floor(Number(endTime) / 1000) : a + lim * step; }
@@ -279,7 +342,7 @@ function getTradeStore() {
 function tradeStatus() { return getTradeStore().status(); }
 function shutdown() { if (tradeStore) tradeStore.shutdown(); }
 
-async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days }) {
+async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days, probe }) {
   if (exchange === 'bnftrades') return getTradeStore().bars({ symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days });
   const ex = exchange || 'binance';
   if (!EXCHANGE_IDS.includes(ex)) throw new Error('Exchange no válido');
@@ -288,7 +351,7 @@ async function klines({ exchange, symbol, interval, startTime, endTime, limit, m
   if (MOCK()) return mockKlines({ symbol, interval, startTime, endTime, limit });
   if (ex === 'bybit') return klinesBybit({ symbol, interval, startTime, endTime, limit });
   if (ex === 'kucoin') return klinesKucoin({ symbol, interval, startTime, endTime, limit });
-  if (ex === 'bitstamp') return klinesBitstamp({ symbol, interval, startTime, endTime, limit });
+  if (ex === 'bitstamp') return klinesBitstamp({ symbol, interval, startTime, endTime, limit, probe: probe === true || probe === 'true' || probe === '1' });
   const p = { symbol, interval, limit: String(Math.min(Number(limit) || 500, 1000)) };
   if (hasVal(startTime)) p.startTime = String(Math.floor(Number(startTime)));
   if (hasVal(endTime)) p.endTime = String(Math.floor(Number(endTime)));

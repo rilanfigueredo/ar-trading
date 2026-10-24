@@ -12,9 +12,10 @@ contextBridge.exposeInMainWorld('desktopApi', {
   getConfig: (win) => ipcRenderer.invoke('config:get', win),
   setConfig: (win, c) => ipcRenderer.invoke('config:set', win, c),
   setConfigSync: (win, c) => ipcRenderer.sendSync('config:setSync', win, c),
+  activeWindowSync: () => ipcRenderer.sendSync('window:activeSync'),
+  listTabs: () => ipcRenderer.invoke('window:tabs'),
+  setActive: (id) => ipcRenderer.invoke('window:setActive', id),
   openWindow: () => ipcRenderer.invoke('window:open'),
-  listWindows: () => ipcRenderer.invoke('window:list'),
-  focusWindow: (id) => ipcRenderer.invoke('window:focus', id),
   closeWindow: (id) => ipcRenderer.invoke('window:close', id),
   onShared: (cb) => ipcRenderer.on('shared:update', (_e, patch) => cb(patch)),
 });

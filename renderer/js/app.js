@@ -123,11 +123,12 @@
     saveTimer = setTimeout(() => { saveTimer = null; API.setConfig(A.cfg).catch(() => {}); }, 400);
   }
   // Al cerrar la ventana no se pierde el último cambio (si había uno esperando para guardarse)
-  window.addEventListener('beforeunload', () => {
+  function flushOnUnload() {
     if (!saveTimer) return;
     clearTimeout(saveTimer); saveTimer = null;
     try { API.setConfigNow(A.cfg); } catch (e) { /* ok */ }
-  });
+  }
+  window.addEventListener('beforeunload', flushOnUnload);
   const activeView = () => A.views[A.cfg.active] || A.views[0];
   const activeCfg = () => A.cfg.charts[A.cfg.active] || A.cfg.charts[0];
 
@@ -303,6 +304,7 @@
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { const on = b.dataset.scale === c.scale; b.classList.toggle('active', on); if (on) $('scaleCur').textContent = b.textContent + ' ▾'; });
     syncOutlineButtons();
     $('btnSymbol').textContent = c.symbol + ((c.exchange || 'binance') !== 'binance' ? ' · ' + L.exchangeName(c.exchange) : '');
+    { const tn = document.querySelector('#tabBar .tab.cur .tab-name'); if (tn) { tn.textContent = curTabLabel(); tn.parentNode.title = tn.textContent; } }
     document.body.dataset.theme = A.cfg.theme;
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
     const multi = A.views.length > 1;
@@ -1021,35 +1023,64 @@
     });
     list.appendChild(hh('div', 'dd-hint', 'El diseño cambia colores, velas, indicadores y medias; no cambia el activo ni la temporalidad.'));
   }
-  // «Ventanas»: abrir una ventana nueva (hasta 10) y pasar de una a otra.
-  async function buildWinMenu(list, close) {
-    let ids = [];
-    try { ids = await API.listWindows(); } catch (e) { /* sin lista */ }
-    if (!ids.includes(WIN)) ids.push(WIN);
-    ids.sort((a, b) => winNum(a) - winNum(b));
-    const MAXW = 10;
-    list.appendChild(hh('div', 'dd-title', `Ventanas abiertas (${ids.length}/${MAXW})`));
-    const nb = hh('button', 'dd-new', '＋ Nueva ventana (gráfico limpio BTCUSDT, 1h)');
-    nb.disabled = ids.length >= MAXW;
-    const err = hh('div', 'dd-err');
+  // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades…).
+  // Cambiar de pestaña guarda esta y recarga la página con la otra; solo la pestaña abierta pide datos.
+  const MAXTABS = 10;
+  function goTab(id) {
+    if (id === WIN) return;
+    clearTimeout(saveTimer); saveTimer = null;
+    try { API.setConfigNow(A.cfg); } catch (e) { /* ok */ }
+    Promise.resolve(API.setActive(id)).catch(() => {}).then(() => {
+      const u = new URL(location.href); u.searchParams.set('w', id); location.href = u.toString();
+    });
+  }
+  function curTabLabel() {
+    const c = A.cfg.charts && (A.cfg.charts[A.cfg.active] || A.cfg.charts[0]);
+    if (!c) return 'BTCUSDT · 1h';
+    const m = /^([smhdwM]):(\d+)$/.exec(String(c.tf || ''));
+    let t = '';
+    if (m) { let n = Number(m[2]), u = m[1]; if (u === 'm' && n >= 60 && n % 60 === 0) { n /= 60; u = 'h'; } t = n + ({ s: 's', m: 'm', h: 'h', d: 'D', w: 'W', M: 'M' })[u]; }
+    return c.symbol + ' · ' + t;
+  }
+  let tabsCache = [];
+  async function renderTabs(reload) {
+    const bar = $('tabBar'); if (!bar) return;
+    if (reload || !tabsCache.length) { try { tabsCache = await API.listTabs(); } catch (e) { /* se usa lo último */ } }
+    let tabs = tabsCache.slice();
+    if (!tabs.some((t) => t.id === WIN)) tabs.push({ id: WIN, label: curTabLabel() });
+    tabs.sort((x, y) => winNum(x.id) - winNum(y.id));
+    bar.innerHTML = '';
+    tabs.forEach((t) => {
+      const el = hh('div', 'tab' + (t.id === WIN ? ' cur' : ''));
+      const label = t.id === WIN ? curTabLabel() : t.label;
+      const nm = hh('span', 'tab-name', label); el.title = label;
+      el.appendChild(nm);
+      el.onclick = () => goTab(t.id);
+      if (tabs.length > 1) {
+        const x = hh('button', 'tab-x', '×'); x.title = 'Cerrar esta pestaña (se borra su configuración)';
+        x.onclick = async (ev) => {
+          ev.stopPropagation();
+          if (!window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.')) return;
+          try { await API.closeWindow(t.id); } catch (e) { /* ok */ }
+          if (t.id === WIN) {
+            const rest = tabs.filter((o) => o.id !== t.id);
+            const nxt = rest.find((o) => winNum(o.id) > winNum(t.id)) || rest[rest.length - 1];
+            clearTimeout(saveTimer); saveTimer = null; window.removeEventListener('beforeunload', flushOnUnload);
+            await Promise.resolve(API.setActive(nxt.id)).catch(() => {});
+            const u = new URL(location.href); u.searchParams.set('w', nxt.id); location.href = u.toString();
+          } else renderTabs(true);
+        };
+        el.appendChild(x);
+      }
+      bar.appendChild(el);
+    });
+    const nb = hh('button', 'tab-new', '+'); nb.title = tabs.length >= MAXTABS ? `Máximo ${MAXTABS} pestañas` : 'Nueva pestaña (gráfico limpio BTCUSDT, 1h)';
+    nb.disabled = tabs.length >= MAXTABS;
     nb.onclick = async () => {
       nb.disabled = true;
-      try { const r = await API.openWindow(); if (r && r.ok) close(); else { err.textContent = (r && r.error) || 'No se pudo abrir la ventana.'; nb.disabled = false; } } catch (e) { err.textContent = 'No se pudo abrir la ventana: ' + e.message; nb.disabled = false; }
+      try { const r = await API.openWindow(); if (r && r.ok) goTab(r.id); else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; } } catch (e) { nb.disabled = false; }
     };
-    list.append(nb, err);
-    ids.forEach((id) => {
-      const r = hh('div', 'dd-row');
-      r.appendChild(hh('span', 'dd-name' + (id === WIN ? ' cur' : ''), 'Ventana ' + winNum(id) + (id === WIN ? ' (esta)' : '')));
-      if (id !== WIN) {
-        const go = hh('button', '', 'Ir'); go.title = 'Pasar a esta ventana';
-        go.onclick = () => { API.focusWindow(id); close(); };
-        const x = hh('button', '', window.desktopApi ? 'Cerrar' : 'Olvidar'); x.title = window.desktopApi ? 'Cerrar esa ventana (se pierde su configuración)' : 'Quitarla de la lista y borrar su configuración';
-        x.onclick = async () => { try { await API.closeWindow(id); } catch (e) { /* ok */ } close(); };
-        r.append(go, x);
-      }
-      list.appendChild(r);
-    });
-    list.appendChild(hh('div', 'dd-hint', 'Cada ventana tiene sus propios gráficos, activos, temporalidades e indicadores. Se comparten el tema, las plantillas, los scripts y las listas. Al cerrar y abrir el programa vuelven las ventanas que tenías.'));
+    bar.appendChild(nb);
   }
   // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
   function applySharedPatch(p) {
@@ -1064,11 +1095,10 @@
     if (p.draw !== undefined && window.TVDrawUI) window.TVDrawUI.refresh();
   }
   function setupWindowUi() {
-    document.title = WIN === 'w1' ? 'Ar_Trading' : 'Ar_Trading — Ventana ' + winNum(WIN);
-    const lb = $('winLabel');
-    if (lb && WIN !== 'w1') { lb.textContent = 'Ventana ' + winNum(WIN); lb.classList.remove('hidden'); }
+    document.title = 'Ar_Trading';
+    try { Promise.resolve(API.setActive(WIN)).catch(() => {}); } catch (e) { /* ok */ }   // al abrir el programa vuelve esta pestaña
+    renderTabs(true);
     setupMenu('btnTpl', 'tplList', buildTplMenu);
-    setupMenu('btnWin', 'winList', buildWinMenu);
     if (API.onShared) API.onShared(applySharedPatch);
   }
 

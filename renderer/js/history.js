@@ -101,7 +101,7 @@
   // ¿Hay velas más antiguas que este bloque vacío? (huecos de 1s sin operaciones vs. inicio real del historial)
   async function hasDataBefore(symbol, iv, idx, ex) {
     const end = (idx + 1) * BLOCK * IV_MS[iv];
-    const rows = await API.klines({ exchange: ex || 'binance', symbol, interval: iv, endTime: end - 1, limit: 1 });
+    const rows = await API.klines(Object.assign({ exchange: ex || 'binance', symbol, interval: iv, endTime: end - 1, limit: 1 }, ex === 'bitstamp' ? { probe: 1 } : {}));
     return rows.length > 0;
   }
 

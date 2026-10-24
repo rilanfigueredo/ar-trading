@@ -39,16 +39,21 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 200, store.getConfig(w));
     }
+    if (url.pathname === '/api/tabs') return send(res, 200, store.tabs());
+    if (url.pathname === '/api/window/active') {
+      if (req.method === 'POST') { store.setActive(url.searchParams.get('w')); return send(res, 200, { ok: true }); }
+      return send(res, 200, { id: store.getActive() });
+    }
     if (url.pathname === '/api/windows') return send(res, 200, store.listWindows().map((x) => x.id));
     if (url.pathname === '/api/window/new' && req.method === 'POST') {
       const id = store.newWindowId();
-      if (!id) return send(res, 200, { ok: false, error: `Máximo ${store.MAX_WINDOWS} ventanas a la vez. Cierra u olvida alguna.` });
+      if (!id) return send(res, 200, { ok: false, error: `Máximo ${store.MAX_WINDOWS} pestañas. Cierra alguna.` });
       store.addWindow(id);
       return send(res, 200, { ok: true, id });
     }
     if (url.pathname === '/api/window/remove' && req.method === 'POST') {
       const id = url.searchParams.get('w');
-      if (id === 'w1' && store.listWindows().length === 1) return send(res, 200, { ok: false, error: 'La última ventana no se puede olvidar.' });
+      if (store.listWindows().length <= 1) return send(res, 200, { ok: false, error: 'No se puede cerrar la última pestaña.' });
       store.removeWindow(id);
       return send(res, 200, { ok: true });
     }

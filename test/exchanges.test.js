@@ -64,6 +64,13 @@ global.fetch = async (url) => {
   assert.ok(calls[0].startsWith('https://www.bitstamp.net/api/v2/ohlc/btcusd/?') && calls[0].includes('step=3600') && calls[0].includes('start=1000') && calls[0].includes('end=8200') && calls[0].includes('limit=2'), calls[0]);
   await assert.rejects(core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '1w', limit: 2 }), /Bitstamp no ofrece/);
   await assert.rejects(async () => core.parseBitstampKlines({ code: 'x', errors: ['mal'] }), /Bitstamp/);
+  // v0.22: sondeo de historial (sin velas en una ventana ≠ fin del historial)
+  calls.length = 0;
+  answers = [{ data: { pair: 'BTC/USD', ohlc: [{ timestamp: '1315000000', open: '5', high: '5', low: '5', close: '5', volume: '1' }] } }];
+  const pr = await core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '15m', endTime: 1400000000000, limit: 1, probe: '1' });
+  eq(pr.length, 1); assert.ok(calls[0].includes('start=0') && calls[0].includes('step=900') && calls[0].includes('limit=1'), calls[0]);
+  const pr2 = await core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '15m', endTime: 1300000000000, limit: 1, probe: '1' });
+  eq(pr2.length, 0); eq(calls.length, 1);                           // antes de la primera vela real: ahora sí es el inicio (y no repite la consulta)
   answers = [{ last: '100', percent_change_24: '2.5', open_24: '97' }];
   const bt = await core.tickers({ exchange: 'bitstamp', symbols: ['BTCUSD'] });
   eq(bt.BTCUSD.price, 100); eq(bt.BTCUSD.pct, 2.5);
