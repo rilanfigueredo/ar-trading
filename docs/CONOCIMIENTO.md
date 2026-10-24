@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.2)
+## 3. Funciones actuales (v0.22.3)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -58,6 +58,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Fallo de indicadores que "desaparecían" (v0.12):** el doble clic sobre las flechas del panel llegaba al gráfico (el botón se redibuja) y `toggleSubs` ocultaba todos los indicadores. Ahora se ignora el doble clic sobre `.pane-legend` y justo después de pulsar una flecha (`s.lastLegendClick`).
 
 ### Ventanas y barra (v0.22)
+- **v0.22.3:** pantalla completa = `body.fs` (oculta `#toolbar`, `#drawBar`, `#rightBar` y paneles). Windows: `titleBarStyle:'hidden'` + `titleBarOverlay` (34 px) en `main.js`; la barra `#tabBar` es zona de arrastre (`-webkit-app-region`), `body.has-overlay` deja 150 px a los botones; colores por tema vía IPC `window:overlay`. Marca de TradingView (`layout.attributionLogo:false`) sustituida por `assets/mark-dark.png` (`.brand-mark`, recortada de `logo-h-*.png`). Pendiente: probar en Windows real; no se cambió el icono de la barra de tareas/instalador (requiere .ico).
 - **v0.22.2:** propios de cada pestaña `tfs`, `draw` y `listActive` (`WINDOW_KEYS` en `store.js`; la pestaña 1 hereda lo que había en lo compartido, `MOVED_KEYS`). Compartido: `lists`, `templates`, `scripts`, `theme`, `tz`, `timer`, `palette`. Botón `.fs-btn` (pantalla completa, API `requestFullscreen` del documento, `G.onFullscreen`, `view.setFullscreen`) bajo la cámara.
 - **v0.22.1: las «ventanas» son PESTAÑAS** (`#tabBar` en `app.js`, `renderTabs/goTab`): una sola ventana de Electron; cambiar de pestaña guarda y recarga con `?w=ID`; `store.tabs/getActive/setActive/getMainBounds`; endpoints `/api/tabs`, `/api/window/active`; IPC `window:tabs/setActive/open/close/activeSync`. Ya no hay `BrowserWindow` extra ni menú «Ventanas».
 - Control de peticiones en `src/core.js` (`httpGet`: máx. 6 por servidor, peticiones iguales compartidas, reintento ante 429/418/5xx; `test/http.test.js`).
@@ -113,6 +114,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.3: pantalla completa oculta todas las barras; sin barra de título (controles en la barra de pestañas); icono propio en lugar de la marca TradingView.
 - v0.22.2: pestañas autónomas (temporalidades, dibujo, lista activa) y botón de pantalla completa. Pruebas: `tools/prueba_v222.py`.
 - v0.22.1: ventanas → pestañas en una sola ventana; control de peticiones (errores al abrir varias); Bitstamp: historial intradía ya no se corta por huecos sin operaciones (sin probar con Bitstamp real).
 - v0.22: ventanas nuevas (hasta 10, config propia, guardadas al reabrir), «Cargar diseño», desplegables de tipo/escala, contornos de botones, fondo #0a102a, fechas al futuro. Pruebas: `npm test` (store, futureaxis) y `tools/prueba_v22.py`. `cfg.version` sigue en 11.

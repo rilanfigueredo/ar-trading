@@ -462,7 +462,7 @@ input[type=color]:disabled { cursor: not-allowed; }
 .dd-wide .dd-hint { font-size: 11px; color: var(--muted); padding: 2px 4px; line-height: 1.4; }
 .dd-wide .dd-err { font-size: 12px; color: #ef5350; padding: 2px 4px; }
 /* Pestañas (v0.22) */
-.tab-bar { display: flex; align-items: flex-end; gap: 2px; padding: 4px 8px 0; background: var(--bg); border-bottom: 1px solid var(--border); flex: none; overflow: hidden; }
+.tab-bar { height: 34px; box-sizing: border-box; -webkit-app-region: drag; display: flex; align-items: flex-end; gap: 2px; padding: 4px 8px 0; background: var(--bg); border-bottom: 1px solid var(--border); flex: none; overflow: hidden; }
 .tab-bar .tab { display: flex; align-items: center; gap: 6px; max-width: 200px; min-width: 70px; flex: 0 1 180px; padding: 5px 8px 5px 12px; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
 .tab-bar .tab:hover { background: var(--hover); color: var(--text); }
 .tab-bar .tab.cur { background: var(--panel, var(--input)); color: #00e5ee; border-color: #00e5ee; font-weight: 700; margin-bottom: -1px; border-bottom: 1px solid var(--panel, var(--input)); }
@@ -472,3 +472,11 @@ input[type=color]:disabled { cursor: not-allowed; }
 .tab-bar .tab-new { border: 1px solid var(--active); background: transparent; color: var(--text); font-size: 16px; line-height: 1; width: 28px; height: 24px; margin: 0 0 2px 4px; border-radius: 6px; cursor: pointer; }
 .tab-bar .tab-new:hover:not(:disabled) { background: var(--active); color: var(--active-text); }
 .tab-bar .tab-new:disabled { opacity: .4; cursor: not-allowed; }
+
+/* v0.22.3: barra de pestañas = barra de título (Windows). Lo que se pulsa no arrastra la ventana. */
+.tab-bar .tab, .tab-bar .tab-new { -webkit-app-region: no-drag; }
+body.has-overlay .tab-bar { padding-right: 150px; }
+/* Pantalla completa: solo el gráfico (y las pestañas) */
+body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #objPanel, body.fs #watchPanel { display: none !important; }
+/* Icono del programa (en lugar de la marca de TradingView) abajo a la izquierda de cada gráfico */
+.brand-mark { position: absolute; left: 10px; bottom: 36px; width: 28px; height: 28px; z-index: 3; opacity: .9; pointer-events: none; user-select: none; }

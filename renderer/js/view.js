@@ -85,6 +85,7 @@
     camBtn.onmousedown = (e) => e.stopPropagation();
     camBtn.ondblclick = (e) => e.stopPropagation();
     camBtn.onclick = (e) => { e.stopPropagation(); const r = camBtn.getBoundingClientRect(); showCamMenu(r.left, r.bottom + 4); };
+    const markEl = el('img', 'brand-mark'); markEl.src = 'assets/mark-dark.png'; markEl.alt = ''; markEl.draggable = false;
     const fsBtn = el('button', 'max-btn fs-btn', '⛶');
     fsBtn.title = 'Pantalla completa (Esc para salir)';
     fsBtn.onmousedown = (e) => e.stopPropagation();
@@ -97,7 +98,7 @@
     const timerEl = el('div', 'ctimer hidden');
     const xhV = el('div', 'xh-v hidden'), xhH = el('div', 'xh-h hidden');
     const xhT = el('div', 'xh-label hidden'), xhP = el('div', 'xh-label hidden');
-    host.append(chartEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, fsBtn, rpBar, maxBtn);
+    host.append(chartEl, markEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, fsBtn, rpBar, maxBtn);
 
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
@@ -269,6 +270,7 @@
     function createChart() {
       const chart = LC.createChart(chartEl, {
         autoSize: true,
+        layout: { attributionLogo: false },
         crosshair: { mode: LC.CrosshairMode.Normal },
         timeScale: { timeVisible: true, secondsVisible: isSub(), rightOffset: 8, tickMarkFormatter: tickFormatter },
         localization: { timeFormatter },

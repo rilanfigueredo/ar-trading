@@ -1,8 +1,15 @@
-AR_TRADING - VERSION 0.22.2
+AR_TRADING - VERSION 0.22.3
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.3 - PANTALLA COMPLETA REAL, SIN BARRA DE TITULO, ICONO PROPIO
+- PANTALLA COMPLETA: ahora oculta la barra de herramientas de arriba (logo, temporalidades...), la de dibujo de la izquierda, la de
+  iconos de la derecha y sus paneles; queda el grafico y la barra de pestañas. Salir: el mismo boton o Esc.
+- Windows: se quito la barra de titulo del sistema (icono y texto "Ar_Trading"). Minimizar, maximizar y cerrar ahora estan a la
+  derecha de la barra de pestañas, que tambien sirve para mover la ventana (doble clic = maximizar). SIN PROBAR en Windows real.
+- La marca de TradingView de abajo a la izquierda se reemplazo por el icono del programa (recortado del logo, sin el texto).
 
 NOVEDADES DE LA v0.22.2 - PESTAÑAS AUTONOMAS Y PANTALLA COMPLETA
 - Cada pestaña es autonoma tambien en: botones de temporalidades (agregar/quitar solo afecta a esa pestaña), preferencias de

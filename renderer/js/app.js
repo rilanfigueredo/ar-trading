@@ -133,7 +133,7 @@
   const activeCfg = () => A.cfg.charts[A.cfg.active] || A.cfg.charts[0];
 
   // ---------- Enlace con los gráficos ----------
-  document.addEventListener('fullscreenchange', () => { const on = !!document.fullscreenElement; (A.views || []).forEach((v) => v.setFullscreen && v.setFullscreen(on)); });
+  document.addEventListener('fullscreenchange', () => { const on = !!document.fullscreenElement; document.body.classList.toggle('fs', on); (A.views || []).forEach((v) => v.setFullscreen && v.setFullscreen(on)); });
   let syncLockUntil = 0;
   const G = {
     cfg: () => A.cfg,
@@ -356,6 +356,8 @@
     document.body.dataset.theme = A.cfg.theme;
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
     eachView((v) => v.applyTheme());
+    // barra de pestañas = barra de título (Windows): los botones del sistema siguen los colores del tema
+    if (window.desktopApi && window.desktopApi.setOverlayColors) { const l = A.cfg.theme === 'light'; try { window.desktopApi.setOverlayColors(l ? '#ffffff' : '#0a102a', l ? '#131722' : '#d1d4dc'); } catch (e) { /* ok */ } }
   }
   // ---------- Ventanas emergentes ----------
   let floatPos = null; // dónde dejó el usuario la ventana de ajustes
@@ -1103,6 +1105,7 @@
   function setupWindowUi() {
     document.title = 'Ar_Trading';
     try { Promise.resolve(API.setActive(WIN)).catch(() => {}); } catch (e) { /* ok */ }   // al abrir el programa vuelve esta pestaña
+    if (window.desktopApi && window.desktopApi.overlay) document.body.classList.add('has-overlay');
     renderTabs(true);
     setupMenu('btnTpl', 'tplList', buildTplMenu);
     if (API.onShared) API.onShared(applySharedPatch);

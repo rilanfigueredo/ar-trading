@@ -21,6 +21,10 @@ ipcMain.handle('config:set', async (_e, id, cfg) => ({ changed: store.setConfig(
 ipcMain.on('config:setSync', (e, id, cfg) => { try { store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
 ipcMain.on('window:activeSync', (e) => { try { e.returnValue = store.getActive(); } catch (err) { e.returnValue = 'w1'; } });
 
+ipcMain.handle('window:overlay', async (_e, color, symbolColor) => {
+  try { if (win && !win.isDestroyed() && win.setTitleBarOverlay && process.platform === 'win32') win.setTitleBarOverlay({ color, symbolColor, height: 34 }); } catch (err) { /* ok */ }
+  return true;
+});
 ipcMain.handle('window:tabs', async () => store.tabs());
 ipcMain.handle('window:setActive', async (_e, id) => { try { return store.setActive(id); } catch (err) { return false; } });
 ipcMain.handle('window:open', async () => {
@@ -48,6 +52,8 @@ function createWindow() {
       nodeIntegration: false,
     },
   };
+  // Windows: sin barra de título del sistema (ni icono ni nombre); los botones minimizar/maximizar/cerrar se dibujan sobre la barra de pestañas.
+  if (process.platform === 'win32') Object.assign(opts, { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a102a', symbolColor: '#d1d4dc', height: 34 } });
   if (b && Number.isFinite(b.width) && Number.isFinite(b.height)) {
     Object.assign(opts, { width: b.width, height: b.height });
     if (Number.isFinite(b.x) && Number.isFinite(b.y)) Object.assign(opts, { x: b.x, y: b.y });

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
   setConfig: (win, c) => ipcRenderer.invoke('config:set', win, c),
   setConfigSync: (win, c) => ipcRenderer.sendSync('config:setSync', win, c),
   activeWindowSync: () => ipcRenderer.sendSync('window:activeSync'),
+  overlay: process.platform === 'win32',
+  setOverlayColors: (color, symbolColor) => ipcRenderer.invoke('window:overlay', color, symbolColor),
   listTabs: () => ipcRenderer.invoke('window:tabs'),
   setActive: (id) => ipcRenderer.invoke('window:setActive', id),
   openWindow: () => ipcRenderer.invoke('window:open'),
