@@ -61,7 +61,8 @@ hline(50, { color: '#787b86', style: 'dashed' });
     {
       name: 'Cruce de medias (estrategia)',
       code: `// Estrategia: compra cuando la media rápida cruza hacia arriba la lenta y vende (corto) cuando cruza hacia abajo.
-// Capital, tamaño, comisión y deslizamiento se cambian en «Aplicados en este gráfico». Las órdenes se ejecutan en la vela siguiente.
+// Capital, tipo y valor del tamaño (% del capital, monto fijo o contratos), comisión y deslizamiento se cambian en «Aplicados en este gráfico».
+// Las órdenes se ejecutan en la apertura de la vela siguiente.
 strategy({ name: 'Cruce de medias', overlay: true });
 
 const rapida = input('Media rápida', 20, { min: 2, max: 200 });

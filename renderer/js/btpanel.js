@@ -114,6 +114,7 @@
 
   function renderReport(body, st) {
     const r = st.report, s = st.settings;
+    const sizeText = s.sizeType === 'percent' ? `${nf(s.size, 2)} % del capital por operación` : (s.sizeType === 'amount' ? `monto fijo de ${nf(s.size, 2)} por operación` : `${nf(s.size, 4)} contratos (unidades del activo) por operación`);
     const grid = mk('div', 'bt-grid');
     grid.append(
       card('Capital final', num(r.capitalEnd), `inicial ${num(r.capital)} · ${pct(r.totalPct)}`, cls(r.totalPct)),
@@ -128,7 +129,7 @@
       card('Mejor operación', sgn(r.best), '', cls(r.best)),
       card('Peor operación', sgn(r.worst), '', cls(r.worst)),
       card('Caída máxima del capital', num(r.maxDD), nf(r.maxDDPct, 2) + ' % desde el máximo', r.maxDD > 0 ? 'neg' : ''),
-      card('Comisiones pagadas', num(r.fees), `${nf(s.commission, 2)} % por lado`),
+      card('Comisiones pagadas', num(r.fees), `taker ${nf(s.commission, 2)} % · maker ${nf(s.makerCommission, 2)} %`),
       card('Duración media', r.avgBars === null ? '—' : nf(r.avgBars, 1) + ' velas'),
       card('Tiempo en el mercado', nf(r.exposure, 1) + ' %'),
       card('Largas', String(r.long.n), `neto ${sgn(r.long.net)}`, cls(r.long.net)),
@@ -141,6 +142,8 @@
     if (r.open) note(`Hay una posición ${r.open.side === 'long' ? 'larga' : 'corta'} abierta: resultado sin cerrar ${sgn(r.open.pnl)} (ya incluido en el capital final, no en las operaciones cerradas).`);
     if (r.pending) note(`Orden pendiente para la próxima vela: ${r.pending}. Si la última vela aún no cerró, puede cambiar.`);
     if (r.busted) note('El capital se agotó: la estrategia dejó de operar.', 'warn');
+    if (r.reduced) note(`${r.reduced} orden(es) pedían más que el capital disponible y se redujeron al capital (sin apalancamiento).`, 'warn');
+    if (s.sizeClamped) note('El tamaño en % del capital pasaba de 100 y se limitó a 100.', 'warn');
     if (r.rejected) note(`${r.rejected} orden(es) rechazada(s). Primera causa: ${r.rejectedWhy}`, 'warn');
     if (r.ambiguous) note(`${r.ambiguous} vela(s) tocaron el stop y el objetivo a la vez; no se puede saber cuál fue primero y se asumió el stop (lo más desfavorable).`);
     if (!r.trades && !r.open) note('La estrategia no hizo ninguna operación con estas velas y parámetros.');
@@ -148,7 +151,7 @@
     note(la && la.checked ? `Control de datos del futuro: pasó (${la.cuts} comprobaciones: las órdenes no cambian al quitar las últimas velas). Reduce el riesgo pero no es una garantía absoluta.` : 'Control de datos del futuro: no se pudo hacer (' + (la ? la.why : '—') + ').', la && la.checked ? 'ok' : 'warn');
     const det = mk('details', 'bt-rules');
     det.appendChild(mk('summary', '', 'Reglas de la simulación'));
-    det.appendChild(mk('div', 'bt-note', `Cada orden se da al cerrar una vela y se ejecuta en la apertura de la siguiente. Compra al abrir: precio × (1 + deslizamiento); venta: × (1 − deslizamiento) (${nf(s.slippage, 2)} %). Comisión ${nf(s.commission, 2)} % por lado. Stop loss: orden de mercado con deslizamiento (si la vela abre más allá, se sale a la apertura). Objetivo: orden límite sin deslizamiento. Tamaño ${nf(s.size, 1)} % del capital por operación, sin apalancamiento, una posición a la vez. No incluye financiación, comisiones de retiro ni falta de liquidez: es una simulación, el mercado real puede dar peores resultados.`));
+    det.appendChild(mk('div', 'bt-note', `Cada orden se da al cerrar una vela y se ejecuta en la apertura de la siguiente. Compra al abrir: precio × (1 + deslizamiento); venta: × (1 − deslizamiento) (${nf(s.slippage, 2)} %). Comisión por lado: las órdenes de mercado (entradas, cierres por señal y stops) pagan la tasa taker (${nf(s.commission, 2)} %) y el objetivo, que es una orden límite, la maker (${nf(s.makerCommission, 2)} %); los valores por defecto son los de Binance Futuros USDT y conviene verificarlos en tu cuenta. Stop loss: orden de mercado con deslizamiento (si la vela abre más allá, se sale a la apertura). Objetivo: orden límite sin deslizamiento. Tamaño: ${sizeText}, sin apalancamiento, una posición a la vez. No incluye financiación, comisiones de retiro ni falta de liquidez: es una simulación, el mercado real puede dar peores resultados.`));
     notes.appendChild(det);
     body.appendChild(notes);
   }

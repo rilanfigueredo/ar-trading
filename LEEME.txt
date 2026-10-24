@@ -12,8 +12,11 @@ NOVEDADES DE ESTA VERSION (v0.21) - ESTRATEGIAS Y BACKTEST (nucleo)
   "Cruce de medias (estrategia)" y "RSI con stop y objetivo (estrategia)".
 - SIMULADOR vela a vela, largos y cortos. La orden dada al cerrar una vela se ejecuta en la APERTURA de la vela siguiente
   (nunca con datos del futuro). Capital inicial, tamaño (% del capital por operacion), comision (% por lado) y
-  deslizamiento (%) son parametros que se cambian en "Aplicados en este gráfico" y se guardan por grafico.
-  Sin apalancamiento. Si en una misma vela se tocan el stop y el objetivo, se asume el STOP (lo mas desfavorable).
+  deslizamiento son parametros que se cambian en "Aplicados en este gráfico" y se guardan por grafico.
+  TAMAÑO: % del capital, monto fijo o contratos (unidades del activo). COMISION por defecto de Binance Futuros USDT:
+  taker 0,05 % (ordenes de mercado: entradas, cierres y stops) y maker 0,02 % (objetivo, que es orden limite);
+  DESLIZAMIENTO 0,01 %. Son valores de referencia: verifica los de tu cuenta. Sin apalancamiento (si pides mas que
+  el capital, se reduce al capital y se avisa). Si en una misma vela se tocan el stop y el objetivo, se asume el STOP (lo mas desfavorable).
 - CONTROL DE DATOS DEL FUTURO: dentro de onBar las listas (close, ta.ema(...), etc.) no dejan leer mas alla de la vela
   actual (close[i + 1] da error) y ademas se repite la estrategia con menos velas para detectar listas "adelantadas".
   Reduce el riesgo, pero no es una garantia absoluta.

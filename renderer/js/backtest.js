@@ -3,26 +3,30 @@
 //
 // Reglas del simulador (todas se muestran también en la ayuda del editor):
 //  - Una orden dada al cerrar la vela i se ejecuta en la APERTURA de la vela i+1 (nunca con datos del futuro).
-//  - Compra al abrir: precio * (1 + deslizamiento). Venta al abrir: precio * (1 - deslizamiento). La comisión se cobra por lado.
+//  - Compra al abrir: precio * (1 + deslizamiento). Venta al abrir: precio * (1 - deslizamiento).
+//  - Comisión por lado: las órdenes de mercado (entradas, cierres por señal, stops) pagan la tasa "taker"; el objetivo (orden límite) paga la "maker".
 //  - Stop loss: si la vela abre más allá del stop, se sale a la apertura; si no, al precio del stop (con deslizamiento).
 //  - Objetivo (take profit): orden límite, sin deslizamiento; si la vela abre más allá, se sale a la apertura.
 //  - Si en una misma vela se tocan el stop y el objetivo no se puede saber cuál fue primero: se asume el STOP (lo más desfavorable).
-//  - Sin apalancamiento: el tamaño es un % del capital (máximo 100). Una sola posición a la vez; entrar en sentido contrario la invierte.
+//  - Tamaño: % del capital, monto fijo (en la moneda de cotización) o contratos (unidades del activo). Sin apalancamiento: si pide más que el
+//    capital disponible se reduce al capital (y se cuenta). Una sola posición a la vez; entrar en sentido contrario la invierte.
 (function (root) {
   'use strict';
 
   function fail(msg) { const e = new Error(msg); e.user = true; return e; }
   const isNum = (v) => typeof v === 'number' && isFinite(v);
 
-  // d: { time, open, high, low, close } (listas del mismo largo) · cfg: { capital, size, commission, slippage } (porcentajes)
+  // d: { time, open, high, low, close } (listas del mismo largo)
+// cfg: { capital, sizeType: 'percent'|'amount'|'contracts', size, commission (taker %), makerCommission (%), slippage (%) }
   function create(d, cfg) {
     const n = d.close.length;
-    const fee = cfg.commission / 100, slip = cfg.slippage / 100;
+    const takerFee = cfg.commission / 100, makerFee = (cfg.makerCommission !== undefined ? cfg.makerCommission : cfg.commission) / 100, slip = cfg.slippage / 100;
+    const sizeType = cfg.sizeType || 'percent';
     let cash = cfg.capital;
     let pos = null, pending = null;
     const trades = [];
     const equity = new Array(n).fill(NaN);
-    const st = { rejected: 0, rejectedWhy: null, ambiguous: 0, busted: false, barsIn: 0, fees: 0 };
+    const st = { rejected: 0, rejectedWhy: null, ambiguous: 0, busted: false, barsIn: 0, fees: 0, reduced: 0 };
 
     function reject(why) { st.rejected++; if (!st.rejectedWhy) st.rejectedWhy = why; }
 
@@ -30,7 +34,7 @@
       const p = pos;
       const fill = market ? (p.side > 0 ? ref * (1 - slip) : ref * (1 + slip)) : ref;
       const gross = (fill - p.entryPrice) * p.qty * p.side;
-      const exitFee = p.qty * fill * fee;
+      const exitFee = p.qty * fill * (market ? takerFee : makerFee);
       cash += gross - exitFee;
       st.fees += exitFee;
       const net = gross - p.entryFee - exitFee;
@@ -45,8 +49,10 @@
     function openPos(i, o, side, p) {
       if (st.busted) return;
       const fill = side > 0 ? o * (1 + slip) : o * (1 - slip);
-      const sizePct = p.size !== undefined ? p.size : cfg.size;
-      const qty = (cash * sizePct / 100) / fill;
+      const sz = p.size !== undefined ? p.size : cfg.size;
+      let notional = sizeType === 'percent' ? cash * Math.min(sz, 100) / 100 : (sizeType === 'amount' ? sz : sz * fill);
+      if (notional > cash) { notional = cash; st.reduced++; }    // sin apalancamiento: nunca más que el capital disponible
+      const qty = notional / fill;
       if (!(qty > 0) || !isFinite(qty)) { reject('No había capital para abrir la operación.'); return; }
       let sl = null, tp = null;
       if (p.sl !== undefined) sl = p.sl; else if (p.slPct !== undefined) sl = fill * (1 - side * p.slPct / 100);
@@ -54,7 +60,7 @@
       if (sl !== null && !(side > 0 ? sl < fill : sl > fill)) { reject(`El stop loss (${sl}) quedó del lado equivocado del precio de entrada (${fill}): en una compra debe estar debajo y en una venta arriba.`); return; }
       if (tp !== null && !(side > 0 ? tp > fill : tp < fill)) { reject(`El take profit (${tp}) quedó del lado equivocado del precio de entrada (${fill}): en una compra debe estar arriba y en una venta debajo.`); return; }
       if ((sl !== null && !(sl > 0)) || (tp !== null && !(tp > 0))) { reject('El stop loss o el take profit no es un precio válido (mayor que 0).'); return; }
-      const entryFee = qty * fill * fee;
+      const entryFee = qty * fill * takerFee;
       cash -= entryFee; st.fees += entryFee;
       pos = { side, qty, entryPrice: fill, entryIdx: i, sl, tp, entryFee };
     }
@@ -184,7 +190,7 @@
       long: by('long'), short: by('short'), exposure: n ? (st.barsIn / n) * 100 : 0,
       buyHold: n > 1 && d.close[0] > 0 ? ((d.close[n - 1] - d.close[0]) / d.close[0]) * 100 : null,
       open: openT ? { side: openT.side, pnl: openT.pnl } : null,
-      rejected: st.rejected, rejectedWhy: st.rejectedWhy, ambiguous: st.ambiguous, busted: st.busted, pending: pend,
+      rejected: st.rejected, rejectedWhy: st.rejectedWhy, reduced: st.reduced, ambiguous: st.ambiguous, busted: st.busted, pending: pend,
     };
   }
 

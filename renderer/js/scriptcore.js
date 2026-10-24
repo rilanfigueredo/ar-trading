@@ -373,13 +373,14 @@
           out.precision = o.precision;
         }
       },
-      // strategy({ name, overlay, capital, size, commission, slippage }): convierte el script en una estrategia con backtest.
-      // Capital, tamaño, comisión y deslizamiento quedan como parámetros editables del gráfico.
+      // strategy({ name, overlay, capital, sizeType, size, commission, makerCommission, slippage }): convierte el script en una estrategia con backtest.
+      // Capital, tipo y valor del tamaño, comisiones y deslizamiento quedan como parámetros editables del gráfico.
+      // Por defecto: comisión de Binance Futuros USDT (taker 0,05 %, maker 0,02 %; verificar en la cuenta propia) y deslizamiento 0,01 %.
       strategy(o) {
         if (declared) throw fail(strat ? 'strategy() solo se puede usar una vez.' : 'Un script es un indicador o una estrategia, no los dos: quita indicator() o strategy().');
         declared = true;
         o = o || {};
-        if (typeof o !== 'object') throw fail("strategy() recibe un objeto, por ejemplo strategy({ name: 'Mi estrategia', capital: 10000, size: 100, commission: 0.05, slippage: 0.02 }).");
+        if (typeof o !== 'object') throw fail("strategy() recibe un objeto, por ejemplo strategy({ name: 'Mi estrategia', capital: 10000, sizeType: 'percent', size: 100 }).");
         if (o.name !== undefined) out.name = String(o.name).slice(0, 60);
         out.overlay = o.overlay === undefined ? true : !!o.overlay;
         out.mode = 'strategy';
@@ -390,11 +391,24 @@
           const it = out.inputs[out.inputs.length - 1]; it.builtin = true;
           return val;
         };
+        const SIZE_TYPES = { percent: '% del capital', amount: 'Monto fijo', contracts: 'Contratos' };
+        if (o.sizeType !== undefined && !SIZE_TYPES[o.sizeType]) throw fail("strategy(): \"sizeType\" debe ser 'percent' (% del capital), 'amount' (monto fijo) o 'contracts' (contratos).");
+        const defType = o.sizeType || 'percent';
+        const capital = num('capital', 'Capital inicial', 10000, 1, 1e12, 100);
+        const typeLabel = api.input('Tipo de tamaño', SIZE_TYPES[defType], { options: Object.keys(SIZE_TYPES).map((k) => SIZE_TYPES[k]) });
+        out.inputs[out.inputs.length - 1].builtin = true;
+        const sizeType = Object.keys(SIZE_TYPES).find((k) => SIZE_TYPES[k] === typeLabel);
+        const defSize = o.size !== undefined ? o.size : (defType === 'percent' ? 100 : (defType === 'amount' ? 1000 : 0.01));
+        if (!isNum(defSize) || !(defSize > 0) || (defType === 'percent' && defSize > 100)) throw fail(`strategy(): "size" debe ser un número mayor que 0${defType === 'percent' ? ' y hasta 100 (es un % del capital)' : ''}. Recibí: ${describeVal(defSize)}.`);
+        let size = api.input('Tamaño', defSize, { min: 1e-8, max: 1e12, step: 'any' });
+        out.inputs[out.inputs.length - 1].builtin = true;
+        let sizeClamped = false;
+        if (sizeType === 'percent' && size > 100) { size = 100; sizeClamped = true; }
         const settings = {
-          capital: num('capital', 'Capital inicial', 10000, 1, 1e12, 100),
-          size: num('size', 'Tamaño (% del capital por operación)', 100, 0.1, 100, 1),
-          commission: num('commission', 'Comisión (% por lado)', 0.05, 0, 5, 0.01),
-          slippage: num('slippage', 'Deslizamiento (% por orden de mercado)', 0.02, 0, 5, 0.01),
+          capital, sizeType, size, sizeClamped,
+          commission: num('commission', 'Comisión taker (% por lado, órdenes de mercado)', 0.05, 0, 5, 0.01),
+          makerCommission: num('makerCommission', 'Comisión maker (% por lado, objetivos)', 0.02, 0, 5, 0.01),
+          slippage: num('slippage', 'Deslizamiento (% por orden de mercado)', 0.01, 0, 5, 0.01),
         };
         strat = { settings, onBar: null, signals: [] };
       },
@@ -414,7 +428,7 @@
         if (o.sl !== undefined && o.slPct !== undefined) throw fail('entry(): usa "sl" (precio) o "slPct" (porcentaje), no los dos.');
         if (o.tp !== undefined && o.tpPct !== undefined) throw fail('entry(): usa "tp" (precio) o "tpPct" (porcentaje), no los dos.');
         ['sl', 'tp', 'slPct', 'tpPct'].forEach((k) => { if (o[k] !== undefined) q[k] = sizeOf('entry', k, o[k]); });
-        if (o.size !== undefined) { q.size = sizeOf('entry', 'size', o.size); if (q.size > 100) throw fail('entry(): "size" es un porcentaje del capital y no puede pasar de 100 (no hay apalancamiento).'); }
+        if (o.size !== undefined) { q.size = sizeOf('entry', 'size', o.size); if (strat.settings.sizeType === 'percent' && q.size > 100) throw fail('entry(): con el tamaño en % del capital, "size" no puede pasar de 100 (no hay apalancamiento).'); }
         strat.signals.push({ i: curBar, k: 'entry', side, sl: q.sl, tp: q.tp, slPct: q.slPct, tpPct: q.tpPct, size: q.size });
         simRef.queueEntry(side, q);
       },

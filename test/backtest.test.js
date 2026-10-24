@@ -12,7 +12,7 @@ function mk(rows) {
 }
 const flat = (n, p = 100) => Array.from({ length: n }, () => [p, p + 1, p - 1, p]);
 // ejecuta una estrategia de prueba: `rules` va dentro de onBar(function (i, pos) { ... })
-const go = (rows, rules, opts = '') => S.run({ code: `strategy({ capital: 1000, size: 100, commission: 0, slippage: 0 ${opts} });\nonBar(function (i, pos) {\n${rules}\n});`, data: mk(rows), meta: { name: 'T' } });
+const go = (rows, rules, opts = '') => S.run({ code: `strategy({ capital: 1000, size: 100, commission: 0, makerCommission: 0, slippage: 0 ${opts} });\nonBar(function (i, pos) {\n${rules}\n});`, data: mk(rows), meta: { name: 'T' } });
 const tr = (r, k = 0) => r.strategy.trades[k];
 
 // 1) La orden de la vela i se ejecuta en la APERTURA de la vela i+1
@@ -26,7 +26,7 @@ const tr = (r, k = 0) => r.strategy.trades[k];
 // 2) Comisión y deslizamiento: compra a 100 con 1 % de deslizamiento y 0,1 % de comisión por lado
 {
   const rows = flat(10); rows[5] = [110, 111, 109, 110];
-  const code = `strategy({ capital: 1000, size: 100, commission: 0.1, slippage: 1 });
+  const code = `strategy({ capital: 1000, size: 100, commission: 0.1, makerCommission: 0.1, slippage: 1 });
 onBar(function (i, pos) { if (i === 1) entry('long'); if (i === 4) exit(); });`;
   const r = S.run({ code, data: mk(rows), meta: {} });
   const t = tr(r);
@@ -139,6 +139,36 @@ onBar(function (i, pos) { if (i === 1) entry('long'); if (i === 4) exit(); });`;
   assert.strictEqual(r.strategy.trades.filter((t) => !t.open).length, 1);
 }
 
+// 14) Comisión maker en el objetivo y taker en el resto; valores por defecto de Binance Futuros
+{
+  const rows = flat(10); rows[4] = [100, 107, 99, 105];
+  const code = `strategy({ capital: 1000, size: 100, commission: 0.05, makerCommission: 0.02, slippage: 0 });
+onBar(function (i, pos) { if (i === 2) entry('long', { tp: 106 }); });`;
+  const r = S.run({ code, data: mk(rows), meta: {} });
+  const t = r.strategy.trades[0], qty = 1000 / 100;
+  assert.strictEqual(t.reason, 'objetivo');
+  near(t.fees, qty * 100 * 0.0005 + qty * 106 * 0.0002);       // entrada taker 0,05 % + salida maker 0,02 %
+  const d = S.run({ code: `strategy({}); onBar(function (i) {});`, data: mk(flat(10)), meta: {} });
+  const by = (l) => d.inputs.find((i) => i.label === l).value;
+  near(by('Comisión taker (% por lado, órdenes de mercado)'), 0.05); near(by('Comisión maker (% por lado, objetivos)'), 0.02); near(by('Deslizamiento (% por orden de mercado)'), 0.01);
+}
+// 15) Tamaño en monto fijo y en contratos; sin apalancamiento (se reduce al capital)
+{
+  const rows = flat(10); rows[5] = [110, 111, 109, 110];
+  const mkc = (type, size, rules) => S.run({ code: `strategy({ capital: 1000, sizeType: '${type}', size: ${size}, commission: 0, makerCommission: 0, slippage: 0 });\nonBar(function (i, pos) {\n${rules}\n});`, data: mk(rows), meta: {} });
+  const a = mkc('amount', 400, `if (i === 1) entry('long'); if (i === 4) exit();`);
+  near(a.strategy.trades[0].qty, 4); near(a.strategy.trades[0].pnl, 40);
+  const c = mkc('contracts', 2.5, `if (i === 1) entry('long'); if (i === 4) exit();`);
+  near(c.strategy.trades[0].qty, 2.5); near(c.strategy.trades[0].pnl, 25);
+  const big = mkc('amount', 5000, `if (i === 1) entry('long'); if (i === 4) exit();`);
+  near(big.strategy.trades[0].qty, 10); assert.strictEqual(big.strategy.report.reduced, 1);
+  // se puede cambiar el tipo de tamaño desde los parámetros del gráfico
+  const p = S.run({ code: `strategy({ capital: 1000, commission: 0, makerCommission: 0, slippage: 0 });\nonBar(function (i) { if (i === 1) entry('long'); });`, params: { 'Tipo de tamaño': 'Contratos', 'Tamaño': 3 }, data: mk(rows), meta: {} });
+  near(p.strategy.trades[0].qty, 3);
+  assert.throws(() => S.run({ code: `strategy({ sizeType: 'percent', size: 150 }); onBar(function () {});`, data: mk(rows), meta: {} }), (e) => /hasta 100/.test(e.message));
+  assert.throws(() => S.run({ code: `strategy({ sizeType: 'raro' }); onBar(function () {});`, data: mk(rows), meta: {} }), (e) => /sizeType/.test(e.message));
+}
+
 // ---------- Reglas del motor ----------
 {
   const rows = flat(120);
@@ -157,9 +187,9 @@ onBar(function (i, pos) { if (i === 1) entry('long'); if (i === 4) exit(); });`;
   assert.strictEqual(x.line, 3);
   // los parámetros del simulador son editables y se reflejan
   const code = `strategy({ capital: 1000 });\nonBar(function (i) { if (i === 1) entry('long'); });`;
-  const r = S.run({ code, params: { 'Capital inicial': 5000, 'Tamaño (% del capital por operación)': 10 }, data: mk(rows), meta: {} });
-  near(r.strategy.settings.capital, 5000); near(r.strategy.trades[0].qty, 500 / 100.02); // 10 % de 5000 con el deslizamiento por defecto (0,02 %)
-  assert.ok(r.inputs.some((i) => i.label === 'Comisión (% por lado)' && i.builtin));
+  const r = S.run({ code, params: { 'Capital inicial': 5000, 'Tamaño': 10 }, data: mk(rows), meta: {} });
+  near(r.strategy.settings.capital, 5000); near(r.strategy.trades[0].qty, 500 / 100.01); // 10 % de 5000 con el deslizamiento por defecto (0,01 %)
+  assert.ok(r.inputs.some((i) => i.label === 'Comisión taker (% por lado, órdenes de mercado)' && i.builtin));
 }
 // ---------- Control de datos del futuro ----------
 {

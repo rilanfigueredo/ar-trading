@@ -60,7 +60,7 @@ with sync_playwright() as p:
     # cambiar un parámetro: la comisión
     pg.click('#btPanel .bt-btn >> nth=0'); pg.wait_for_timeout(500)
     row = pg.locator('.sc-arow').nth(0)
-    com = row.locator('.sc-param', has_text='Comisión').locator('input')
+    com = row.locator('.sc-param', has_text='Comisión taker').locator('input')
     com.fill('1'); com.press('Tab'); pg.wait_for_timeout(2500)
     fees = ev("__tv.views[0].scriptInfo(__tv.views[0].cfg.scripts[0].uid).strategy.report.fees")
     print('comisión 1 % -> comisiones pagadas', fees, '| params', ev("__tv.views[0].cfg.scripts[0].params"))
