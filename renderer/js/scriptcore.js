@@ -6,14 +6,14 @@
   'use strict';
 
   const BT = (typeof module !== 'undefined' && module.exports) ? require('./backtest.js') : root.TVBacktest;
-  const MAX_PLOTS = 16, MAX_LEVELS = 16, MAX_LEN = 100000;
+  const MAX_PLOTS = 16, MAX_LEVELS = 16, MAX_LEN = 100000, MAX_MARKS = 20000, MAX_SEGS = 10000;
   const DEFAULT_COLORS = ['#2962ff', '#ff9800', '#f23645', '#26a69a', '#7e57c2', '#00bcd4', '#e91e63', '#8bc34a'];
   // Globales que el script no debe poder usar (red, mensajes, etc.). Se tapan como parámetros "undefined".
   const BLOCKED = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'postMessage', 'self', 'globalThis',
     'indexedDB', 'caches', 'Worker', 'SharedWorker', 'BroadcastChannel', 'navigator', 'location'];
   // Nombres que el script recibe ya listos.
   const API_NAMES = ['indicator', 'input', 'inputColor', 'plot', 'histogram', 'hline', 'ta', 'open', 'high', 'low', 'close', 'volume',
-    'buy', 'sell', 'delta', 'hasBuy', 'time', 'n', 'symbol', 'timeframe', 'tfSec', 'strategy', 'entry', 'exit', 'onBar'];
+    'buy', 'sell', 'delta', 'hasBuy', 'time', 'n', 'symbol', 'timeframe', 'tfSec', 'strategy', 'entry', 'exit', 'onBar', 'marker', 'segment'];
 
   // Error "de usuario": se muestra tal cual (con su línea). Los demás errores del script también se traducen.
   function fail(msg) { const e = new Error(msg); e.user = true; return e; }
@@ -305,7 +305,7 @@
     };
     const params = req.params || {};
     const meta = req.meta || {};
-    const out = { name: meta.name || 'Script', overlay: false, precision: null, inputs: [], plots: [], levels: [] };
+    const out = { name: meta.name || 'Script', overlay: false, precision: null, inputs: [], plots: [], levels: [], marks: [], segments: [] };
     const inputIds = new Set();
     let declared = false;
     // Estrategia (v0.21)
@@ -499,6 +499,28 @@
         else if (color === null) { colors = new Array(n); for (let i = 0; i < n; i++) colors[i] = values[i] >= 0 ? up : down; }
         out.plots.push({ kind: 'hist', title: String(o.title !== undefined ? o.title : `Histograma ${out.plots.length + 1}`).slice(0, 40), color: color || up, colors, width: 1, style: 'solid', values });
       },
+      // Marca sobre una vela (v0.22.4): marker(índice, 'above' | 'below', { color, shape: 'circle'|'arrowUp'|'arrowDown'|'square', text })
+      marker(i, where, o) {
+        if (out.marks.length >= MAX_MARKS) throw fail(`Máximo ${MAX_MARKS} marcas por script.`);
+        if (!Number.isInteger(i) || i < 0 || i >= n) throw fail(`marker(): el primer dato es el número de vela (de 0 a ${n - 1}). Recibí: ${describeVal(i)}.`);
+        if (where !== 'above' && where !== 'below') throw fail("marker(): el segundo dato debe ser 'above' (arriba de la vela) o 'below' (abajo).");
+        o = o || {};
+        const c = colorArg('marker', o.color, '#2962ff');
+        if (c.colors) throw fail('marker(): "color" debe ser un solo color.');
+        const shape = o.shape === undefined ? 'circle' : o.shape;
+        if (!['circle', 'arrowUp', 'arrowDown', 'square'].includes(shape)) throw fail("marker(): \"shape\" debe ser 'circle', 'arrowUp', 'arrowDown' o 'square'.");
+        out.marks.push({ idx: i, pos: where, color: c.color, shape, text: String(o.text !== undefined ? o.text : '').slice(0, 12) });
+      },
+      // Segmento horizontal a un precio entre dos velas (v0.22.4): segment(velaInicial, precio, velaFinal, { color, width, style })
+      segment(i1, price, i2, o) {
+        if (out.segments.length >= MAX_SEGS) throw fail(`Máximo ${MAX_SEGS} segmentos por script.`);
+        if (!Number.isInteger(i1) || !Number.isInteger(i2) || i1 < 0 || i2 < 0 || i1 >= n || i2 >= n) throw fail(`segment(): la vela inicial y la final deben ser números de vela (de 0 a ${n - 1}).`);
+        if (typeof price !== 'number' || !isFinite(price)) throw fail(`segment(): el segundo dato es el precio (número). Recibí: ${describeVal(price)}.`);
+        o = o || {};
+        const c = colorArg('segment', o.color, '#787b86');
+        if (c.colors) throw fail('segment(): "color" debe ser un solo color.');
+        out.segments.push({ i1: Math.min(i1, i2), i2: Math.max(i1, i2), price, color: c.color, width: widthOf('segment', o.width, 1), style: styleOf('segment', o.style === undefined ? 'solid' : o.style) });
+      },
       hline(value, o) {
         if (out.levels.length >= MAX_LEVELS) throw fail(`Máximo ${MAX_LEVELS} niveles por script.`);
         if (typeof value !== 'number' || !isFinite(value)) throw fail(`hline(): el primer dato debe ser un número (el precio o valor del nivel). Recibí: ${describeVal(value)}.`);
@@ -514,7 +536,7 @@
       Object.keys(ta).forEach((k) => { const f = ta[k]; ta[k] = function () { return wrapRes(f.apply(this, arguments)); }; });
     }
     const values = {
-      indicator: api.indicator, input: api.input, inputColor: api.inputColor, plot: api.plot, histogram: api.histogram, hline: api.hline, ta,
+      indicator: api.indicator, input: api.input, inputColor: api.inputColor, plot: api.plot, histogram: api.histogram, hline: api.hline, marker: api.marker, segment: api.segment, ta,
       open: guard(d.open), high: guard(d.high), low: guard(d.low), close: guard(d.close), volume: guard(d.volume),
       buy: hasBuy ? guard(buy) : buy, sell: hasBuy ? guard(sell) : sell, delta: hasBuy ? guard(delta) : delta, hasBuy, time: guard(d.time), n,
       symbol: String(meta.symbol || ''), timeframe: String(meta.timeframe || ''), tfSec: Number(meta.tfSec) || 0,
@@ -537,8 +559,13 @@
       const r = sim.finish();
       out.strategy = { settings: strat.settings, trades: r.trades, equity: r.equity, report: r.report, signals: strat.signals };
     }
-    if (!strat && !out.plots.length) {
-      throw fail('El script no dibuja nada: usa plot(...) para una línea o histogram(...) para barras.');
+    // un script de marcas puede no encontrar nada que marcar en estas velas: no es un error
+    const usesMarks = /\b(marker|segment)\s*\(/.test(String(req.code || ''));
+    if (!strat && !out.plots.length && !out.marks.length && !out.segments.length && !usesMarks) {
+      throw fail('El script no dibuja nada: usa plot(...) para una línea, histogram(...) para barras o marker(...) / segment(...) para marcas.');
+    }
+    if (!out.overlay && (out.marks.length || out.segments.length)) {
+      throw fail("marker(...) y segment(...) se dibujan sobre las velas: usa indicator({ overlay: true }).");
     }
     if (out.overlay && out.plots.some((p) => p.kind === 'hist')) {
       throw fail("Los histogramas solo se pueden dibujar en un panel aparte: usa indicator({ overlay: false }) o cambia histogram por plot.");

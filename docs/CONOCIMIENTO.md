@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.3)
+## 3. Funciones actuales (v0.22.4)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -75,6 +75,10 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - Panel inferior `#btPanel` (dentro de `#gridWrap`, que ahora es columna): solo se muestra si el gráfico activo tiene una estrategia (`scriptInfo(uid).isStrategy`); `cfg.bt = {h, tab, collapsed}` (global, `cfg.version` = 11, limpiado en `migrate`). Se redibuja con retardo de 120 ms desde `G.onScriptStatus`, al cambiar de gráfico activo y al cambiar el diseño. Tabla limitada a las últimas 1500 operaciones.
 - Al cargar más historia, los números de vela se desplazan y la estrategia se recalcula (las primeras operaciones pueden cambiar porque las medias arrancan antes).
 
+### Marcas y swings (v0.22.4)
+- API de scripts: `marker(i, 'above'|'below', {color, shape, text})` y `segment(i1, precio, i2, {color, width, style})` (solo con `overlay:true`; límites 20.000 marcas / 10.000 segmentos). Marcas con `createSeriesMarkers` (se mezclan con las de estrategias), segmentos con una primitiva propia (`makeSegPrim` en `scripthost.js`, usa `logicalToCoordinate`). Un script con `marker(`/`segment(` en el código puede no marcar nada sin dar error.
+- Ejemplo «Swings (3 velas + barrido + ruptura)» (`scriptexamples.js`, `test/swings.test.js`): pivote de 3 velas → barrido del mínimo (alto) / máximo (bajo) de la vela de referencia por cualquier vela posterior (la referencia se desplaza al máximo/mínimo más extremo antes del barrido) → ruptura con cierre (cuerpo). Interpretación de las reglas del usuario (22/10/2026); confirmar con él.
+
 ### Scripts propios (v0.20)
 - Biblioteca global `cfg.scripts = [{id,name,code}]`; aplicados por gráfico `vcfg.scripts = [{uid,scriptId,params,hide}]` (params por etiqueta de `input`). `cfg.version` = 10 (`cleanScriptLib`/`cleanApplied` en `migrate`).
 - Ganchos en view.js: `s.scr.update()` al final de `syncIndicators` (se llama con velas nuevas, carga y cada paso del replay), `s.scr.legend()` al final de `renderLegend`, `s.scr.destroy()`. Los paneles de script se crean al final (`panes().length`) y no entran en `SUB_ORDER` (no tienen flechas de orden).
@@ -114,6 +118,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.4: ejemplo de script «Swings» (3 reglas del usuario) y funciones `marker`/`segment` para scripts. Pruebas: `test/swings.test.js`, `tools/prueba_v224.py`.
 - v0.22.3: pantalla completa oculta todas las barras; sin barra de título (controles en la barra de pestañas); icono propio en lugar de la marca TradingView.
 - v0.22.2: pestañas autónomas (temporalidades, dibujo, lista activa) y botón de pantalla completa. Pruebas: `tools/prueba_v222.py`.
 - v0.22.1: ventanas → pestañas en una sola ventana; control de peticiones (errores al abrir varias); Bitstamp: historial intradía ya no se corta por huecos sin operaciones (sin probar con Bitstamp real).

@@ -33,6 +33,7 @@
     }
     function clearDrawing(x) {
       clearExtras(x);
+      if (x.segPrim) { try { x.segPrimSeries.detachPrimitive(x.segPrim); } catch (e) { /* ok */ } x.segPrim = null; x.segPrimSeries = null; }
       (x.lines || []).forEach((o) => { if (o.owner === s.series) { try { o.owner.removePriceLine(o.line); } catch (e) { /* ok */ } } });
       x.series.forEach((ser) => { try { s.chart.removeSeries(ser); } catch (e) { /* ya quitada */ } });
       x.series = []; x.lines = []; x.drawSig = null; x.vals = null; x.mainSeries = null;
@@ -92,7 +93,58 @@
       res.plots.forEach((p, i) => x.series[i].setData(pointsOf(p, times)));
       x.vals = res.plots.map((p) => p.values);
       x.times = times;
-      if (strat) drawStrategy(x, strat, times); else clearExtras(x);
+      const sm = scriptMarkers(res, times);
+      if (strat) drawStrategy(x, strat, times, sm); else { clearExtras(x); applyMarkers(x, sm); }
+      drawSegments(x, res.segments || [], times);
+    }
+
+    // ---------- Marcas y segmentos del script (v0.22.4): marker(...) y segment(...) ----------
+    const SHAPES = { circle: 'circle', arrowUp: 'arrowUp', arrowDown: 'arrowDown', square: 'square' };
+    function scriptMarkers(res, times) {
+      return (res.marks || []).filter((m) => times[m.idx] !== undefined).map((m) => ({ time: times[m.idx], position: m.pos === 'above' ? 'aboveBar' : 'belowBar', color: m.color, shape: SHAPES[m.shape] || 'circle', text: m.text || '', size: 1 }));
+    }
+    function applyMarkers(x, ms) {
+      if (!ms.length) return;
+      ms.sort((a, b) => a.time - b.time);
+      x.mk = LC.createSeriesMarkers(s.series, ms); x.mkSeries = s.series;
+    }
+    function makeSegPrim() {
+      let chart = null, series = null, request = null;
+      const prim = { segs: [] };
+      const renderer = {
+        draw(target) {
+          if (!chart || !series || !prim.segs.length) return;
+          target.useBitmapCoordinateSpace((scope) => {
+            const ctx = scope.context, hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio, W = scope.bitmapSize.width;
+            const ts = chart.timeScale();
+            ctx.save();
+            prim.segs.forEach((sg) => {
+              const xa = ts.logicalToCoordinate(sg.i1), xb = ts.logicalToCoordinate(sg.i2), y = series.priceToCoordinate(sg.price);
+              if (xa === null || xb === null || y === null) return;
+              const a = Math.round(xa * hpr), b = Math.round(xb * hpr);
+              if (b < 0 || a > W) return;
+              const yy = Math.round(y * vpr) + 0.5;
+              ctx.strokeStyle = sg.color; ctx.lineWidth = Math.max(1, Math.round(sg.width * hpr));
+              ctx.setLineDash(sg.style === 'dashed' ? [6 * hpr, 4 * hpr] : sg.style === 'dotted' ? [2 * hpr, 3 * hpr] : []);
+              ctx.beginPath(); ctx.moveTo(Math.max(a, 0), yy); ctx.lineTo(Math.min(b, W), yy); ctx.stroke();
+            });
+            ctx.restore();
+          });
+        },
+      };
+      const view = { zOrder: () => 'normal', renderer: () => renderer };
+      prim.attached = (p) => { chart = p.chart; series = p.series; request = p.requestUpdate; };
+      prim.detached = () => { chart = null; series = null; request = null; };
+      prim.updateAllViews = () => {};
+      prim.paneViews = () => [view];
+      prim.set = (segs) => { prim.segs = segs; if (request) request(); };
+      return prim;
+    }
+    function drawSegments(x, segs, times) {
+      if (!segs.length) { if (x.segPrim) x.segPrim.set([]); return; }
+      if (x.segPrim && x.segPrimSeries !== s.series) { try { x.segPrimSeries.detachPrimitive(x.segPrim); } catch (e) { /* ok */ } x.segPrim = null; }
+      if (!x.segPrim) { x.segPrim = makeSegPrim(); x.segPrimSeries = s.series; s.series.attachPrimitive(x.segPrim); }
+      x.segPrim.set(segs);
     }
 
     // ---------- Estrategias (v0.21): marcas de entrada/salida y capital en un panel aparte ----------
@@ -106,7 +158,7 @@
       });
       return ms.sort((a, b) => a.time - b.time);
     }
-    function drawStrategy(x, strat, times) {
+    function drawStrategy(x, strat, times, extra) {
       if (!x.eqSer) {
         const fmt = { type: 'price', precision: 2, minMove: 0.01 };
         const pane = s.chart.panes().length;
@@ -117,7 +169,7 @@
       }
       x.eqSer.setData(strat.equity.map((v, i) => (v === v && v !== null ? { time: times[i], value: v } : { time: times[i] })));
       x.eq = strat.equity;
-      const ms = buildMarkers(strat, times);
+      const ms = buildMarkers(strat, times).concat(extra || []).sort((a, b) => a.time - b.time);
       if (x.mk && x.mkSeries === s.series) x.mk.setMarkers(ms);
       else {
         if (x.mk) { try { x.mk.detach(); } catch (e) { /* ok */ } }

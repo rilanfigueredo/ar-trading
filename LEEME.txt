@@ -1,8 +1,21 @@
-AR_TRADING - VERSION 0.22.3
+AR_TRADING - VERSION 0.22.4
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.4 - SWINGS (ejemplo de script) Y MARCAS EN LOS SCRIPTS
+- Nuevo ejemplo en Scripts > Ejemplos: "Swings (3 velas + barrido + ruptura)". Reglas:
+  1) Pivote de 3 velas: swing ALTO = la vela del centro tiene el maximo mayor que sus dos vecinas; swing BAJO = minimo menor que las dos.
+  2) Barrido de liquidez: despues del pivote, CUALQUIER vela de la derecha (3.a, 4.a, 5.a...) toma el minimo (swing alto) o el
+     maximo (swing bajo) de la vela de referencia. Si antes de eso el precio hace un maximo mayor (alto) o un minimo menor (bajo),
+     la vela de referencia pasa a ser esa vela de mecha mas extrema. Sin barrido no es swing valido y no se dibuja.
+  3) Ruptura con cuerpo: tras el barrido, una vela debe CERRAR por encima del maximo (alto) o por debajo del minimo (bajo).
+  Se dibuja: circulo en la vela del swing, linea hasta la ruptura y flecha en la vela que rompe. Opciones en "Aplicados":
+  mostrar los que aun no tienen ruptura (linea punteada), marcar la vela del barrido, colores y maximo de swings (los mas recientes).
+  Interpretacion mia de tus reglas: si no es lo que querias, dime que cambiar. Como todo pivote, el swing se confirma velas DESPUES
+  de la vela donde se dibuja.
+- Para los scripts propios: nuevas funciones marker(vela, 'above'|'below', {color, shape, text}) y segment(velaInicial, precio, velaFinal, {color, width, style}).
 
 NOVEDADES DE LA v0.22.3 - PANTALLA COMPLETA REAL, SIN BARRA DE TITULO, ICONO PROPIO
 - PANTALLA COMPLETA: ahora oculta la barra de herramientas de arriba (logo, temporalidades...), la de dibujo de la izquierda, la de

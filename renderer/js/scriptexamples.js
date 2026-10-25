@@ -59,6 +59,80 @@ hline(50, { color: '#787b86', style: 'dashed' });
 `,
     },
     {
+      name: 'Swings (3 velas + barrido + ruptura)',
+      code: `// SWINGS con 3 reglas (alto y bajo). Los pasos son estos:
+//  1) PIVOTE DE 3 VELAS. Swing ALTO: la vela del centro tiene el máximo mayor que la vela de la izquierda y que la de la derecha.
+//     Swing BAJO: lo mismo con el mínimo (menor que los dos vecinos).
+//  2) BARRIDO DE LIQUIDEZ. Después del pivote, alguna vela de la derecha (la 3.ª, la 4.ª, la 5.ª... no importa cuántas) tiene que
+//     tomar el MÍNIMO de la vela del máximo (swing alto) o el MÁXIMO de la vela del mínimo (swing bajo). Si antes de eso el precio
+//     hace un máximo mayor (swing alto) o un mínimo menor (swing bajo), la vela de referencia pasa a ser esa vela de mecha más
+//     extrema. Si nunca hay barrido, el swing NO es válido y no se dibuja.
+//  3) RUPTURA CON CUERPO. Tras el barrido, una vela debe CERRAR por encima del máximo (swing alto) o por debajo del mínimo
+//     (swing bajo). Solo la mecha no cuenta: tiene que cerrar con el cuerpo.
+// Dibujo: círculo en la vela del swing, línea horizontal a su nivel hasta la vela de la ruptura (flecha). Los swings con barrido
+// pero sin ruptura aún salen con línea punteada hasta la última vela (se pueden ocultar).
+// Ojo: el swing se confirma varias velas DESPUÉS de la vela donde se dibuja (igual que cualquier pivote); no sirve tal cual para operar en vivo.
+indicator({ name: 'Swings', overlay: true });
+
+const verPendientes = input('Mostrar swings con barrido pero sin ruptura aún', true);
+const verBarrido = input('Marcar la vela que toma la liquidez', false);
+const maxSwings = input('Máximo de swings dibujados (los más recientes)', 400, { min: 10, max: 3000 });
+const colorAlto = inputColor('Color swing alto', '#26a69a');
+const colorBajo = inputColor('Color swing bajo', '#ef5350');
+
+const cand = [];     // pivotes de 3 velas que esperan el barrido
+const esperan = [];  // con barrido hecho, esperan la ruptura con cuerpo
+const swings = [];   // resultado
+const hay = function (tipo, ref) { return cand.some(function (k) { return k.tipo === tipo && k.ref === ref; }); };
+
+for (let j = 1; j < n; j++) {
+  // regla 1: la vela j-1 es pivote de 3 velas (con la vela j como vecina de la derecha)
+  if (j >= 2) {
+    const c = j - 1;
+    if (high[c] > high[c - 1] && high[c] > high[j] && !hay('alto', c)) cand.push({ tipo: 'alto', ref: c });
+    if (low[c] < low[c - 1] && low[c] < low[j] && !hay('bajo', c)) cand.push({ tipo: 'bajo', ref: c });
+  }
+  // regla 3: rupturas con cuerpo de los swings que ya tuvieron barrido (antes de esta vela)
+  for (let k = esperan.length - 1; k >= 0; k--) {
+    const s = esperan[k];
+    const roto = s.tipo === 'alto' ? close[j] > high[s.ref] : close[j] < low[s.ref];
+    if (roto) { s.ruptura = j; esperan.splice(k, 1); }
+  }
+  // regla 2: barrido o extensión de cada pivote pendiente
+  for (let k = cand.length - 1; k >= 0; k--) {
+    const c = cand[k];
+    if (c.tipo === 'alto') {
+      if (high[j] > high[c.ref]) c.ref = j;                       // máximo más extremo: pasa a ser la vela de referencia
+      else if (low[j] < low[c.ref]) { const s = { tipo: 'alto', ref: c.ref, barrido: j, ruptura: -1 }; swings.push(s); esperan.push(s); cand.splice(k, 1); }
+    } else {
+      if (low[j] < low[c.ref]) c.ref = j;
+      else if (high[j] > high[c.ref]) { const s = { tipo: 'bajo', ref: c.ref, barrido: j, ruptura: -1 }; swings.push(s); esperan.push(s); cand.splice(k, 1); }
+    }
+  }
+  // dos pendientes que terminan en la misma vela de referencia son el mismo swing
+  for (let a = cand.length - 1; a >= 1; a--) {
+    for (let b = 0; b < a; b++) if (cand[a].tipo === cand[b].tipo && cand[a].ref === cand[b].ref) { cand.splice(a, 1); break; }
+  }
+}
+
+swings.sort(function (a, b) { return a.ref - b.ref; });
+swings.slice(-maxSwings).forEach(function (s) {
+  const alto = s.tipo === 'alto';
+  const color = alto ? colorAlto : colorBajo;
+  const nivel = alto ? high[s.ref] : low[s.ref];
+  if (s.ruptura < 0 && !verPendientes) return;
+  marker(s.ref, alto ? 'above' : 'below', { color: color, shape: 'circle' });
+  if (verBarrido) marker(s.barrido, alto ? 'below' : 'above', { color: color, shape: 'square' });
+  if (s.ruptura >= 0) {
+    segment(s.ref, nivel, s.ruptura, { color: color, width: 2 });
+    marker(s.ruptura, alto ? 'below' : 'above', { color: color, shape: alto ? 'arrowUp' : 'arrowDown' });
+  } else {
+    segment(s.ref, nivel, n - 1, { color: color, width: 1, style: 'dotted' });
+  }
+});
+`,
+    },
+    {
       name: 'Cruce de medias (estrategia)',
       code: `// Estrategia: compra cuando la media rápida cruza hacia arriba la lenta y vende (corto) cuando cruza hacia abajo.
 // Capital, tipo y valor del tamaño (% del capital, monto fijo o contratos), comisión y deslizamiento se cambian en «Aplicados en este gráfico».
