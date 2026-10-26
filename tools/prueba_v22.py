@@ -51,11 +51,8 @@ with sync_playwright() as p:
     w1.click('#tfButtons >> text=1D'); w1.wait_for_timeout(1200)
     w1.click('#typeCur'); w1.click('#typeButtons [data-type=area]'); w1.wait_for_timeout(300)
     assert ev1("__tv.cfg.charts[0].tf") == 'd:1'
-    assert 'BTCUSDT · 1D' in w1.locator('#tabBar .tab.cur').inner_text()
-    # cargar diseño (plantilla guardada en la pestaña 1)
-    w1.click('#btnTpl'); w1.wait_for_timeout(300)
-    assert 'Mi diseño' in w1.inner_text('#tplList')
-    w1.click('#tplList .dd-row >> text=Aquí'); w1.wait_for_timeout(800)
+    assert 'BTCUSDT-1D' in w1.locator('#tabBar .tab.cur').inner_text().replace(' ', ''), w1.locator('#tabBar .tab.cur').inner_text()
+    w1.click('#typeCur'); w1.click('#typeButtons [data-type=line]'); w1.wait_for_timeout(500)   # (el botón Cargar diseño se quitó en v0.22.6)
     assert ev1("__tv.cfg.charts[0].chartType") == 'line' and ev1("__tv.cfg.charts[0].tf") == 'd:1'
     w1.screenshot(path=f'{OUT}/v22_tab2.png')
     # volver a la pestaña 1: conserva lo suyo (4h, línea)

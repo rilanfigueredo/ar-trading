@@ -485,3 +485,13 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 #gridStack { flex: 1; min-width: 0; min-height: 0; position: relative; }
 #gridStack > .grid, #gridStack > #grid { position: absolute; inset: 0; }
 #gridStack > #grid.tab-off { visibility: hidden; pointer-events: none; }
+
+/* v0.22.6: iconos en la barra */
+.tb-btn svg { display: block; }
+#toolbar .tb-btn:has(svg) { display: inline-flex; align-items: center; gap: 3px; }
+.tb-btn .caret { font-size: 10px; opacity: .7; }
+.tb-btn .tb-note { font-size: 12px; font-weight: 600; margin-left: 2px; }
+.dd-list .tb-btn { display: flex; align-items: center; gap: 8px; }
+.lay-sync { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.lay-sync h4 { margin: 0 0 6px; font-size: 13px; }
+.lay-sync label { display: block; padding: 3px 0; cursor: pointer; font-size: 13px; }

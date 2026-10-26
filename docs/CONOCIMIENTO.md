@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.5)
+## 3. Funciones actuales (v0.22.6)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -119,6 +119,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.6: botones de la barra como iconos (`ICONS`/`svg()` en app.js), sin "Cargar diseño", pestaña `LISTA-PAR-TF` (`tabLabelOf`/`tfShort` en app.js, `tfLabel` en store.js), Cruz/Tiempo dentro del modal Diseño (`toggleSyncCross/Time`), acciones del panel Objetos sobre toda la selección (`grp()` en drawui.js).
 - v0.22.5: pestañas vivas (cambio instantáneo, gráfico ampliado por pestaña) y rueda con zoom solo horizontal. Pruebas: `tools/prueba_v225.py`.
 - v0.22.4: ejemplo de script «Swings» (3 reglas del usuario) y funciones `marker`/`segment` para scripts. Pruebas: `test/swings.test.js`, `tools/prueba_v224.py`.
 - v0.22.3: pantalla completa oculta todas las barras; sin barra de título (controles en la barra de pestañas); icono propio en lugar de la marca TradingView.

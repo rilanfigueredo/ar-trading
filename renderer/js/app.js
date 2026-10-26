@@ -125,7 +125,7 @@
     const e = { cfg, timer: setTimeout(() => { saveTimers.delete(id); API.setConfig(cfg, id).catch(() => {}); }, 400) };
     saveTimers.set(id, e);
   }
-  const saveCfg = () => saveTab(A.tabId, A.cfg);
+  const saveCfg = () => { saveTab(A.tabId, A.cfg); try { const tn = document.querySelector('#tabBar .tab.cur .tab-name'); if (tn) { const l = tabLabelOf(A.cfg); if (tn.textContent !== l) { tn.textContent = l; tn.parentNode.title = l; } } } catch (e) { /* ok */ } };
   function flushTab(id, now) {
     const e = saveTimers.get(id); if (!e) return;
     clearTimeout(e.timer); saveTimers.delete(id);
@@ -322,22 +322,42 @@
     add.onclick = openTfManager;
     box.appendChild(add);
   }
+  // ---------- Iconos de la barra (v0.22.6): en vez de texto, para ahorrar espacio ----------
+  const svg = (inner, size) => `<svg viewBox="0 0 24 24" width="${size || 18}" height="${size || 18}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  const ICONS = {
+    candles: svg('<path d="M7 3v3M7 18v3M17 6v3M17 15v4"/><rect x="5" y="6" width="4" height="12" rx="1"/><rect x="15" y="9" width="4" height="6" rx="1"/>'),
+    line: svg('<polyline points="3 17 9 10 13 14 21 5"/>'),
+    area: svg('<path d="M3 18 9 10 13 14 21 5V20H3Z" fill="currentColor" fill-opacity=".28" stroke="none"/><polyline points="3 18 9 10 13 14 21 5"/>'),
+    normal: svg('<path d="M12 3v18M7 5h10M7 9.5h10M7 14h10M7 18.5h10"/>'),
+    log: svg('<path d="M12 3v18M7 4h10M7 9h10M7 13h10M7 16h10M7 18.5h10"/>'),
+    percent: svg('<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'),
+    replay: svg('<polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/>'),
+    scripts: svg('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+    settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
+    lay1: svg('<rect x="3" y="4" width="18" height="16" rx="2"/>'),
+    lay2h: svg('<rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/>'),
+    lay2v: svg('<rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/>'),
+    lay3: svg('<rect x="3" y="4" width="11" height="16" rx="1.5"/><rect x="16" y="4" width="5" height="7" rx="1.5"/><rect x="16" y="13" width="5" height="7" rx="1.5"/>'),
+    lay4: svg('<rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><rect x="13" y="13" width="8" height="7" rx="1.5"/>'),
+  };
+  const CARET = '<span class="caret">▾</span>';
+  const TYPE_NAMES = { candles: 'Velas', line: 'Línea', area: 'Área' };
+  const SCALE_NAMES = { normal: 'Normal', log: 'Logarítmica', percent: 'Porcentaje' };
   function markActive() {
     const c = activeCfg();
-    document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { const on = b.dataset.type === c.chartType; b.classList.toggle('active', on); if (on) $('typeCur').textContent = b.textContent + ' ▾'; });
-    document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { const on = b.dataset.scale === c.scale; b.classList.toggle('active', on); if (on) $('scaleCur').textContent = b.textContent + ' ▾'; });
+    document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { b.classList.toggle('active', b.dataset.type === c.chartType); });
+    document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.classList.toggle('active', b.dataset.scale === c.scale); });
+    $('typeCur').innerHTML = (ICONS[c.chartType] || ICONS.candles) + CARET; $('typeCur').title = 'Tipo de gráfico: ' + (TYPE_NAMES[c.chartType] || 'Velas') + ' (clic para elegir)';
+    $('scaleCur').innerHTML = (ICONS[c.scale] || ICONS.normal) + CARET; $('scaleCur').title = 'Escala del precio: ' + (SCALE_NAMES[c.scale] || 'Normal') + ' (clic para elegir)';
     syncOutlineButtons();
     $('btnSymbol').textContent = c.symbol + ((c.exchange || 'binance') !== 'binance' ? ' · ' + L.exchangeName(c.exchange) : '');
     { const tn = document.querySelector('#tabBar .tab.cur .tab-name'); if (tn) { tn.textContent = curTabLabel(); tn.parentNode.title = tn.textContent; } }
     document.body.dataset.theme = A.cfg.theme;
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
     const multi = A.views.length > 1;
-    $('syncGroup').classList.toggle('hidden', !multi);
-    $('syncCross').classList.toggle('active', A.cfg.sync.cross);
-    $('syncTime').classList.toggle('active', A.cfg.sync.time);
-    { const br = $('btnReplay'); if (br) { const st = activeView().replayState; br.classList.toggle('active', st !== 'off'); br.textContent = st === 'off' ? 'Replay' : (st === 'pick' ? 'Replay: elige vela' : 'Replay: activo'); } }
+    { const br = $('btnReplay'); if (br) { const st = activeView().replayState; br.classList.toggle('active', st !== 'off'); br.innerHTML = ICONS.replay + (st === 'pick' ? '<span class="tb-note">elige una vela</span>' : ''); br.title = st === 'off' ? 'Replay: reproducción de barras (elige una vela del pasado y mira cómo se formó el mercado vela a vela)' : (st === 'pick' ? 'Replay: haz clic en la vela donde empezar (clic aquí para cancelar)' : 'Replay activo (clic para salir)'); } }
     { const bd = $('btnData'); if (bd) { const on = c.src === 'trades'; bd.textContent = 'Datos: ' + (on ? 'Operaciones' : 'Velas'); bd.classList.toggle('active', on); } }
-    $('btnLayout').textContent = 'Diseño: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1);
+    $('btnLayout').innerHTML = ICONS['lay' + (LAYOUTS[A.cfg.layout] ? A.cfg.layout : '1')]; $('btnLayout').title = 'Diseño de gráficos: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1) + (LAYOUTS[A.cfg.layout] && LAYOUTS[A.cfg.layout].n > 1 ? ' gráficos' : ' gráfico') + ' (clic para cambiar)';
     renderTfButtons();
     if (window.TVDrawUI) window.TVDrawUI.refresh();
   }
@@ -575,6 +595,19 @@
     }, { floating: true, onClose: () => clearInterval(timer) });
   }
 
+  function toggleSyncCross() {
+    A.cfg.sync.cross = !A.cfg.sync.cross;
+    if (!A.cfg.sync.cross) eachView((v) => v.showCrosshairAt(null));
+    saveCfg();
+  }
+  function toggleSyncTime() {
+    A.cfg.sync.time = !A.cfg.sync.time;
+    saveCfg();
+    if (A.cfg.sync.time && A.views.length > 1) {
+      const t = activeView().rightEdgeTime();
+      if (t !== null) { syncLockUntil = performance.now() + 200; A.views.forEach((v) => { if (v !== activeView()) v.setRightEdgeTime(t); }); }
+    }
+  }
   function openLayoutPicker() {
     openModal((box) => {
       const h = document.createElement('h3');
@@ -591,10 +624,26 @@
         const t = document.createElement('span');
         t.textContent = LAYOUTS[id].label;
         b.append(icon, t);
-        b.onclick = () => { closeModal(); setLayout(id); };
+        b.onclick = () => { closeModal(); setLayout(id); if (LAYOUTS[id].n > 1) openLayoutPicker(); };   // con 2 o más gráficos se queda para ajustar la sincronización
         grid.appendChild(b);
       });
       box.appendChild(grid);
+      if (LAYOUTS[A.cfg.layout] && LAYOUTS[A.cfg.layout].n > 1) {
+        const sync = document.createElement('div');
+        sync.className = 'lay-sync';
+        const mk = (text, hint, get, fn) => {
+          const lab = document.createElement('label'); lab.title = hint;
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!get();
+          cb.onchange = () => { fn(); cb.checked = !!get(); };
+          lab.append(cb, document.createTextNode(' ' + text));
+          return lab;
+        };
+        const h4 = document.createElement('h4'); h4.textContent = 'Sincronización entre gráficos';
+        sync.append(h4,
+          mk('Cruz: la cruz del ratón se ve en todos los gráficos', 'Sincronizar la cruz entre gráficos', () => A.cfg.sync.cross, toggleSyncCross),
+          mk('Tiempo: mover o ampliar uno mueve los demás', 'Sincronizar el tiempo entre gráficos', () => A.cfg.sync.time, toggleSyncTime));
+        box.appendChild(sync);
+      }
       const hint = document.createElement('div');
       hint.className = 'hint';
       hint.textContent = 'Haz clic en un gráfico para seleccionarlo: la barra de arriba (activo, temporalidad, tipo y escala) actúa sobre el gráfico seleccionado, marcado con borde azul. Los indicadores y las medias móviles se aplican a todos.';
@@ -1031,36 +1080,26 @@
     document.addEventListener('mousedown', (e) => { if (!list.classList.contains('hidden') && !e.target.closest('#' + listId) && e.target !== btn) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   }
-  // «Cargar diseño»: aplica una plantilla de gráfico guardada (en Ajustes) al gráfico seleccionado o a todos los de esta ventana.
-  function buildTplMenu(list, close) {
-    list.appendChild(hh('div', 'dd-title', 'Cargar un diseño guardado'));
-    const tpls = A.cfg.templates || [];
-    if (!tpls.length) list.appendChild(hh('div', 'dd-hint', 'Todavía no tienes diseños. Deja un gráfico como te gusta y guárdalo en Ajustes → Plantillas.'));
-    tpls.forEach((t) => {
-      const r = hh('div', 'dd-row');
-      r.appendChild(hh('span', 'dd-name', t.name));
-      const b1 = hh('button', '', 'Aquí'); b1.title = 'Aplicar al gráfico seleccionado';
-      b1.onclick = () => { applyTemplate(activeView(), activeCfg(), t.data); close(); };
-      const b2 = hh('button', '', 'A todos'); b2.title = 'Aplicar a todos los gráficos de esta ventana';
-      b2.onclick = () => { A.views.forEach((v) => applyTemplate(v, v.cfg, t.data)); close(); };
-      r.append(r.firstChild, b1, b2);
-      list.appendChild(r);
-    });
-    list.appendChild(hh('div', 'dd-hint', 'El diseño cambia colores, velas, indicadores y medias; no cambia el activo ni la temporalidad.'));
-  }
   // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades, gráfico ampliado…).
   // Todas las pestañas abiertas siguen vivas: cambiar de una a otra solo muestra su grid, sin recargar nada. La que no se ve no pide datos.
   const MAXTABS = 10;
   const SHARED_CLIENT = ['templates', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer'];   // lo demás es propio de cada pestaña
   const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
   const sig = (x) => { try { return JSON.stringify(x); } catch (e) { return ''; } };
+  // Nombre de la pestaña: LISTA-PAR-TEMPORALIDAD (por ejemplo MACRO-BTCUSDT-4H)
+  function tfShort(tf) {
+    const m = /^([smhdwM]):(\d+)$/.exec(String(tf || ''));
+    if (!m) return '';
+    let n = Number(m[2]);
+    const u = m[1];
+    if (u === 'm') return n >= 60 && n % 60 === 0 ? (n / 60) + 'H' : n + 'MIN';
+    return n + ({ s: 'S', h: 'H', d: 'D', w: 'W', M: 'MES' })[u];
+  }
   function tabLabelOf(cfg) {
     const c = cfg && cfg.charts && (cfg.charts[cfg.active] || cfg.charts[0]);
-    if (!c) return 'BTCUSDT · 1h';
-    const m = /^([smhdwM]):(\d+)$/.exec(String(c.tf || ''));
-    let t = '';
-    if (m) { let n = Number(m[2]), u = m[1]; if (u === 'm' && n >= 60 && n % 60 === 0) { n /= 60; u = 'h'; } t = n + ({ s: 's', m: 'm', h: 'h', d: 'D', w: 'W', M: 'M' })[u]; }
-    return c.symbol + ' · ' + t;
+    if (!c) return 'BTCUSDT-1H';
+    const lst = (cfg.lists || []).find((l) => l.id === cfg.listActive);
+    return [lst && lst.name ? String(lst.name).toUpperCase() : '', c.symbol, tfShort(c.tf)].filter(Boolean).join('-');
   }
   const curTabLabel = () => tabLabelOf(A.cfg);
   let switching = false;
@@ -1174,7 +1213,6 @@
     try { Promise.resolve(API.setActive(A.tabId)).catch(() => {}); } catch (e) { /* ok */ }   // al abrir el programa vuelve esta pestaña
     if (window.desktopApi && window.desktopApi.overlay) document.body.classList.add('has-overlay');
     renderTabs(true);
-    setupMenu('btnTpl', 'tplList', buildTplMenu);
     if (API.onShared) API.onShared(applySharedPatch);
   }
 
@@ -1386,19 +1424,10 @@
     TVBt.init({ A, $, activeView, saveCfg, openScript: (a) => TVScriptUI.open(a.scriptId) });
     $('btnScripts').onclick = () => TVScriptUI.toggle();
     $('btnData').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'data') closeModal(); else openDataPicker(); };
-    $('syncCross').onclick = () => {
-      A.cfg.sync.cross = !A.cfg.sync.cross;
-      if (!A.cfg.sync.cross) eachView((v) => v.showCrosshairAt(null));
-      saveCfg(); markActive();
-    };
-    $('syncTime').onclick = () => {
-      A.cfg.sync.time = !A.cfg.sync.time;
-      saveCfg(); markActive();
-      if (A.cfg.sync.time && A.views.length > 1) {
-        const t = activeView().rightEdgeTime();
-        if (t !== null) { syncLockUntil = performance.now() + 200; A.views.forEach((v) => { if (v !== activeView()) v.setRightEdgeTime(t); }); }
-      }
-    };
+    // iconos también en las listas de tipo y escala
+    document.querySelectorAll('#typeButtons .tb-btn').forEach((b) => { b.innerHTML = ICONS[b.dataset.type] + '<span>' + b.textContent + '</span>'; });
+    document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.innerHTML = ICONS[b.dataset.scale] + '<span>' + b.textContent + '</span>'; });
+    $('btnSettings').innerHTML = ICONS.settings; $('btnScripts').innerHTML = ICONS.scripts;
     $('btnSettings').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'settings') closeModal(); else openSettings(); };
     $('btnIndicators').onclick = togglePanel;
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };

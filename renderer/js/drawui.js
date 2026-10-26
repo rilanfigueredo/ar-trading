@@ -570,11 +570,13 @@
       row.append(ic, el('span', 'obj-name', store.label(d)));
       // si el dibujo forma parte de una selección de varios, el ojo y el candado actúan sobre todos los seleccionados
       const grp = () => (store.isSelected(sym, d.id) && selIds().length > 1 ? selIds() : [d.id]);
-      mkBtn(row, d.hidden ? 'eyeoff' : 'eye', d.hidden ? 'Mostrar' : 'Ocultar', () => store.patchMany(sym, grp(), { hidden: !d.hidden }));
-      mkBtn(row, d.locked ? 'lock' : 'unlock', d.locked ? 'Desbloquear' : 'Bloquear', () => store.patchMany(sym, grp(), { locked: !d.locked }));
-      if (fexists(d.folder)) mkBtn(row, 'out', 'Sacar de la carpeta', () => store.moveToFolder(sym, [d.id], null));
-      mkBtn(row, 'copy', 'Duplicar', () => store.duplicate(sym, d.id, shiftFn()));
-      mkBtn(row, 'trash', 'Eliminar', () => { if (!store.isLocked(sym, d)) store.remove(sym, d.id); });
+      const gAny = (f) => grp().some((id) => { const x = store.get(sym, id); return x && f(x); });
+      const gHide = !gAny((x) => !x.hidden), gLock = !gAny((x) => !x.locked);   // true = todos ya ocultos / bloqueados
+      mkBtn(row, gHide ? 'eyeoff' : 'eye', gHide ? 'Mostrar' : 'Ocultar', () => store.patchMany(sym, grp(), { hidden: !gHide }));
+      mkBtn(row, gLock ? 'lock' : 'unlock', gLock ? 'Desbloquear' : 'Bloquear', () => store.patchMany(sym, grp(), { locked: !gLock }));
+      if (fexists(d.folder)) mkBtn(row, 'out', 'Sacar de la carpeta', () => store.moveToFolder(sym, grp(), null));
+      mkBtn(row, 'copy', 'Duplicar', () => store.duplicateMany(sym, grp(), shiftFn()));
+      mkBtn(row, 'trash', 'Eliminar', () => { const ok = unlocked(sym, grp()); if (ok.length) store.removeMany(sym, ok); });
       row.onmousedown = (e) => { if (e.shiftKey) e.preventDefault(); };   // evita que Shift+clic seleccione texto
       row.onclick = (e) => {
         if (e.shiftKey) {

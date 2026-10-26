@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.22.5
+AR_TRADING - VERSION 0.22.6
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.6 - BARRA MAS LIMPIA, NOMBRES DE PESTAÑA Y SELECCION MULTIPLE
+- Tipo de grafico, escala (Normal/Log/%), Replay, Scripts, Diseño y Ajustes ahora son iconos (el texto sale al pasar el raton).
+  Ajustes es una rueda dentada. Los desplegables tambien llevan icono en cada opcion.
+- Se quito el boton "Cargar diseño" (las plantillas siguen en Ajustes/paleta).
+- Nombre de la pestaña: LISTA-PAR-TEMPORALIDAD, por ejemplo MACRO-BTCUSDT-4H o FAVORITOS-ETHUSDT-15MIN.
+- En "Diseño", si eliges 2 o mas graficos aparecen ahi las opciones Cruz y Tiempo (ya no estan en la barra).
+- Dibujos: con varios seleccionados (Shift), borrar, duplicar, ocultar, bloquear o sacar de carpeta desde CUALQUIERA de ellos
+  actua sobre todos los seleccionados, como si fueran uno solo.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.5 - PESTAÑAS VIVAS Y ZOOM CON LA RUEDA
 - Cambiar de pestaña ya NO recarga el programa: todas las pestañas abiertas siguen "vivas" y solo se muestra la que eliges

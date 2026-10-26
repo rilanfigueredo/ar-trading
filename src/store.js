@@ -123,21 +123,25 @@ function create(dir) {
   }
 
   // v0.22: pestañas. Texto corto de cada una ("BTCUSDT · 1h") y cuál estaba abierta al cerrar el programa.
-  const TF_UNIT = { s: 's', m: 'm', h: 'h', d: 'D', w: 'W', M: 'M' };
   function tfLabel(tf) {
     const m = /^([smhdwM]):(\d+)$/.exec(String(tf || ''));
     if (!m) return '';
-    let n = Number(m[2]), u = m[1];
-    if (u === 'm' && n >= 60 && n % 60 === 0) { n /= 60; u = 'h'; }
-    return n + TF_UNIT[u];
+    const n = Number(m[2]), u = m[1];
+    if (u === 'm') return n >= 60 && n % 60 === 0 ? (n / 60) + 'H' : n + 'MIN';
+    return n + ({ s: 'S', h: 'H', d: 'D', w: 'W', M: 'MES' })[u];
   }
+  // Nombre de cada pestaña: LISTA-PAR-TEMPORALIDAD (la lista es la que esa pestaña tiene elegida)
   function tabs() {
     const s = readShared();
     return listWindows().map((w) => {
       let c = readJson(winFile(w.id));
       if (!c && w.id === 'w1') c = pick(s, WINDOW_KEYS);
       const ch = c && Array.isArray(c.charts) ? c.charts[Number(c.active) || 0] || c.charts[0] : null;
-      return { id: w.id, label: ch ? `${ch.symbol || 'BTCUSDT'} · ${tfLabel(ch.tf)}` : 'BTCUSDT · 1h' };
+      let act = c ? c.listActive : undefined;
+      if (act === undefined && w.id === 'w1') act = s.listActive;
+      const lst = (Array.isArray(s.lists) ? s.lists : []).find((l) => l && l.id === act);
+      const parts = [lst && lst.name ? String(lst.name).toUpperCase() : '', ch ? (ch.symbol || 'BTCUSDT') : 'BTCUSDT', ch ? tfLabel(ch.tf) : '1H'];
+      return { id: w.id, label: parts.filter(Boolean).join('-') };
     });
   }
   function getActive() {
