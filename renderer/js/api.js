@@ -12,7 +12,8 @@
       else if (!desktop) { const x = new XMLHttpRequest(); x.open('GET', '/api/window/active', false); x.send(); q = (JSON.parse(x.responseText) || {}).id || 'w1'; }
     } catch (e) { q = 'w1'; }
   }
-  const WIN = /^w([1-9]|10)$/.test(q || '') ? q : 'w1';
+  let WIN = /^w([1-9]|10)$/.test(q || '') ? q : 'w1';        // v0.22.5: cambia al pasar de una pestaña a otra (sin recargar la página)
+  const okId = (id) => (/^w([1-9]|10)$/.test(id || '') ? id : WIN);
   const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('artrading-shared') : null;   // modo navegador: avisos entre pestañas
 
   async function http(path, opts) {
@@ -30,10 +31,11 @@
         testConnection: () => desktop.testConnection(),
         symbols: (ex) => desktop.symbols({ exchange: ex || 'binance' }),
         tickers: (ex, list) => desktop.tickers({ exchange: ex || 'binance', symbols: list }),
-        windowId: WIN,
-        getConfig: () => desktop.getConfig(WIN),
-        setConfig: (c) => desktop.setConfig(WIN, c),
-        setConfigNow: (c) => { try { desktop.setConfigSync(WIN, c); } catch (e) { /* ya cerrada */ } },
+        get windowId() { return WIN; },
+        setWindow: (id) => { WIN = okId(id); },
+        getConfig: (id) => desktop.getConfig(okId(id)),
+        setConfig: (c, id) => desktop.setConfig(okId(id), c),
+        setConfigNow: (c, id) => { try { desktop.setConfigSync(okId(id), c); } catch (e) { /* ya cerrada */ } },
         listTabs: () => desktop.listTabs(),
         setActive: (id) => desktop.setActive(id),
         openWindow: () => desktop.openWindow(),
@@ -47,12 +49,13 @@
         testConnection: () => http('/api/testconnection'),
         symbols: (ex) => http('/api/symbols?exchange=' + (ex || 'binance')),
         tickers: (ex, list) => http('/api/tickers?exchange=' + (ex || 'binance') + '&symbols=' + encodeURIComponent(list.join(','))),
-        windowId: WIN,
-        getConfig: () => http('/api/config?w=' + WIN),
-        setConfig: (c) => http('/api/config?w=' + WIN, {
+        get windowId() { return WIN; },
+        setWindow: (id) => { WIN = okId(id); },
+        getConfig: (id) => http('/api/config?w=' + okId(id)),
+        setConfig: (c, id) => { const w = okId(id); return http('/api/config?w=' + w, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c),
-        }).then((r) => { if (bc && r && r.changed && Object.keys(r.changed).length) bc.postMessage({ from: WIN, patch: r.changed }); return r; }),
-        setConfigNow: (c) => { try { navigator.sendBeacon('/api/config?w=' + WIN, new Blob([JSON.stringify(c)], { type: 'text/plain' })); } catch (e) { /* ya cerrada */ } },
+        }).then((r) => { if (bc && r && r.changed && Object.keys(r.changed).length) bc.postMessage({ from: w, patch: r.changed }); return r; }); },
+        setConfigNow: (c, id) => { try { navigator.sendBeacon('/api/config?w=' + okId(id), new Blob([JSON.stringify(c)], { type: 'text/plain' })); } catch (e) { /* ya cerrada */ } },
         listTabs: () => http('/api/tabs'),
         setActive: (id) => http('/api/window/active?w=' + id, { method: 'POST' }),
         openWindow: () => http('/api/window/new', { method: 'POST' }),

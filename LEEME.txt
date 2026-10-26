@@ -1,8 +1,19 @@
-AR_TRADING - VERSION 0.22.4
+AR_TRADING - VERSION 0.22.5
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.5 - PESTAÑAS VIVAS Y ZOOM CON LA RUEDA
+- Cambiar de pestaña ya NO recarga el programa: todas las pestañas abiertas siguen "vivas" y solo se muestra la que eliges
+  (el cambio es casi instantaneo). Cada pestaña conserva su grafico ampliado, su zoom y su posicion; el grafico ampliado
+  tambien se recuerda al cerrar y abrir el programa. Las pestañas que no se ven no piden datos hasta que vuelves a ellas.
+  Lo compartido (plantillas, listas, scripts, tema...) se pasa de una a otra al cambiar. La primera vez que abres una pestaña
+  guardada tarda un momento en cargar.
+- Rueda del raton sobre un grafico nuevo: el zoom es solo horizontal (se expande o contrae a izquierda y derecha) desde la primera
+  vuelta; el rango de precios se deja como esta (antes se reajustaba solo y parecia ir "hacia el centro" hasta que se usaba la rueda
+  en la barra de precios). El boton "Auto" devuelve el ajuste automatico del precio.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.4 - SWINGS (ejemplo de script) Y MARCAS EN LOS SCRIPTS
 - Nuevo ejemplo en Scripts > Ejemplos: "Swings (3 velas + barrido + ruptura)". Reglas:

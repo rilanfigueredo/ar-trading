@@ -27,17 +27,17 @@ with sync_playwright() as p:
     t1b = ev("__tv.cfg.tfs.slice()")
     assert 'm:45' not in t1b and 'm:1' not in t1b, t1b       # la pestaña 1 no cambió con lo de la 2
     # pantalla completa
-    assert pg.locator('.fs-btn').count() == 1 and pg.locator('.fs-btn').is_visible()
-    cam = pg.locator('.cam-btn').bounding_box(); fs = pg.locator('.fs-btn').bounding_box()
+    assert pg.locator('#grid:not(.tab-off) .fs-btn').count() == 1 and pg.locator('#grid:not(.tab-off) .fs-btn').is_visible()
+    cam = pg.locator('#grid:not(.tab-off) .cam-btn').bounding_box(); fs = pg.locator('#grid:not(.tab-off) .fs-btn').bounding_box()
     print('cam', cam, 'fs', fs); assert fs['y'] > cam['y'] + cam['height'] - 1 and abs(fs['x'] - cam['x']) < 2
-    pg.click('.fs-btn'); pg.wait_for_timeout(600)
+    pg.click('#grid:not(.tab-off) .fs-btn'); pg.wait_for_timeout(600)
     on = ev("!!document.fullscreenElement"); print('pantalla completa', on)
     if on:
         vis = ev("['toolbar','drawBar','rightBar'].map(i=>getComputedStyle(document.getElementById(i)).display)")
         print('barras en pantalla completa', vis); assert vis == ['none', 'none', 'none'] and pg.locator('#tabBar').is_visible()
-        assert ev("document.querySelectorAll('#tv-attr-logo').length") == 0 and pg.locator('.brand-mark').first.is_visible()
-        assert pg.locator('.fs-btn').inner_text() == '⤓'
+        assert ev("document.querySelectorAll('#tv-attr-logo').length") == 0 and pg.locator('#grid:not(.tab-off) .brand-mark').first.is_visible()
+        assert pg.locator('#grid:not(.tab-off) .fs-btn').inner_text() == '⤓'
         pg.screenshot(path=f'{OUT}/v222_full.png')
-        pg.click('.fs-btn'); pg.wait_for_timeout(500); assert not ev("!!document.fullscreenElement")
+        pg.click('#grid:not(.tab-off) .fs-btn'); pg.wait_for_timeout(500); assert not ev("!!document.fullscreenElement")
         assert ev("getComputedStyle(document.getElementById('toolbar')).display") != 'none'
     print('ERRORES', errs); b.close()

@@ -1078,6 +1078,7 @@
       }
     }
     async function pollVol() {
+      if (s.suspended) return;
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;
       const token = s.token;
@@ -1169,7 +1170,7 @@
       return t;
     }
     async function pollTradeInfo() {
-      if (!trOn() || s.rp || s.destroyed || !API.tradeStatus) return;
+      if (!trOn() || s.rp || s.destroyed || s.suspended || !API.tradeStatus) return;
       try { s.trInfo = await API.tradeStatus(); } catch (e) { s.trInfo = null; return; }
       if (!s.loading && s.bars.length) {
         const bad = s.trInfo && (s.trInfo.errors.length || (s.trInfo.live && s.trInfo.live.mode === 'rest'));
@@ -1310,7 +1311,7 @@
     }
 
     async function poll() {
-      if (s.rp) return;
+      if (s.rp || s.suspended) return;
       if (tfNow().kind === 'vol') return pollVol();
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;
@@ -1379,7 +1380,20 @@
       const w = priceAxisWidth();
       return !!w && e.clientX >= chartEl.getBoundingClientRect().right - w;
     }
+    // Rueda sobre el gráfico (no sobre el eje): el zoom es solo horizontal (se expande o contrae a izquierda y derecha).
+    // Con la escala automática activada, el precio se reajustaba en cada vuelta y el zoom parecía ir "hacia el centro";
+    // por eso, al empezar el zoom el rango de precios se deja como está (igual que tras mover el eje). El botón «Auto» lo devuelve.
+    function freezePriceOnWheel(e) {
+      if (!s.series || e.ctrlKey) return;
+      const hit = paneAt(e.clientY);
+      if (!hit) return;
+      try {
+        const ps = hit.ser.priceScale();
+        if (ps.options().autoScale && ps.getVisibleRange()) ps.applyOptions({ autoScale: false });
+      } catch (err) { /* sin escala todavía */ }
+    }
     chartEl.addEventListener('wheel', (e) => {
+      if (s.series && !overAxis(e)) { freezePriceOnWheel(e); return; }
       if (!overAxis(e) || !s.series) return;
       const hit = paneAt(e.clientY);
       if (!hit) return;
@@ -1694,6 +1708,8 @@
         ps.setVisibleRange({ from: priceInternal(z.prange.from, z.log), to: priceInternal(z.prange.to, z.log) });
       },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
+      // Pestaña en segundo plano: el gráfico sigue vivo pero no pide datos; al volver se pone al día.
+      setSuspended(on) { s.suspended = !!on; if (!on && !s.destroyed && s.bars.length) { try { poll(); } catch (e) { /* ok */ } } },
       setFullscreen(on) { fsBtn.textContent = on ? '⤓' : '⛶'; fsBtn.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (Esc para salir)'; fsBtn.classList.toggle('on', !!on); },
       setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
       applyTheme() { applyLook(); if (s.scr) s.scr.update(); },

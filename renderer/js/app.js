@@ -115,20 +115,24 @@
     return out;
   }
 
-  const A = { cfg: defaultConfig(), views: [], symbolsBy: {}, max: -1 };
+  const A = { cfg: defaultConfig(), views: [], symbolsBy: {}, max: -1, tabId: API.windowId || 'w1', gridEl: null };
   const $ = (id) => document.getElementById(id);
-  let saveTimer = null;
-  function saveCfg() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { saveTimer = null; API.setConfig(A.cfg).catch(() => {}); }, 400);
+  // v0.22.5: pestañas vivas. Cada pestaña (w1…w10) tiene su configuración, sus gráficos y su grid; solo una se ve a la vez.
+  const tabsState = new Map();     // id -> { id, cfg, views, gridEl, theme, tz, scriptsSig }
+  const saveTimers = new Map();    // id -> { timer, cfg }  (guardado pendiente de cada pestaña)
+  function saveTab(id, cfg) {
+    const old = saveTimers.get(id); if (old) clearTimeout(old.timer);
+    const e = { cfg, timer: setTimeout(() => { saveTimers.delete(id); API.setConfig(cfg, id).catch(() => {}); }, 400) };
+    saveTimers.set(id, e);
   }
-  // Al cerrar la ventana no se pierde el último cambio (si había uno esperando para guardarse)
-  function flushOnUnload() {
-    if (!saveTimer) return;
-    clearTimeout(saveTimer); saveTimer = null;
-    try { API.setConfigNow(A.cfg); } catch (e) { /* ok */ }
+  const saveCfg = () => saveTab(A.tabId, A.cfg);
+  function flushTab(id, now) {
+    const e = saveTimers.get(id); if (!e) return;
+    clearTimeout(e.timer); saveTimers.delete(id);
+    try { if (now) API.setConfigNow(e.cfg, id); else API.setConfig(e.cfg, id).catch(() => {}); } catch (err) { /* ok */ }
   }
-  window.addEventListener('beforeunload', flushOnUnload);
+  // Al cerrar la ventana no se pierde el último cambio de ninguna pestaña
+  window.addEventListener('beforeunload', () => { [...saveTimers.keys()].forEach((id) => flushTab(id, true)); });
   const activeView = () => A.views[A.cfg.active] || A.views[0];
   const activeCfg = () => A.cfg.charts[A.cfg.active] || A.cfg.charts[0];
 
@@ -211,6 +215,13 @@
     },
   };
 
+  // Los avisos de gráficos que están en una pestaña oculta no deben tocar la pestaña que se ve.
+  Object.keys(G).forEach((k) => {
+    const f = G[k];
+    if (typeof f !== 'function' || k === 'cfg' || k === 'save' || k === 'scriptLib') return;
+    G[k] = function (view) { if (view && typeof view === 'object' && view.host && view.tab !== undefined && view.tab !== A.tabId) return undefined; return f.apply(this, arguments); };
+  });
+
   // ---------- Estado visible ----------
   function renderStatus() {
     const v = activeView();
@@ -222,11 +233,12 @@
   }
 
   // ---------- Diseño ----------
+  const LAYOUT_OF = (cfg) => LAYOUTS[cfg.layout] || LAYOUTS['1'];
   function applyLayout() {
-    A.max = -1;
-    const def = LAYOUTS[A.cfg.layout] || LAYOUTS['1'];
-    const grid = $('grid');
-    grid.className = 'layout-' + A.cfg.layout + (def.n > 1 ? ' multi' : '');
+    const def = LAYOUT_OF(A.cfg);
+    A.max = def.n > 1 && Number.isInteger(A.cfg.max) && A.cfg.max >= 0 && A.cfg.max < def.n ? A.cfg.max : -1;
+    const grid = A.gridEl || $('grid');
+    grid.className = 'layout-' + A.cfg.layout + (def.n > 1 ? ' multi' : '') + (grid.classList.contains('tab-off') ? ' tab-off' : '');
     while (A.views.length > def.n) {
       const v = A.views.pop();
       v.destroy();
@@ -238,6 +250,7 @@
       cell.className = 'cell';
       grid.appendChild(cell);
       const v = window.TVView.create(cell, A.cfg.charts[i], G, i);
+      v.tab = A.tabId;
       A.views.push(v); if (document.fullscreenElement && v.setFullscreen) v.setFullscreen(true);
       v.load();
     }
@@ -251,18 +264,21 @@
   }
   // Ampliar un gráfico a pantalla completa (y volver al diseño).
   function applyMax() {
-    $('grid').classList.toggle('has-max', A.max >= 0);
+    (A.gridEl || $('grid')).classList.toggle('has-max', A.max >= 0);
     A.views.forEach((v, k) => { v.host.classList.toggle('maxed', k === A.max); v.setMaximized(k === A.max); });
   }
   function toggleMax(i) {
     if (A.views.length < 2) return;
     A.max = A.max === i ? -1 : i;
+    A.cfg.max = A.max;               // cada pestaña recuerda cuál gráfico tiene ampliado
     if (A.max >= 0) setActive(i);
     applyMax();
+    saveCfg();
   }
   function setLayout(id) {
     if (!LAYOUTS[id]) return;
     A.cfg.layout = id;
+    A.cfg.max = -1;
     applyLayout();
   }
   function setActive(i) {
@@ -998,7 +1014,6 @@
   }
 
   // ---------- Ventanas y diseños (v0.22) ----------
-  const WIN = API.windowId || 'w1';
   const winNum = (id) => Number(String(id).slice(1));
   const hh = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   function setupMenu(btnId, listId, build) {
@@ -1033,52 +1048,91 @@
     });
     list.appendChild(hh('div', 'dd-hint', 'El diseño cambia colores, velas, indicadores y medias; no cambia el activo ni la temporalidad.'));
   }
-  // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades…).
-  // Cambiar de pestaña guarda esta y recarga la página con la otra; solo la pestaña abierta pide datos.
+  // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades, gráfico ampliado…).
+  // Todas las pestañas abiertas siguen vivas: cambiar de una a otra solo muestra su grid, sin recargar nada. La que no se ve no pide datos.
   const MAXTABS = 10;
-  function goTab(id) {
-    if (id === WIN) return;
-    clearTimeout(saveTimer); saveTimer = null;
-    try { API.setConfigNow(A.cfg); } catch (e) { /* ok */ }
-    Promise.resolve(API.setActive(id)).catch(() => {}).then(() => {
-      const u = new URL(location.href); u.searchParams.set('w', id); location.href = u.toString();
-    });
-  }
-  function curTabLabel() {
-    const c = A.cfg.charts && (A.cfg.charts[A.cfg.active] || A.cfg.charts[0]);
+  const SHARED_CLIENT = ['templates', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer'];   // lo demás es propio de cada pestaña
+  const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
+  const sig = (x) => { try { return JSON.stringify(x); } catch (e) { return ''; } };
+  function tabLabelOf(cfg) {
+    const c = cfg && cfg.charts && (cfg.charts[cfg.active] || cfg.charts[0]);
     if (!c) return 'BTCUSDT · 1h';
     const m = /^([smhdwM]):(\d+)$/.exec(String(c.tf || ''));
     let t = '';
     if (m) { let n = Number(m[2]), u = m[1]; if (u === 'm' && n >= 60 && n % 60 === 0) { n /= 60; u = 'h'; } t = n + ({ s: 's', m: 'm', h: 'h', d: 'D', w: 'W', M: 'M' })[u]; }
     return c.symbol + ' · ' + t;
   }
+  const curTabLabel = () => tabLabelOf(A.cfg);
+  let switching = false;
+  async function switchTab(id) {
+    if (id === A.tabId || switching) return;
+    switching = true;
+    try {
+      closeModal();
+      const cur = tabsState.get(A.tabId);
+      flushTab(A.tabId, false);                       // la pestaña que se deja queda guardada
+      let t = tabsState.get(id);
+      if (!t) {                                       // primera vez en esta pestaña: se carga su configuración y se crea su grid
+        let saved = null;
+        try { saved = await API.getConfig(id); } catch (e) { /* valores por defecto */ }
+        const cfg = migrate(saved);
+        cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
+        (cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
+        const gridEl = document.createElement('div');
+        gridEl.id = 'grid'; gridEl.className = 'layout-1 tab-off';
+        $('gridStack').appendChild(gridEl);
+        t = { id, cfg, views: [], gridEl, theme: null, tz: null, scriptsSig: null };
+        tabsState.set(id, t);
+      }
+      // lo compartido (plantillas, listas, scripts, tema…) pasa de la pestaña que se deja a la que se abre
+      if (cur) SHARED_CLIENT.forEach((k) => { if (cur.cfg[k] !== undefined) t.cfg[k] = cur.cfg[k]; });
+      if (cur) { cur.views.forEach((v) => v.setSuspended(true)); cur.gridEl.classList.add('tab-off'); }
+      A.tabId = id; API.setWindow(id);
+      A.cfg = t.cfg; A.views = t.views; A.gridEl = t.gridEl;
+      t.gridEl.classList.remove('tab-off');
+      if (!t.views.length) {
+        applyLayout();
+        t.theme = A.cfg.theme; t.tz = A.cfg.tz; t.scriptsSig = sig(A.cfg.scripts);
+      } else {
+        A.max = Number.isInteger(A.cfg.max) && A.cfg.max >= 0 && A.cfg.max < t.views.length ? A.cfg.max : -1;
+        applyMax();
+        if (t.theme !== A.cfg.theme) { applyTheme(); t.theme = A.cfg.theme; }
+        if (t.tz !== A.cfg.tz) { eachView((v) => v.applyTz()); t.tz = A.cfg.tz; }
+        if (t.scriptsSig !== sig(A.cfg.scripts)) { eachView((v) => v.refreshScripts && v.refreshScripts(true)); t.scriptsSig = sig(A.cfg.scripts); }
+        eachView((v) => { v.applyTimer(); if (v.draw) v.draw.repaint(); v.setSuspended(false); });
+        markActive(); renderStatus();
+      }
+      renderTfButtons();
+      if (!$('panel').classList.contains('hidden')) renderPanel();
+      if (window.TVBt) TVBt.render();
+      if (window.TVWatch) window.TVWatch.refresh();
+      if (window.TVDrawUI) window.TVDrawUI.refresh();
+      try { const u = new URL(location.href); u.searchParams.set('w', id); history.replaceState(null, '', u.toString()); } catch (e) { /* ok */ }
+      Promise.resolve(API.setActive(id)).catch(() => {});
+      renderTabs(true);
+    } finally { switching = false; }
+  }
   let tabsCache = [];
   async function renderTabs(reload) {
     const bar = $('tabBar'); if (!bar) return;
     if (reload || !tabsCache.length) { try { tabsCache = await API.listTabs(); } catch (e) { /* se usa lo último */ } }
-    let tabs = tabsCache.slice();
-    if (!tabs.some((t) => t.id === WIN)) tabs.push({ id: WIN, label: curTabLabel() });
+    const tabs = tabsCache.map((x) => ({ id: x.id, label: x.label }));
+    if (!tabs.some((t) => t.id === A.tabId)) tabs.push({ id: A.tabId, label: curTabLabel() });
     tabs.sort((x, y) => winNum(x.id) - winNum(y.id));
     bar.innerHTML = '';
     tabs.forEach((t) => {
-      const el = hh('div', 'tab' + (t.id === WIN ? ' cur' : ''));
-      const label = t.id === WIN ? curTabLabel() : t.label;
+      const live = tabsState.get(t.id);
+      const label = t.id === A.tabId ? curTabLabel() : (live ? tabLabelOf(live.cfg) : t.label);
+      const el = hh('div', 'tab' + (t.id === A.tabId ? ' cur' : ''));
       const nm = hh('span', 'tab-name', label); el.title = label;
       el.appendChild(nm);
-      el.onclick = () => goTab(t.id);
+      el.onclick = () => switchTab(t.id);
       if (tabs.length > 1) {
         const x = hh('button', 'tab-x', '×'); x.title = 'Cerrar esta pestaña (se borra su configuración)';
         x.onclick = async (ev) => {
           ev.stopPropagation();
           if (!window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.')) return;
-          try { await API.closeWindow(t.id); } catch (e) { /* ok */ }
-          if (t.id === WIN) {
-            const rest = tabs.filter((o) => o.id !== t.id);
-            const nxt = rest.find((o) => winNum(o.id) > winNum(t.id)) || rest[rest.length - 1];
-            clearTimeout(saveTimer); saveTimer = null; window.removeEventListener('beforeunload', flushOnUnload);
-            await Promise.resolve(API.setActive(nxt.id)).catch(() => {});
-            const u = new URL(location.href); u.searchParams.set('w', nxt.id); location.href = u.toString();
-          } else renderTabs(true);
+          await closeTab(t.id, tabs);
         };
         el.appendChild(x);
       }
@@ -1088,9 +1142,22 @@
     nb.disabled = tabs.length >= MAXTABS;
     nb.onclick = async () => {
       nb.disabled = true;
-      try { const r = await API.openWindow(); if (r && r.ok) goTab(r.id); else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; } } catch (e) { nb.disabled = false; }
+      try { const r = await API.openWindow(); if (r && r.ok) await switchTab(r.id); else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; } } catch (e) { nb.disabled = false; }
     };
     bar.appendChild(nb);
+  }
+  async function closeTab(id, tabs) {
+    if (id === A.tabId) {
+      const rest = tabs.filter((o) => o.id !== id);
+      const nxt = rest.find((o) => winNum(o.id) > winNum(id)) || rest[rest.length - 1];
+      if (!nxt) return;
+      await switchTab(nxt.id);
+    }
+    const t = tabsState.get(id);
+    const e = saveTimers.get(id); if (e) { clearTimeout(e.timer); saveTimers.delete(id); }
+    if (t) { t.views.forEach((v) => { try { v.destroy(); } catch (err) { /* ok */ } }); t.gridEl.remove(); tabsState.delete(id); }
+    try { await API.closeWindow(id); } catch (err) { /* ok */ }
+    renderTabs(true);
   }
   // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
   function applySharedPatch(p) {
@@ -1104,7 +1171,7 @@
   }
   function setupWindowUi() {
     document.title = 'Ar_Trading';
-    try { Promise.resolve(API.setActive(WIN)).catch(() => {}); } catch (e) { /* ok */ }   // al abrir el programa vuelve esta pestaña
+    try { Promise.resolve(API.setActive(A.tabId)).catch(() => {}); } catch (e) { /* ok */ }   // al abrir el programa vuelve esta pestaña
     if (window.desktopApi && window.desktopApi.overlay) document.body.classList.add('has-overlay');
     renderTabs(true);
     setupMenu('btnTpl', 'tplList', buildTplMenu);
@@ -1336,7 +1403,7 @@
     $('btnIndicators').onclick = togglePanel;
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { if (!(window.TVDrawUI && window.TVDrawUI.cancelProps())) closeModal(); if (A.max >= 0) { A.max = -1; applyMax(); } }
+      if (e.key === 'Escape') { if (!(window.TVDrawUI && window.TVDrawUI.cancelProps())) closeModal(); if (A.max >= 0) { A.max = -1; A.cfg.max = -1; applyMax(); saveCfg(); } }
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.key === '[' || e.key === ']') {
@@ -1548,6 +1615,7 @@
     let saved = null;
     try { saved = await API.getConfig(); } catch (e) { /* valores por defecto */ }
     A.cfg = migrate(saved);
+    A.tabId = API.windowId || 'w1'; A.gridEl = $('grid');
     // Velas por volumen: desactivadas por ahora (ver NOTAS_VELAS_VOLUMEN.txt). Se limpian de configuraciones guardadas.
     // Velas por volumen y velas por bloque: no están disponibles; se limpian de configuraciones guardadas (v0.15/v0.16 guardaban 'b:N' y 'blk').
     const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
@@ -1560,6 +1628,7 @@
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
     applyLayout();
+    tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
     if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
     const used = new Set(['binance']);

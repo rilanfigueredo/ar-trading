@@ -480,3 +480,8 @@ body.has-overlay .tab-bar { padding-right: 150px; }
 body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #objPanel, body.fs #watchPanel { display: none !important; }
 /* Icono del programa (en lugar de la marca de TradingView) abajo a la izquierda de cada gráfico */
 .brand-mark { position: absolute; left: 10px; bottom: 36px; width: 28px; height: 28px; z-index: 3; opacity: .9; pointer-events: none; user-select: none; }
+
+/* v0.22.5: cada pestaña tiene su propio grid, todos vivos; solo se ve el de la pestaña activa (mismo tamaño, sin recargar) */
+#gridStack { flex: 1; min-width: 0; min-height: 0; position: relative; }
+#gridStack > .grid, #gridStack > #grid { position: absolute; inset: 0; }
+#gridStack > #grid.tab-off { visibility: hidden; pointer-events: none; }
