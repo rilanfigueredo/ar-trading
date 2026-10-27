@@ -30,7 +30,7 @@
           const ts = chart.timeScale();
           const width = scope.bitmapSize.width;
           ctx.save();
-          ctx.lineWidth = Math.max(1, Math.round(hpr));
+          ctx.lineWidth = Math.max(1, Math.round(hpr * (prim.width || 1)));
           ctx.font = `${Math.round(11 * vpr)}px sans-serif`;
           ctx.textAlign = 'right';
           const lastSeg = prim.segments.length - 1;
@@ -387,6 +387,7 @@
     function lineOpts(color, extra) {
       return Object.assign({ color, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceFormat: priceFormat() }, extra || {});
     }
+    const lw = (c, def) => Math.max(1, Math.min(6, Math.round(c && c.width) || def || 1));   // grosor de línea (1–6)
     const fixed01 = () => ({ priceRange: { minValue: 0, maxValue: 100 } });
     const LEVEL_KEYS = ['ob', 'mid', 'os'];
     function hexA(hex, pct) {
@@ -446,14 +447,14 @@
         struct: (c) => ({ len: c.len }),
         title: (c) => `RSI ${c.len}`,
         build(chart, c, pane, name) {
-          const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { autoscaleInfoProvider: fixed01, priceFormat: p2 }), pane);
+          const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { autoscaleInfoProvider: fixed01, priceFormat: p2, lineWidth: lw(c) }), pane);
           ser.priceScale().applyOptions(subMargins);
           const sub = { main: ser, list: [ser] };
           addLevels(sub, ser, c);
           addBand(sub, ser, name);
           return sub;
         },
-        style(sub, c) { sub.main.applyOptions({ color: c.color }); applyLevels(sub, c); },
+        style(sub, c) { sub.main.applyOptions({ color: c.color, lineWidth: lw(c) }); applyLevels(sub, c); },
         compute(c, d) { return { main: L.rsi(d.closes, c.len) }; },
         data(vals) { return { main: pointsFrom(vals.main) }; },
         text(c, get, fmt) { return [{ color: c.color, t: fmt(get('main'), 2) }]; },
@@ -462,16 +463,16 @@
         struct: (c) => ({ k: c.k, sm: c.sm, d: c.d }),
         title: (c) => `Estocástico ${c.k} ${c.sm} ${c.d}`,
         build(chart, c, pane, name) {
-          const k = chart.addSeries(LC.LineSeries, lineOpts(c.kColor, { autoscaleInfoProvider: fixed01, priceFormat: p2 }), pane);
+          const k = chart.addSeries(LC.LineSeries, lineOpts(c.kColor, { autoscaleInfoProvider: fixed01, priceFormat: p2, lineWidth: lw(c) }), pane);
           const p = k.getPane().paneIndex();
-          const d = chart.addSeries(LC.LineSeries, lineOpts(c.dColor, { autoscaleInfoProvider: fixed01, priceFormat: p2 }), p);
+          const d = chart.addSeries(LC.LineSeries, lineOpts(c.dColor, { autoscaleInfoProvider: fixed01, priceFormat: p2, lineWidth: lw(c) }), p);
           k.priceScale().applyOptions(subMargins);
           const sub = { main: k, k, d, list: [k, d] };
           addLevels(sub, k, c);
           addBand(sub, k, name);
           return sub;
         },
-        style(sub, c) { sub.k.applyOptions({ color: c.kColor }); sub.d.applyOptions({ color: c.dColor }); applyLevels(sub, c); },
+        style(sub, c) { sub.k.applyOptions({ color: c.kColor, lineWidth: lw(c) }); sub.d.applyOptions({ color: c.dColor, lineWidth: lw(c) }); applyLevels(sub, c); },
         compute(c, dd) { const r = L.stoch(dd.highs, dd.lows, dd.closes, c.k, c.sm, c.d); return { k: r.k, d: r.d }; },
         data(vals) { return { k: pointsFrom(vals.k), d: pointsFrom(vals.d) }; },
         text(c, get, fmt) { return [{ color: c.kColor, t: fmt(get('k'), 2) }, { color: c.dColor, t: fmt(get('d'), 2) }]; },
@@ -499,11 +500,11 @@
         struct: () => ({}),
         title: () => 'Delta acumulado (CVD)' + (trHl() ? ' · solo operaciones del filtro' : ''),
         build(chart, c, pane) {
-          const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { priceFormat: { type: 'volume' }, lineWidth: 2 }), pane);
+          const ser = chart.addSeries(LC.LineSeries, lineOpts(c.color, { priceFormat: { type: 'volume' }, lineWidth: lw(c, 2) }), pane);
           ser.priceScale().applyOptions(subMargins);
           return { main: ser, list: [ser] };
         },
-        style(sub, c) { sub.main.applyOptions({ color: c.color }); },
+        style(sub, c) { sub.main.applyOptions({ color: c.color, lineWidth: lw(c, 2) }); },
         compute(c, d) { return { main: L.cumDelta(d.bars.map(hlBar)) }; },
         data(vals) { return { main: pointsFrom(vals.main) }; },
         text(c, get, fmt) {
@@ -699,6 +700,7 @@
       } else {
         if (!s.pivot) { s.pivot = makePivotPrimitive(); s.series.attachPrimitive(s.pivot); }
         const r = L.pivots(s.bars, tf, pc.type, pc.period, s.reachedStart);
+        s.pivot.width = Math.max(1, Math.min(6, Math.round(pc.width) || 1));
         s.pivot.setSegments(r.ok ? r.segments : [], s.bars.length - 1, s.bars.length ? s.bars[s.bars.length - 1].time : undefined);
         s.pivotNote = r.ok ? '' : 'Pivotes no disponibles: ' + r.reason.toLowerCase();
       }

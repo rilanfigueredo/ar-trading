@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.22.6
+AR_TRADING - VERSION 0.22.7
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.7 - GROSOR DE LINEAS Y MEDIDAS EN ESCALA LOGARITMICA
+- Indicadores: nuevo "Grosor de la linea" (1 a 6) en RSI, Estocastico (%K y %D), Delta acumulado (CVD) y Pivotes.
+- Medidas para escala logaritmica (ideal para las Eras): el ALTO se mide en DECADAS (1 decada = el precio se multiplica por 10)
+  y el ANCHO en años. Asi el alto de una figura es proporcional a lo que se ve en el grafico log y se pueden comparar figuras.
+  * Rectangulo: abre sus propiedades y activa "Mostrar ancho (años) y alto (decadas)"; escribe dentro del cuadro, por ejemplo
+    "4,00 años × 0,350 déc (×2,24) · alto/ancho 0,088". Se queda guardado con el dibujo y se puede editar arrastrando.
+  * Regla: ahora agrega una tercera linea "Log: años × déc (×veces)".
+  * "alto/ancho" = decadas por año; si dos figuras tienen el mismo ancho, compara directamente sus decadas.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.6 - BARRA MAS LIMPIA, NOMBRES DE PESTAÑA Y SELECCION MULTIPLE
 - Tipo de grafico, escala (Normal/Log/%), Replay, Scripts, Diseño y Ajustes ahora son iconos (el texto sale al pasar el raton).

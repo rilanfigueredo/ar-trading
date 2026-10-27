@@ -42,11 +42,11 @@
   }
   function defaultInd() {
     return {
-      rsi: Object.assign({ on: false, len: 14, color: '#7e57c2' }, levelDefaults('#7e57c2')),
-      stoch: Object.assign({ on: false, k: 14, sm: 1, d: 3, kColor: '#2962ff', dColor: '#ff6d00' }, levelDefaults('#2962ff'), { ob: 80, os: 20 }),
+      rsi: Object.assign({ on: false, len: 14, color: '#7e57c2', width: 1 }, levelDefaults('#7e57c2')),
+      stoch: Object.assign({ on: false, k: 14, sm: 1, d: 3, kColor: '#2962ff', dColor: '#ff6d00', width: 1 }, levelDefaults('#2962ff'), { ob: 80, os: 20 }),
       delta: { on: false, upColor: '#26a69a', downColor: '#ef5350' },
-      cvd: { on: false, color: '#ffb74d' },
-      pivots: { on: false, type: 'classic', period: 'auto' },
+      cvd: { on: false, color: '#ffb74d', width: 2 },
+      pivots: { on: false, type: 'classic', period: 'auto', width: 1 },
     };
   }
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -1315,6 +1315,7 @@
     indBlock(p, 'RSI', 'rsi', [
       { label: 'Período', prop: 'len', min: 2, max: 500 },
       { label: 'Color de la línea', prop: 'color', type: 'color' },
+      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
     ].concat(levelFields(['Sobrecompra', 'Línea central', 'Sobreventa'])), 'También puedes mover el RSI con las flechas de su panel y ajustar su escala con la rueda sobre su barra de valores.');
     indBlock(p, 'Estocástico', 'stoch', [
       { label: '%K', prop: 'k', min: 2, max: 500 },
@@ -1322,6 +1323,7 @@
       { label: '%D', prop: 'd', min: 1, max: 100 },
       { label: 'Color %K', prop: 'kColor', type: 'color' },
       { label: 'Color %D', prop: 'dColor', type: 'color' },
+      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
     ].concat(levelFields(['Banda superior', 'Banda central', 'Banda inferior'])));
 
     indBlock(p, 'Delta (compra − venta)', 'delta', [
@@ -1330,6 +1332,7 @@
     ], 'Volumen de compra agresiva menos venta agresiva de cada vela. Solo hay datos en Binance (Bybit, KuCoin y Bitstamp no entregan el volumen de compra).');
     indBlock(p, 'Delta acumulado (CVD)', 'cvd', [
       { label: 'Color de la línea', prop: 'color', type: 'color' },
+      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
     ], 'Suma del delta desde la primera vela cargada. Al cargar más historial el nivel cambia; lo que importa es la forma.');
 
     const h4b = document.createElement('h4'); h4b.textContent = 'Sobre el precio';
@@ -1337,6 +1340,7 @@
     indBlock(p, 'Pivotes', 'pivots', [
       { label: 'Tipo', prop: 'type', type: 'select', options: [['classic', 'Clásicos'], ['fib', 'Fibonacci']] },
       { label: 'Período', prop: 'period', type: 'select', options: [['auto', 'Automático'], ['day', 'Día'], ['week', 'Semana'], ['month', 'Mes']] },
+      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
     ], 'Calculados con el máximo, mínimo y cierre del período anterior. Automático: día hasta 15m, semana hasta 4h, mes en el resto.');
 
     // Medias móviles: un grupo para EMA y otro para SMA, cada uno con su interruptor.

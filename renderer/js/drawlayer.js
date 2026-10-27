@@ -180,6 +180,7 @@
       if (!d.extR) { ctx.moveTo(xr, r.y1); ctx.lineTo(xr, r.y2); }
       ctx.stroke();
       drawBoxText(ctx, d, xl, xr, r.y1, r.y2, w);
+      if (d.measure) drawMeasure(ctx, d, P, xl, xr, r.y1, r.y2, w, d.color);
       if (d.center) {
         ctx.save();
         ctx.strokeStyle = themed(d.cColor || d.color); ctx.lineWidth = d.cWidth || 1; ctx.setLineDash(D.DASHES[d.cDash] || []);
@@ -316,6 +317,22 @@
       haloText(ctx, d.text || 'Texto', P[0].x, P[0].y, env.bg());
     }
 
+    const fmtN = (v, n) => v.toLocaleString('es', { minimumFractionDigits: n, maximumFractionDigits: n });
+    // "4,0 años × 0,35 déc (×2,2)": ancho en años, alto en décadas (log10) y cuántas veces se multiplica el precio
+    function fmtLog(m) {
+      const w = m.years >= 0.5 ? `${fmtN(m.years, 2)} años` : `${fmtN(m.days, 1)} días`;
+      return `${w} × ${fmtN(m.dec, 3)} déc (×${fmtN(m.mult, 2)})`;
+    }
+    function drawMeasure(ctx, d, P, xl, xr, y1, y2, w, color) {
+      const lm = d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p) : null;
+      if (!lm) return;
+      const a = Math.max(xl, 0), b = Math.min(xr, w);
+      if (b <= a) return;
+      ctx.save();
+      ctx.setLineDash([]); ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = themed(color);
+      ctx.fillText(`${fmtLog(lm)} · alto/ancho ${fmtN(lm.ratio, 3)}`, b - 6, y2 - 4);
+      ctx.restore();
+    }
     function drawRuler(ctx, d, P, w, h) {
       const a = P[0], b = P[1];
       const p1 = d.pts[0].p, p2 = d.pts[1].p;
@@ -336,8 +353,10 @@
       const dur = G.humanDur(d.pts[1].t - d.pts[0].t);
       const l1 = `${diff >= 0 ? '+' : '-'}${env.fmtPrice(Math.abs(diff))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       const l2 = `${bars} ${bars === 1 ? 'vela' : 'velas'} · ${dur}`;
+      const lm = G.logMeasure(d.pts[0].t, d.pts[1].t, p1, p2);
+      const l3 = lm ? `Log: ${fmtLog(lm)}` : '';
       ctx.font = '12px sans-serif';
-      const bw = Math.max(measure(l1, 12, false), measure(l2, 12, false)) + 16, bh = 38;
+      const bw = Math.max(measure(l1, 12, false), measure(l2, 12, false), l3 ? measure(l3, 12, false) : 0) + 16, bh = l3 ? 53 : 38;
       let bx = (x1 + x2) / 2 - bw / 2;
       let by = up ? y1 - bh - 8 : y2 + 8;
       bx = Math.max(4, Math.min(w - bw - 4, bx));
@@ -346,7 +365,7 @@
       if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 4); else ctx.rect(bx, by, bw, bh);
       ctx.fill();
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(l1, bx + bw / 2, by + 12); ctx.fillText(l2, bx + bw / 2, by + 27);
+      ctx.fillText(l1, bx + bw / 2, by + 12); ctx.fillText(l2, bx + bw / 2, by + 27); if (l3) ctx.fillText(l3, bx + bw / 2, by + 42);
       ctx.restore();
     }
 

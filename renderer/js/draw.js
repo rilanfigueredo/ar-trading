@@ -53,7 +53,7 @@
         levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',
       };
       case 'rect': return Object.assign(base, {
-        width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
+        width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, measure: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
       }, textOpts('center'), { tV: 'center' });
       case 'text': return { color: '#2962ff', size: 14, bold: false, italic: false, text: '' };
       case 'table': return fixTable({
@@ -155,6 +155,16 @@
   // Con "log" los niveles se reparten en escala logarítmica (proporcional); si algún precio no es positivo, se usa la lineal.
   const fibPrice = (p1, p2, v, log) => (log && p1 > 0 && p2 > 0 ? Math.exp(Math.log(p2) + (Math.log(p1) - Math.log(p2)) * v) : p2 + (p1 - p2) * v);
 
+  // Medidas en unidades "de escala logarítmica": ancho en años y alto en décadas (log10 del cociente de precios).
+  // 1 década = el precio se multiplica por 10. Así el alto de una figura es proporcional a lo que se ve en un gráfico log
+  // (no depende de dónde esté ni del precio) y se puede comparar con el ancho.
+  function logMeasure(t1, t2, p1, p2) {
+    const years = Math.abs(t2 - t1) / (365.25 * 86400);
+    const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
+    if (!(lo > 0) || !(hi > 0)) return null;
+    const dec = Math.log10(hi / lo);
+    return { years, days: years * 365.25, dec, mult: hi / lo, ratio: years > 0 ? dec / years : 0 };
+  }
   function humanDur(sec) {
     sec = Math.abs(Math.round(sec));
     const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -632,7 +642,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;

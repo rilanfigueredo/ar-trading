@@ -341,7 +341,7 @@
       const tri = el('i', 'db-tri'); b.appendChild(tri);
       bar.appendChild(b);
     });
-    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo', () => selectTool('ruler'), 'tool:ruler'));
+    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo (y años × décadas para escala logarítmica)', () => selectTool('ruler'), 'tool:ruler'));
     bar.appendChild(bigBtn('zoom', 'Acercar: arrastra un recuadro sobre el gráfico para ampliar esa zona (el botón Auto vuelve a la vista normal)', () => selectTool('zoom'), 'tool:zoom'));
     const zo = bigBtn('zoomout', 'Alejar: vuelve a la vista de antes del último zoom (solo aparece cuando el gráfico tiene zoom)', () => { const v = X.activeView(); if (v) v.zoomOut(); renderBar(); }, 'tool:zoomout');
     zo.classList.add('hidden');
@@ -989,6 +989,9 @@
             field('Opacidad del relleno', rangeIn(d.fillOpacity == null ? 15 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
           }
           if (t === 'rect') {
+            body.appendChild(el('h4', '', 'Medidas (escala logarítmica)'));
+            field('Mostrar ancho (años) y alto (décadas)', checkIn(d.measure, (v) => patch({ measure: v })));
+            body.appendChild(el('p', 'hint', 'Alto en décadas: 1 década = el precio se multiplica por 10 (log10). Es la unidad que corresponde a lo que se ve en un gráfico logarítmico, así que sirve para comparar figuras. Con 2 puntos del rectángulo en tiempo y precio.'));
             body.appendChild(el('h4', '', 'Línea central'));
             field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
             const cw = el('span', 'cwrap');
