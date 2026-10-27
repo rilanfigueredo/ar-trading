@@ -1,8 +1,16 @@
-AR_TRADING - VERSION 0.22.7
+AR_TRADING - VERSION 0.22.8
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.8 - MEDIDAS CON UNIDADES DEL PROTOCOLO DE BITCOIN
+- Las medidas del Rectangulo (opcion "Mostrar ancho (eras) y alto (duplicaciones)") y de la Regla ahora usan:
+  * ANCHO en ERAS: 1 era = 210.000 bloques x 10 min = 2.100.000 min = 1458,33 dias (aprox. 3,99 años).
+  * ALTO en DUPLICACIONES: 1 = el precio se multiplica por 2 (como cada halving divide la emision a la mitad). Es la unidad natural de la escala log.
+  Ejemplo: "1,00 eras × 2,32 dup (×5,00) · alto/ancho 2,322". Una figura de 1 era de ancho que duplica el precio mide 1,00 × 1,00.
+  Si el ancho es menor a 0,05 eras se muestra en dias. Reemplaza a años/decadas de la v0.22.7.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.7 - GROSOR DE LINEAS Y MEDIDAS EN ESCALA LOGARITMICA
 - Indicadores: nuevo "Grosor de la linea" (1 a 6) en RSI, Estocastico (%K y %D), Delta acumulado (CVD) y Pivotes.

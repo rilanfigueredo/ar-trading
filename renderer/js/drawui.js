@@ -341,7 +341,7 @@
       const tri = el('i', 'db-tri'); b.appendChild(tri);
       bar.appendChild(b);
     });
-    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo (y años × décadas para escala logarítmica)', () => selectTool('ruler'), 'tool:ruler'));
+    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo (y eras × duplicaciones para escala logarítmica)', () => selectTool('ruler'), 'tool:ruler'));
     bar.appendChild(bigBtn('zoom', 'Acercar: arrastra un recuadro sobre el gráfico para ampliar esa zona (el botón Auto vuelve a la vista normal)', () => selectTool('zoom'), 'tool:zoom'));
     const zo = bigBtn('zoomout', 'Alejar: vuelve a la vista de antes del último zoom (solo aparece cuando el gráfico tiene zoom)', () => { const v = X.activeView(); if (v) v.zoomOut(); renderBar(); }, 'tool:zoomout');
     zo.classList.add('hidden');
@@ -990,8 +990,8 @@
           }
           if (t === 'rect') {
             body.appendChild(el('h4', '', 'Medidas (escala logarítmica)'));
-            field('Mostrar ancho (años) y alto (décadas)', checkIn(d.measure, (v) => patch({ measure: v })));
-            body.appendChild(el('p', 'hint', 'Alto en décadas: 1 década = el precio se multiplica por 10 (log10). Es la unidad que corresponde a lo que se ve en un gráfico logarítmico, así que sirve para comparar figuras. Con 2 puntos del rectángulo en tiempo y precio.'));
+            field('Mostrar ancho (eras) y alto (duplicaciones)', checkIn(d.measure, (v) => patch({ measure: v })));
+            body.appendChild(el('p', 'hint', 'Ancho en eras: 1 era = 210.000 bloques × 10 min = 1458,33 días. Alto en duplicaciones: 1 = el precio se multiplica por 2 (log2), la unidad natural de la escala logarítmica. Así ancho y alto se leen en la misma lógica del protocolo y se pueden comparar figuras.'));
             body.appendChild(el('h4', '', 'Línea central'));
             field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
             const cw = el('span', 'cwrap');

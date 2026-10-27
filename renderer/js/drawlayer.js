@@ -318,10 +318,10 @@
     }
 
     const fmtN = (v, n) => v.toLocaleString('es', { minimumFractionDigits: n, maximumFractionDigits: n });
-    // "4,0 años × 0,35 déc (×2,2)": ancho en años, alto en décadas (log10) y cuántas veces se multiplica el precio
+    // "1,00 eras × 2,32 dup (×5,00)": ancho en eras de Bitcoin, alto en duplicaciones del precio (log2) y cuántas veces se multiplicó
     function fmtLog(m) {
-      const w = m.years >= 0.5 ? `${fmtN(m.years, 2)} años` : `${fmtN(m.days, 1)} días`;
-      return `${w} × ${fmtN(m.dec, 3)} déc (×${fmtN(m.mult, 2)})`;
+      const w = m.eras >= 0.05 ? `${fmtN(m.eras, 2)} eras` : `${fmtN(m.days, 1)} días`;
+      return `${w} × ${fmtN(m.dup, 2)} dup (×${fmtN(m.mult, 2)})`;
     }
     function drawMeasure(ctx, d, P, xl, xr, y1, y2, w, color) {
       const lm = d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p) : null;

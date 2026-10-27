@@ -155,15 +155,17 @@
   // Con "log" los niveles se reparten en escala logarítmica (proporcional); si algún precio no es positivo, se usa la lineal.
   const fibPrice = (p1, p2, v, log) => (log && p1 > 0 && p2 > 0 ? Math.exp(Math.log(p2) + (Math.log(p1) - Math.log(p2)) * v) : p2 + (p1 - p2) * v);
 
-  // Medidas en unidades "de escala logarítmica": ancho en años y alto en décadas (log10 del cociente de precios).
-  // 1 década = el precio se multiplica por 10. Así el alto de una figura es proporcional a lo que se ve en un gráfico log
-  // (no depende de dónde esté ni del precio) y se puede comparar con el ancho.
+  // Medidas con unidades del protocolo de Bitcoin (útiles en escala logarítmica):
+  //  - ANCHO en "eras": 1 era = 210.000 bloques × 10 min = 2.100.000 min = 1458,33 días (≈ 3,99 años).
+  //  - ALTO en "duplicaciones": 1 = el precio se multiplica por 2 (log2). Igual que cada halving divide la emisión a la mitad,
+  //    una duplicación es el paso natural de la escala log. Ancho y alto quedan en la misma lógica, sin porcentajes.
+  const ERA_DAYS = 210000 * 10 / 60 / 24;   // 1458,333...
   function logMeasure(t1, t2, p1, p2) {
-    const years = Math.abs(t2 - t1) / (365.25 * 86400);
+    const days = Math.abs(t2 - t1) / 86400;
     const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
     if (!(lo > 0) || !(hi > 0)) return null;
-    const dec = Math.log10(hi / lo);
-    return { years, days: years * 365.25, dec, mult: hi / lo, ratio: years > 0 ? dec / years : 0 };
+    const dup = Math.log2(hi / lo), eras = days / ERA_DAYS;
+    return { days, eras, dup, mult: hi / lo, ratio: eras > 0 ? dup / eras : 0 };
   }
   function humanDur(sec) {
     sec = Math.abs(Math.round(sec));
