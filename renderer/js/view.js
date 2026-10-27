@@ -280,6 +280,7 @@
       chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
       chart.subscribeCrosshairMove(onCrosshair);
       chart.subscribeClick(onChartClick);
+      chart.subscribeCrosshairMove(rpPreview);
       s.chart = chart;
       if (window.TVFutureAxis) {
         s.fut = window.TVFutureAxis.create({
@@ -1311,7 +1312,7 @@
     }
 
     async function poll() {
-      if (s.rp || s.suspended) return;
+      if (s.rp || s.rpPick || s.suspended) return;
       if (tfNow().kind === 'vol') return pollVol();
       if (s.polling || !s.bars.length || s.loading) return;
       s.polling = true;
@@ -1546,7 +1547,7 @@
       if (s.rpPick) {
         rpBar.classList.remove('hidden');
         rpBar.append(el('span', 'rp-hint', 'Haz clic en la vela donde empieza la reproducción'));
-        const c = el('button', 'rp-btn', '✕'); c.title = 'Cancelar (Esc)'; c.onclick = () => rpReset(true);
+        const c = el('button', 'rp-btn', '✕'); c.title = 'Cancelar (Esc)'; c.onclick = () => (s.rp ? rpStop() : rpReset(true));
         rpBar.appendChild(c);
         return;
       }
@@ -1576,7 +1577,10 @@
     function rpReset(notify) {
       if (s.rp && s.rp.timer) clearInterval(s.rp.timer);
       const was = !!(s.rp || s.rpPick);
+      const restore = s.rpPick && !s.rp && s.pickFull && s.pickCnt;
       s.rp = null; s.rpPick = false;
+      if (restore) applyBars();
+      s.pickFull = null; s.pickCnt = 0;
       rpBar.classList.add('hidden'); rpBar.innerHTML = '';
       if (was && notify && G.onReplay) G.onReplay(view);
     }
@@ -1584,13 +1588,15 @@
       if (!s.chart || s.loading || s.bars.length < 3) { toast('Espera a que cargue el gráfico para empezar la reproducción.'); return false; }
       if (isVol()) return false;
       if (s.rp) rpPause();
+      s.pickFull = s.rp ? s.rp.full : s.bars;
       s.rpPick = true;
       rpUi();
       if (G.onReplay) G.onReplay(view);
       return true;
     }
     function rpBegin(idx) {
-      const full = s.rp ? s.rp.full : s.bars;
+      const full = s.pickFull || (s.rp ? s.rp.full : s.bars);
+      s.pickFull = null; s.pickCnt = 0;
       const k = Math.max(1, Math.min(full.length - 1, idx + 1)); // al menos una vela queda oculta
       s.rpPick = false;
       stopPolling();
@@ -1640,9 +1646,21 @@
       if (r.playing) { r.playing = false; rpUi(); }
     }
     function rpStop() { rpReset(true); return load(); }
+    // Al elegir la vela de inicio: las velas a la derecha del ratón se ocultan (vista previa)
+    function rpPreview(param) {
+      if (!s.rpPick || !s.pickFull || !param || param.logical === undefined) return;
+      const full = s.pickFull;
+      const cnt = Math.max(2, Math.min(full.length - 1, Math.round(param.logical) + 1));
+      if (cnt === s.pickCnt) return;
+      s.pickCnt = cnt;
+      // las velas a la derecha del ratón se ponen transparentes (los datos no cambian, así el zoom y el eje no se mueven)
+      const T = 'rgba(0,0,0,0)';
+      s.series.setData(full.map((b, i) => (i < cnt ? toPoint(b)
+        : Object.assign(toPoint(b), { color: T, borderColor: T, wickColor: T, lineColor: T, topColor: T, bottomColor: T }))));
+    }
     function onChartClick(param) {
       if (!s.rpPick || !param || param.logical === undefined) return;
-      const n = s.bars.length;
+      const n = (s.pickFull || s.bars).length;
       rpBegin(Math.max(0, Math.min(n - 2, Math.round(param.logical))));
     }
     function onRpKey(e) {

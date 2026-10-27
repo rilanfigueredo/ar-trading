@@ -119,7 +119,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
-- v0.22.6: botones de la barra como iconos (`ICONS`/`svg()` en app.js), sin "Cargar diseño", pestaña `LISTA-PAR-TF` (`tabLabelOf`/`tfShort` en app.js, `tfLabel` en store.js), Cruz/Tiempo dentro del modal Diseño (`toggleSyncCross/Time`), acciones del panel Objetos sobre toda la selección (`grp()` en drawui.js).
+- v0.22.6: botones de la barra como iconos (`ICONS`/`svg()` en app.js), sin "Cargar diseño", pestaña `LISTA-PAR-TF` (`tabLabelOf`/`tfShort` en app.js, `tfLabel` en store.js), Cruz/Tiempo dentro del modal Diseño (`toggleSyncCross/Time`), acciones del panel Objetos sobre toda la selección (`grp()` en drawui.js); Replay: vista previa al elegir la vela (`rpPreview` en view.js, velas posteriores transparentes por punto, sin cambiar datos).
 - v0.22.5: pestañas vivas (cambio instantáneo, gráfico ampliado por pestaña) y rueda con zoom solo horizontal. Pruebas: `tools/prueba_v225.py`.
 - v0.22.4: ejemplo de script «Swings» (3 reglas del usuario) y funciones `marker`/`segment` para scripts. Pruebas: `test/swings.test.js`, `tools/prueba_v224.py`.
 - v0.22.3: pantalla completa oculta todas las barras; sin barra de título (controles en la barra de pestañas); icono propio en lugar de la marca TradingView.

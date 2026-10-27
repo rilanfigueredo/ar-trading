@@ -12,6 +12,8 @@ NOVEDADES DE LA v0.22.6 - BARRA MAS LIMPIA, NOMBRES DE PESTAÑA Y SELECCION MULT
 - En "Diseño", si eliges 2 o mas graficos aparecen ahi las opciones Cruz y Tiempo (ya no estan en la barra).
 - Dibujos: con varios seleccionados (Shift), borrar, duplicar, ocultar, bloquear o sacar de carpeta desde CUALQUIERA de ellos
   actua sobre todos los seleccionados, como si fueran uno solo.
+- Replay: al pulsar el boton y mover el raton hacia atras, las velas a la derecha del raton se ocultan al instante (vista previa);
+  con un clic empieza la reproduccion desde ahi. Esc cancela y vuelve a mostrarlas todas.
 - Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.5 - PESTAÑAS VIVAS Y ZOOM CON LA RUEDA
