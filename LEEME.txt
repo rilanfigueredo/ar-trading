@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.22.12
+AR_TRADING - VERSION 0.22.13
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.13 - PESTAÑA "COORDENADAS" EN LAS PROPIEDADES
+- Rectangulo, Retroceso de Fibonacci, Linea horizontal y Rayo horizontal: en su ventana de propiedades hay dos pestañas junto al titulo,
+  "Estilo" y "Coordenadas".
+  * Rectangulo y Fibonacci: escribes a mano el precio maximo y el minimo (en Fibonacci se mantiene la direccion del retroceso).
+  * Linea horizontal y Rayo horizontal: un solo valor, el precio.
+  * Rectangulo, ademas: "Ancho (tiempo)" con casillas separadas de dias, horas, minutos y segundos (acepta numeros grandes, ej. 1258 dias).
+    Se mantiene el borde izquierdo y se mueve el derecho.
+  Escribe el valor y pulsa Enter (o sal de la casilla): el dibujo se mueve al momento. Cancelar lo revierte.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.12 - ANCHO EXACTO HASTA EL MINUTO
 - El ancho de las medidas (rectangulo y regla) ahora se muestra con precision de minutos, util en temporalidades pequeñas:

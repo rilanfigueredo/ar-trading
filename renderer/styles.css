@@ -495,3 +495,13 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .lay-sync { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
 .lay-sync h4 { margin: 0 0 6px; font-size: 13px; }
 .lay-sync label { display: block; padding: 3px 0; cursor: pointer; font-size: 13px; }
+
+/* v0.22.13: pestañas Estilo / Coordenadas en las propiedades de un dibujo */
+.props-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.props-head h3 { margin: 0; }
+.props-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted, #9aa0aa); padding: 4px 2px; cursor: pointer; font: inherit; font-size: 13px; }
+.props-tab:hover { color: var(--text, #d1d4dc); }
+.props-tab.active { color: var(--text, #d1d4dc); border-bottom-color: #2962ff; }
+.time-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 4px 0; }
+.time-cell { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted, #9aa0aa); }
+.time-cell input { width: 84px; }

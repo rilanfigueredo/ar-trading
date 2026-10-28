@@ -783,7 +783,21 @@
       const patch = (o) => { if (cur()) store.patch(sym, id, o); };
       const d0 = cur();
       const t = d0.type;
-      box.appendChild(el('h3', '', D.TYPES[t].label));
+      // Pestañas "Estilo" / "Coordenadas" (rectángulo, Fibonacci, línea y rayo horizontales), al lado del título
+      const hasCoords = t === 'rect' || t === 'fib' || t === 'hline' || t === 'hray';
+      let tab = 'style';
+      const head = el('div', 'props-head');
+      head.appendChild(el('h3', '', D.TYPES[t].label));
+      const tabBtns = {};
+      if (hasCoords) {
+        [['style', 'Estilo'], ['coords', 'Coordenadas']].forEach(([k, label]) => {
+          const b = el('button', 'props-tab', label);
+          b.onclick = () => { tab = k; Object.keys(tabBtns).forEach((x) => tabBtns[x].classList.toggle('active', x === tab)); fill(); };
+          tabBtns[k] = b; head.appendChild(b);
+        });
+        tabBtns.style.classList.add('active');
+      }
+      box.appendChild(head);
       const body = el('div', 'props-body');
       box.appendChild(body);
 
@@ -931,10 +945,53 @@
         }
       }
 
+      // ---- Pestaña "Coordenadas": escribir a mano los precios (y el ancho de tiempo del rectángulo) ----
+      function coordsBlock(d) {
+        const setPts = (fn) => { const pts = cur().pts.map((x) => Object.assign({}, x)); fn(pts); patch({ pts }); fill(); };
+        const priceIn = (val, fn) => {
+          const i = el('input'); i.type = 'number'; i.step = 'any'; i.min = '0'; i.value = String(val); i.style.width = '150px';
+          i.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); };
+          i.onchange = () => { const v = parseFloat(String(i.value).replace(',', '.')); if (isFinite(v) && v > 0) fn(v); else i.value = String(val); };
+          return i;
+        };
+        body.appendChild(el('p', 'hint', 'Escribe el valor y pulsa Enter (o sal de la casilla): el dibujo se mueve al momento.'));
+        if (t === 'hline' || t === 'hray') {
+          field('Precio', priceIn(d.pts[0].p, (v) => setPts((pts) => { pts[0].p = v; })));
+        } else {
+          const hi = d.pts[0].p >= d.pts[1].p ? 0 : 1, lo = 1 - hi;
+          field('Precio máximo', priceIn(d.pts[hi].p, (v) => setPts((pts) => { pts[hi].p = v; })));
+          field('Precio mínimo', priceIn(d.pts[lo].p, (v) => setPts((pts) => { pts[lo].p = v; })));
+          if (t === 'fib') body.appendChild(el('p', 'hint small', 'La dirección del retroceso se mantiene: el punto de arriba toma el máximo y el de abajo el mínimo.'));
+        }
+        if (t === 'rect') {
+          body.appendChild(el('h4', '', 'Ancho (tiempo)'));
+          const total = Math.round(Math.abs(d.pts[1].t - d.pts[0].t));
+          const parts = { d: Math.floor(total / 86400), h: Math.floor((total % 86400) / 3600), m: Math.floor((total % 3600) / 60), s: total % 60 };
+          const ins = {};
+          const apply = () => {
+            const get = (k) => Math.max(0, Math.floor(Number(ins[k].value) || 0));
+            const secs = get('d') * 86400 + get('h') * 3600 + get('m') * 60 + get('s');
+            if (secs < 1) { Object.keys(ins).forEach((k) => { ins[k].value = String(parts[k]); }); return; }
+            setPts((pts) => { const e = pts[0].t <= pts[1].t ? 0 : 1; pts[1 - e].t = pts[e].t + secs; });
+          };
+          const row = el('div', 'time-row');
+          [['d', 'días'], ['h', 'horas'], ['m', 'minutos'], ['s', 'segundos']].forEach(([k, label]) => {
+            const w = el('label', 'time-cell'); const i = el('input'); i.type = 'number'; i.min = '0'; i.step = '1'; i.value = String(parts[k]);
+            i.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); };
+            i.onchange = apply; ins[k] = i; w.append(i, el('span', '', label)); row.appendChild(w);
+          });
+          body.appendChild(row);
+          body.appendChild(el('p', 'hint small', 'Se mantiene el borde izquierdo del rectángulo y se mueve el derecho. Acepta números grandes, por ejemplo 1258 días.'));
+        }
+        const hh = el('h4', '', 'Objeto'); body.appendChild(hh);
+        field('Bloqueado (no se puede mover ni borrar)', checkIn(d.locked, (v) => patch({ locked: v })));
+      }
+
       function fill() {
         body.innerHTML = '';
         const d = cur();
         if (!d) return;
+        if (hasCoords && tab === 'coords') { coordsBlock(d); return; }
         if (t === 'text') {
           const ti = el('input'); ti.type = 'text'; ti.value = d.text || ''; ti.style.width = '230px';
           ti.oninput = () => { if (ti.value.trim()) patch({ text: ti.value }); };
