@@ -317,10 +317,10 @@
       haloText(ctx, d.text || 'Texto', P[0].x, P[0].y, env.bg());
     }
 
-    const fmtN = (v, n) => v.toLocaleString('es', { minimumFractionDigits: n, maximumFractionDigits: n });
-    // "1,00 eras × 2,32 dup (×5,00)": ancho en eras de Bitcoin, alto en duplicaciones del precio (log2) y cuántas veces se multiplicó
-    function fmtLog(m) { return `Ancho ${fmtN(m.eras, 2)} × Alto ${fmtN(m.h, 2)}`; }
-    const measureOf = (d) => (d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p, store.prefs().sqMult) : null);
+    const fmtN = (v, n) => v.toFixed(n).replace('.', ',');
+    // "Ancho 1345 días × Alto 0,350": días cerrados y décadas (log10 del cociente de precios)
+    function fmtLog(m) { return `Ancho ${m.days} días × Alto ${fmtN(m.dec, 3)}`; }
+    const measureOf = (d) => (d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p) : null);
     function drawMeasure(ctx, d, P, xl, xr, y1, y2, w, color) {
       const lm = measureOf(d);
       if (!lm) return;
@@ -328,13 +328,13 @@
       if (b <= a) return;
       ctx.save();
       ctx.setLineDash([]); ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = themed(color);
-      // ancho: solo el número, abajo y centrado
+      // ancho: días cerrados, abajo y centrado
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(fmtN(lm.eras, 2), (a + b) / 2, y2 - 4);
+      ctx.fillText(`${lm.days} días`, (a + b) / 2, y2 - 4);
       // alto: solo el número, en vertical (de abajo hacia arriba), a la izquierda y centrado en el alto
       ctx.translate(a + 6, (y1 + y2) / 2); ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText(fmtN(lm.h, 2), 0, 0);
+      ctx.fillText(fmtN(lm.dec, 3), 0, 0);
       ctx.restore();
     }
     function drawRuler(ctx, d, P, w, h) {

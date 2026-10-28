@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.22.9
+AR_TRADING - VERSION 0.22.10
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.10 - MEDIDAS: DIAS Y DECADAS (EXACTAS EN ESCALA LOG)
+- Rectangulo con "Mostrar ancho y alto" y Regla:
+  * ANCHO: dias cerrados, abajo y centrado (ej. "1345 días"), igual que la regla.
+  * ALTO: en DECADAS, en vertical a la izquierda (ej. "0,350"). Decada = log10(precio mayor / precio menor):
+    1,000 = el precio se multiplica por 10; 0,301 = se duplica; 0,350 = x2,24.
+    Es la medida exacta del alto en una escala logaritmica: da lo mismo en cualquier parte del grafico, con cualquier zoom o
+    tamaño de ventana, y se suma (dos figuras apiladas miden la suma de sus altos). Ejemplo: 100->200 y 50.000->100.000 miden igual (0,301).
+- Se quitaron las eras y el "cuadrado perfecto" de la v0.22.9.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.9 - MEDIDAS SIMPLES: ANCHO ABAJO, ALTO EN VERTICAL
 - Rectangulo con "Mostrar ancho y alto": ahora solo se ven dos numeros, sin calculos.

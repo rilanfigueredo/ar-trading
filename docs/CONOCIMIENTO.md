@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.9)
+## 3. Funciones actuales (v0.22.10)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -119,6 +119,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.10: `logMeasure(t1,t2,p1,p2)` → `{days (cerrados), dec = log10(hi/lo)}`; sin eras ni `sqMult`. Rectángulo `measure`: días abajo, décadas vertical a la izquierda; regla con "Ancho N días × Alto X".
 - v0.22.9: `logMeasure(t1,t2,p1,p2,sqMult)` devuelve `eras` (1 = 1458,33 días) y `h` (alto en cuadrados perfectos: log10(hi/lo)/log10(sqMult)); `prefs().sqMult` (por defecto 55, editable/calibrable en las propiedades del rectángulo). Rectángulo `measure`: ancho abajo y alto vertical a la izquierda (`drawMeasure` en drawlayer.js).
 - v0.22.8: `logMeasure` (draw.js) pasa a eras (210.000×10 min = 1458,33 días) y duplicaciones (log2 del cociente de precios).
 - v0.22.7: `width` (grosor 1–6) en ind.rsi/stoch/cvd/pivots (`lw()` en view.js, `prim.width` en pivotes); medidas log: `logMeasure` en draw.js (años, décadas=log10 del cociente, ×veces, alto/ancho), rectángulo con `measure:true` (`drawMeasure`) y 3ª línea en la regla (`drawlayer.js`).

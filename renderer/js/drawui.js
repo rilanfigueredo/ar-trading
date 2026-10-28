@@ -341,7 +341,7 @@
       const tri = el('i', 'db-tri'); b.appendChild(tri);
       bar.appendChild(b);
     });
-    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo (y ancho × alto en eras para escala logarítmica)', () => selectTool('ruler'), 'tool:ruler'));
+    bar.appendChild(bigBtn('ruler', 'Regla: mide precio, porcentaje, velas y tiempo (y ancho en días × alto en décadas para escala logarítmica)', () => selectTool('ruler'), 'tool:ruler'));
     bar.appendChild(bigBtn('zoom', 'Acercar: arrastra un recuadro sobre el gráfico para ampliar esa zona (el botón Auto vuelve a la vista normal)', () => selectTool('zoom'), 'tool:zoom'));
     const zo = bigBtn('zoomout', 'Alejar: vuelve a la vista de antes del último zoom (solo aparece cuando el gráfico tiene zoom)', () => { const v = X.activeView(); if (v) v.zoomOut(); renderBar(); }, 'tool:zoomout');
     zo.classList.add('hidden');
@@ -991,17 +991,8 @@
           if (t === 'rect') {
             body.appendChild(el('h4', '', 'Medidas (escala logarítmica)'));
             field('Mostrar ancho y alto', checkIn(d.measure, (v) => patch({ measure: v })));
-            const pf = store.prefs(), sqNow = D.geom.sqMultOf(pf.sqMult);
-            field('Cuadrado perfecto = 1 era de ancho y precio ×', numIn(Math.round(sqNow * 100) / 100, 1.01, 100000, 0.5, (v) => { pf.sqMult = v; X.saveCfg(); X.eachView((vw) => vw.draw && vw.draw.repaint()); }));
-            const cal = el('button', 'btn secondary small', 'Usar este rectángulo como cuadrado perfecto');
-            cal.onclick = () => {
-              const lm = D.geom.logMeasure(cur().pts[0].t, cur().pts[1].t, cur().pts[0].p, cur().pts[1].p, 1);
-              if (!lm || lm.eras <= 0 || lm.dec <= 0) return;
-              pf.sqMult = Math.round(Math.pow(10, lm.dec / lm.eras) * 100) / 100;
-              X.saveCfg(); X.eachView((vw) => vw.draw && vw.draw.repaint()); fill();
-            };
-            body.appendChild(cal);
-            body.appendChild(el('p', 'hint', 'Ancho: 1 = una era de Bitcoin (210.000 bloques × 10 min = 1458,33 días). Alto: 1 = el alto de un cuadrado perfecto (una era de ancho por el aumento de precio que pongas arriba). Un cuadrado perfecto mide 1 × 1; si es más ancho o más bajo, verás decimales, por ejemplo 1,30 × 0,85. Con el botón de abajo, un rectángulo que tú veas cuadrado define la unidad.'));
+
+            body.appendChild(el('p', 'hint', 'Ancho: días cerrados (como la regla). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
             body.appendChild(el('h4', '', 'Línea central'));
             field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
             const cw = el('span', 'cwrap');
