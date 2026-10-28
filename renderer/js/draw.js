@@ -53,7 +53,7 @@
         levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',
       };
       case 'rect': return Object.assign(base, {
-        width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, measure: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
+        width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, measure: false, mColor: null, mSize: 12, mBold: true, mItalic: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
       }, textOpts('center'), { tV: 'center' });
       case 'text': return { color: '#2962ff', size: 14, bold: false, italic: false, text: '' };
       case 'table': return fixTable({

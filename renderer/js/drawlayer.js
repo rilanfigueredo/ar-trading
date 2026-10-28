@@ -327,7 +327,9 @@
       const a = Math.max(xl, 0), b = Math.min(xr, w);
       if (b <= a) return;
       ctx.save();
-      ctx.setLineDash([]); ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = themed(color);
+      ctx.setLineDash([]);
+      ctx.font = `${d.mItalic ? 'italic ' : ''}${d.mBold === false ? '' : 'bold '}${d.mSize || 12}px sans-serif`;
+      ctx.fillStyle = themed(d.mColor || color);
       // ancho: días cerrados, abajo y centrado
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText(`${lm.days} días`, (a + b) / 2, y2 - 4);

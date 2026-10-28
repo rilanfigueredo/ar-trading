@@ -1,8 +1,13 @@
-AR_TRADING - VERSION 0.22.10
+AR_TRADING - VERSION 0.22.11
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.11 - TEXTO DE LAS MEDIDAS EDITABLE
+- Rectangulo > propiedades > "Medidas": ahora puedes cambiar el color, el tamaño, la negrita y la cursiva del texto del ancho (abajo) y del alto (vertical).
+  "Como el borde" devuelve el color al del contorno. Por defecto: color del borde, 12 px, negrita.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.10 - MEDIDAS: DIAS Y DECADAS (EXACTAS EN ESCALA LOG)
 - Rectangulo con "Mostrar ancho y alto" y Regla:

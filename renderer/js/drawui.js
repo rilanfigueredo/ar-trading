@@ -991,6 +991,14 @@
           if (t === 'rect') {
             body.appendChild(el('h4', '', 'Medidas (escala logarítmica)'));
             field('Mostrar ancho y alto', checkIn(d.measure, (v) => patch({ measure: v })));
+            const mw = el('span', 'cwrap');
+            mw.appendChild(colorIn(d.mColor || d.color, (v) => patch({ mColor: v })));
+            const msame = el('button', 'btn secondary small', 'Como el borde'); msame.onclick = () => { patch({ mColor: null }); fill(); };
+            mw.appendChild(msame);
+            field('Color del texto de las medidas', mw);
+            field('Tamaño del texto (px)', numIn(d.mSize || 12, 8, 60, 1, (v) => patch({ mSize: v })));
+            field('Negrita', checkIn(d.mBold !== false, (v) => patch({ mBold: v })));
+            field('Cursiva', checkIn(d.mItalic, (v) => patch({ mItalic: v })));
 
             body.appendChild(el('p', 'hint', 'Ancho: días cerrados (como la regla). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
             body.appendChild(el('h4', '', 'Línea central'));
