@@ -155,17 +155,19 @@
   // Con "log" los niveles se reparten en escala logarítmica (proporcional); si algún precio no es positivo, se usa la lineal.
   const fibPrice = (p1, p2, v, log) => (log && p1 > 0 && p2 > 0 ? Math.exp(Math.log(p2) + (Math.log(p1) - Math.log(p2)) * v) : p2 + (p1 - p2) * v);
 
-  // Medidas con unidades del protocolo de Bitcoin (útiles en escala logarítmica):
-  //  - ANCHO en "eras": 1 era = 210.000 bloques × 10 min = 2.100.000 min = 1458,33 días (≈ 3,99 años).
-  //  - ALTO en "duplicaciones": 1 = el precio se multiplica por 2 (log2). Igual que cada halving divide la emisión a la mitad,
-  //    una duplicación es el paso natural de la escala log. Ancho y alto quedan en la misma lógica, sin porcentajes.
+  // Medidas de figuras en unidades simples (para escala logarítmica, sin porcentajes):
+  //  - ANCHO: 1 = una era de Bitcoin (210.000 bloques × 10 min = 1458,33 días).
+  //  - ALTO: 1 = el alto de un "cuadrado perfecto". Un cuadrado perfecto es 1 era de ancho por SQ_MULT veces de precio
+  //    (por defecto ×55, igual que se ve un cuadrado en un gráfico log de BTC con todas las eras); se puede ajustar o calibrar.
   const ERA_DAYS = 210000 * 10 / 60 / 24;   // 1458,333...
-  function logMeasure(t1, t2, p1, p2) {
+  const SQ_MULT = 55;
+  function sqMultOf(v) { return v > 1 ? v : SQ_MULT; }
+  function logMeasure(t1, t2, p1, p2, sqMult) {
     const days = Math.abs(t2 - t1) / 86400;
     const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
     if (!(lo > 0) || !(hi > 0)) return null;
-    const dup = Math.log2(hi / lo), eras = days / ERA_DAYS;
-    return { days, eras, dup, mult: hi / lo, ratio: eras > 0 ? dup / eras : 0 };
+    const dec = Math.log10(hi / lo), eras = days / ERA_DAYS;
+    return { days, eras, dec, h: dec / Math.log10(sqMultOf(sqMult)) };
   }
   function humanDur(sec) {
     sec = Math.abs(Math.round(sec));
@@ -644,7 +646,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, logMeasure, sqMultOf, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;

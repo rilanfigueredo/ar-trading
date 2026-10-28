@@ -319,18 +319,22 @@
 
     const fmtN = (v, n) => v.toLocaleString('es', { minimumFractionDigits: n, maximumFractionDigits: n });
     // "1,00 eras × 2,32 dup (×5,00)": ancho en eras de Bitcoin, alto en duplicaciones del precio (log2) y cuántas veces se multiplicó
-    function fmtLog(m) {
-      const w = m.eras >= 0.05 ? `${fmtN(m.eras, 2)} eras` : `${fmtN(m.days, 1)} días`;
-      return `${w} × ${fmtN(m.dup, 2)} dup (×${fmtN(m.mult, 2)})`;
-    }
+    function fmtLog(m) { return `Ancho ${fmtN(m.eras, 2)} × Alto ${fmtN(m.h, 2)}`; }
+    const measureOf = (d) => (d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p, store.prefs().sqMult) : null);
     function drawMeasure(ctx, d, P, xl, xr, y1, y2, w, color) {
-      const lm = d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p) : null;
+      const lm = measureOf(d);
       if (!lm) return;
       const a = Math.max(xl, 0), b = Math.min(xr, w);
       if (b <= a) return;
       ctx.save();
-      ctx.setLineDash([]); ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = themed(color);
-      ctx.fillText(`${fmtLog(lm)} · alto/ancho ${fmtN(lm.ratio, 3)}`, b - 6, y2 - 4);
+      ctx.setLineDash([]); ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = themed(color);
+      // ancho: solo el número, abajo y centrado
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(fmtN(lm.eras, 2), (a + b) / 2, y2 - 4);
+      // alto: solo el número, en vertical (de abajo hacia arriba), a la izquierda y centrado en el alto
+      ctx.translate(a + 6, (y1 + y2) / 2); ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(fmtN(lm.h, 2), 0, 0);
       ctx.restore();
     }
     function drawRuler(ctx, d, P, w, h) {
@@ -353,8 +357,8 @@
       const dur = G.humanDur(d.pts[1].t - d.pts[0].t);
       const l1 = `${diff >= 0 ? '+' : '-'}${env.fmtPrice(Math.abs(diff))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       const l2 = `${bars} ${bars === 1 ? 'vela' : 'velas'} · ${dur}`;
-      const lm = G.logMeasure(d.pts[0].t, d.pts[1].t, p1, p2);
-      const l3 = lm ? `Log: ${fmtLog(lm)}` : '';
+      const lm = measureOf(d);
+      const l3 = lm ? fmtLog(lm) : '';
       ctx.font = '12px sans-serif';
       const bw = Math.max(measure(l1, 12, false), measure(l2, 12, false), l3 ? measure(l3, 12, false) : 0) + 16, bh = l3 ? 53 : 38;
       let bx = (x1 + x2) / 2 - bw / 2;

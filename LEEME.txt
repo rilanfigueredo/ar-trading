@@ -1,8 +1,19 @@
-AR_TRADING - VERSION 0.22.8
+AR_TRADING - VERSION 0.22.9
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.9 - MEDIDAS SIMPLES: ANCHO ABAJO, ALTO EN VERTICAL
+- Rectangulo con "Mostrar ancho y alto": ahora solo se ven dos numeros, sin calculos.
+  * ANCHO: un numero, abajo y centrado. 1,00 = una era de Bitcoin (210.000 bloques x 10 min = 1458,33 dias).
+  * ALTO: un numero en vertical (de abajo hacia arriba), a la izquierda del cuadro. 1,00 = alto de un "cuadrado perfecto".
+  * Un cuadrado perfecto mide 1 x 1; si hay variacion se ven decimales (ej. ancho 1,30 y alto 0,85).
+- Para el alto, "cuadrado perfecto" = 1 era de ancho por un aumento de precio (por defecto x55, calculado de tu imagen de las eras).
+  En las propiedades del rectangulo puedes cambiar ese valor, o pulsar "Usar este rectangulo como cuadrado perfecto":
+  el rectangulo que TU ves cuadrado pasa a valer 1 x 1 y los demas se miden contra el.
+- La Regla muestra "Ancho x Alto" con la misma unidad.
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron y con tus eras reales.
 
 NOVEDADES DE LA v0.22.8 - MEDIDAS CON UNIDADES DEL PROTOCOLO DE BITCOIN
 - Las medidas del Rectangulo (opcion "Mostrar ancho (eras) y alto (duplicaciones)") y de la Regla ahora usan:
