@@ -1000,7 +1000,7 @@
             field('Negrita', checkIn(d.mBold !== false, (v) => patch({ mBold: v })));
             field('Cursiva', checkIn(d.mItalic, (v) => patch({ mItalic: v })));
 
-            body.appendChild(el('p', 'hint', 'Ancho: días cerrados (como la regla). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
+            body.appendChild(el('p', 'hint', 'Ancho: tiempo exacto hasta el minuto (por ejemplo 1345 días, 2 días 12 h 35 min o 14 h 15 min). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
             body.appendChild(el('h4', '', 'Línea central'));
             field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
             const cw = el('span', 'cwrap');

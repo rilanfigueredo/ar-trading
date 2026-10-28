@@ -160,11 +160,22 @@
   //  - ALTO: décadas = log10(precio mayor / precio menor). 1,000 = el precio se multiplica por 10; 0,301 = se duplica.
   //    Es lo que realmente se ve como "alto" en un eje log: da lo mismo en cualquier zona del gráfico y con cualquier zoom o tamaño,
   //    y se suma (dos figuras apiladas miden la suma de sus altos).
+  // Tiempo exacto hasta el minuto: "1345 días", "2 días 12 h 35 min", "14 h 15 min", "35 min" (segundos solo si es menos de 1 minuto)
+  function spanText(sec) {
+    sec = Math.abs(Math.round(sec));
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const parts = [];
+    if (d) parts.push(d + (d === 1 ? ' día' : ' días'));
+    if (h) parts.push(h + ' h');
+    if (m) parts.push(m + ' min');
+    if (!parts.length) parts.push(s + ' s');
+    return parts.join(' ');
+  }
   function logMeasure(t1, t2, p1, p2) {
-    const days = Math.round(Math.abs(t2 - t1) / 86400);
+    const days = Math.round(Math.abs(t2 - t1) / 86400), text = spanText(t2 - t1);
     const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
     if (!(lo > 0) || !(hi > 0)) return null;
-    return { days, dec: Math.log10(hi / lo) };
+    return { days, text, dec: Math.log10(hi / lo) };
   }
   function humanDur(sec) {
     sec = Math.abs(Math.round(sec));

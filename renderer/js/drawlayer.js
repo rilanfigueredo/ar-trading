@@ -319,7 +319,7 @@
 
     const fmtN = (v, n) => v.toFixed(n).replace('.', ',');
     // "Ancho 1345 días × Alto 0,350": días cerrados y décadas (log10 del cociente de precios)
-    function fmtLog(m) { return `Ancho ${m.days} días × Alto ${fmtN(m.dec, 3)}`; }
+    function fmtLog(m) { return `Ancho ${m.text} × Alto ${fmtN(m.dec, 3)}`; }
     const measureOf = (d) => (d.pts.length > 1 ? G.logMeasure(d.pts[0].t, d.pts[1].t, d.pts[0].p, d.pts[1].p) : null);
     function drawMeasure(ctx, d, P, xl, xr, y1, y2, w, color) {
       const lm = measureOf(d);
@@ -332,7 +332,7 @@
       ctx.fillStyle = themed(d.mColor || color);
       // ancho: días cerrados, abajo y centrado
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(`${lm.days} días`, (a + b) / 2, y2 - 4);
+      ctx.fillText(lm.text, (a + b) / 2, y2 - 4);
       // alto: solo el número, en vertical (de abajo hacia arriba), a la izquierda y centrado en el alto
       ctx.translate(a + 6, (y1 + y2) / 2); ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';

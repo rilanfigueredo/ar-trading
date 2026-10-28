@@ -1,8 +1,14 @@
-AR_TRADING - VERSION 0.22.11
+AR_TRADING - VERSION 0.22.12
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.12 - ANCHO EXACTO HASTA EL MINUTO
+- El ancho de las medidas (rectangulo y regla) ahora se muestra con precision de minutos, util en temporalidades pequeñas:
+  "1345 días", "2 días 12 h 35 min", "14 h 15 min", "35 min" (segundos solo si dura menos de 1 minuto).
+  La exactitud depende de la temporalidad: en 1m se mide al minuto; en 1h, de hora en hora (los puntos se anclan a las velas).
+- Probado solo en el navegador con datos simulados; falta confirmarlo en Windows/Electron.
 
 NOVEDADES DE LA v0.22.11 - TEXTO DE LAS MEDIDAS EDITABLE
 - Rectangulo > propiedades > "Medidas": ahora puedes cambiar el color, el tamaño, la negrita y la cursiva del texto del ancho (abajo) y del alto (vertical).
