@@ -1,8 +1,13 @@
-AR_TRADING - VERSION 0.22.14
+AR_TRADING - VERSION 0.22.15
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.15 - PANELES DE INDICADORES COMO EN TRADINGVIEW
+- Doble clic en cualquier parte de un panel de indicador (RSI, Estocastico, Delta, CVD): se AMPLIA ocupando todo el espacio. Otro doble clic (o Escape, o el boton ⤢/⤡ de su leyenda) lo restaura.
+- Doble clic SOBRE LA LINEA del indicador (o en su texto/leyenda, o el boton ⚙): ventana con pestanas "Estilo" (colores, grosor, bandas, fondo) y "Valores" (periodo, niveles...). Se aplica en vivo; Aceptar guarda y Cancelar deshace.
+- Herramientas de dibujo (linea de tendencia, rayo, horizontal, etc.) ahora se pueden usar DENTRO de los paneles de indicador. Con el iman activado el punto se pega a la linea del indicador y en la barra de valores se ve el valor exacto (ej. RSI 63,84). El dibujo pertenece a ese panel.
 
 NOVEDADES DE LA v0.22.14 - INDICADOR DE DIVERGENCIAS RSI vs SWINGS (primera version)
 - Nuevo ejemplo en Scripts > Ejemplos: "Divergencias RSI vs swings". La estructura la pones tu: el script usa los swings del ejemplo

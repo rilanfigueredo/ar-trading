@@ -38,7 +38,7 @@
 
   // env: enlace con el gráfico (lo arma view.js). store: almacén de draw.js.
   function createLayer(env, store) {
-    const L = { draft: null, ruler: null, hoverId: null, drag: null, press: null, editor: null, marquee: null };
+    const L = { draft: null, ruler: null, hoverId: null, drag: null, press: null, editor: null, marquee: null, snap: null };
     let request = null, attachedTo = null, destroyed = false;
     const host = env.host;
     const repaint = () => { if (request) request(); };
@@ -386,18 +386,34 @@
     }
 
     const cid = () => (env.chart ? env.chart() : null);
+    const myPane = env.pane || 'main';                       // 'main' = panel del precio; si no, el indicador donde vive esta capa
+    const mine = (sym) => store.listFor(sym, cid(), myPane);
     function paint(ctx, w, h) {
       if (!env.active()) return;
       const sym = env.symbol();
       const single = store.state.multi.length === 1;
       ctx.save();
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      store.listFor(sym, cid()).forEach((d) => {
+      mine(sym).forEach((d) => {
         if (store.isHidden(sym, d) || store.prefs().hideAll) return;
         drawOne(ctx, d, w, h, { selected: store.isSelected(sym, d.id), single, hover: L.hoverId === d.id });
       });
       if (L.draft) drawOne(ctx, Object.assign({}, L.draft, { pts: L.draft.pts.concat(L.draft.cur ? [L.draft.cur] : []) }), w, h, { draft: true });
       if (L.ruler) drawOne(ctx, L.ruler, w, h, {});
+      if (L.snap && myPane !== 'main' && (L.draft || L.drag || store.state.tool)) {
+        const sx = env.xOfTime(L.snap.t), sy = env.yOfPrice(L.snap.p);
+        if (num(sx) && num(sy)) {
+          const txt = env.fmtPrice(L.snap.p);
+          ctx.save(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.strokeStyle = ACCENT; ctx.fillStyle = env.theme() === 'dark' ? '#1e222d' : '#ffffff';
+          ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.font = font(12, true, false); ctx.textBaseline = 'middle';
+          const tw = measure(txt, 12, true, false) + 12;
+          const bx = Math.min(w - tw - 2, sx + 10), by = Math.max(10, Math.min(h - 10, sy - 14));
+          ctx.fillStyle = ACCENT; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by - 10, tw, 20, 4); else ctx.rect(bx, by - 10, tw, 20); ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(txt, bx + 6, by);
+          ctx.restore();
+        }
+      }
       if (L.marquee) {
         const m = L.marquee, x = Math.min(m.x1, m.x2), y = Math.min(m.y1, m.y2);
         ctx.fillStyle = 'rgba(41,98,255,0.10)'; ctx.strokeStyle = ACCENT; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
@@ -418,7 +434,7 @@
       priceAxisViews() {
         const out = [];
         if (!env.active() || store.prefs().hideAll) return out;
-        store.listFor(env.symbol(), cid()).forEach((d) => {
+        mine(env.symbol()).forEach((d) => {
           if ((d.type !== 'hline' && d.type !== 'hray') || store.isHidden(env.symbol(), d) || !d.pts[0]) return;
           out.push({
             coordinate: () => { const y = env.yOfPrice(d.pts[0].p); return num(y) ? y : -100; },
@@ -441,7 +457,8 @@
     // Punto (tiempo, precio) bajo el ratón. shiftRef: con Shift el precio es el del punto anterior (horizontal exacta, sin imán).
     // Imán: débil = se pega si el precio de la vela (A/M/m/C) está cerca; fuerte = se pega siempre al más cercano de la vela que está debajo.
     function dataAt(x, y, shiftRef) {
-      let t = env.timeOfX(x), p = env.priceOfY(y);
+      let t = env.timeOfX(x), p = env.priceOfY(y), snapped = false;
+      L.snap = null;
       if (!num(t) || !num(p)) return null;
       if (shiftRef) return { t, p: shiftRef.p };
       const mode = store.state.tool === 'zoom' || (L.draft && L.draft.type === 'zoom') ? 'off' : magnetMode();
@@ -451,13 +468,14 @@
           const i = Math.round(lg);
           if (i >= 0 && i < bars.length) {
             const b = bars[i];
-            const vals = env.chartType() === 'candles' ? [b.open, b.high, b.low, b.close] : [b.close];
+            const vals = env.snapValues ? env.snapValues(i) : (env.chartType() === 'candles' ? [b.open, b.high, b.low, b.close] : [b.close]);
             let best = null, bd = 1e9;
             vals.forEach((v) => { const yy = env.yOfPrice(v); if (num(yy) && Math.abs(yy - y) < bd) { bd = Math.abs(yy - y); best = v; } });
-            if (best !== null && (mode === 'strong' || bd <= MAGNET_WEAK_PX)) { p = best; t = env.centerTime(i); }
+            if (best !== null && (mode === 'strong' || bd <= MAGNET_WEAK_PX)) { p = best; t = env.centerTime(i); snapped = true; }
           }
         }
       }
+      if (snapped && myPane !== 'main') L.snap = { t, p };      // en un indicador se muestra el valor exacto del punto pegado a la línea
       return { t, p };
     }
     function shiftPt(pt, dx, dy) {
@@ -479,7 +497,7 @@
 
     function hitAt(x, y) {
       const sym = env.symbol(), w = env.plotWidth();
-      const list = store.prefs().hideAll ? [] : store.listFor(sym, cid()).filter((d) => !store.isHidden(sym, d));
+      const list = store.prefs().hideAll ? [] : mine(sym).filter((d) => !store.isHidden(sym, d));
       if (store.state.multi.length === 1 && store.state.sel && store.state.sel.sym === sym) {
         const d = list.find((q) => q.id === store.state.sel.id);
         const P = d && toPx(d);
@@ -500,7 +518,7 @@
       const sym = env.symbol();
       if (store.prefs().hideAll) return [];
       const out = [];
-      store.listFor(sym, cid()).forEach((d) => {
+      mine(sym).forEach((d) => {
         if (store.isHidden(sym, d)) return;
         const P = toPx(d);
         if (P && G.inRect(d, P, r)) out.push(d.id);
@@ -552,7 +570,7 @@
       commit(obj);
     }
     // Todo dibujo nuevo pertenece al gráfico donde se crea; solo se comparte si la preferencia lo pide.
-    const own = (o) => { o.chart = cid(); o.shared = !!store.prefs().shareNew; return o; };
+    const own = (o) => { o.chart = cid(); o.shared = !!store.prefs().shareNew; if (myPane !== 'main') o.pane = myPane; return o; };
     function commit(obj) {
       const sym = env.symbol();
       if (obj.type !== 'ruler' && obj.type !== 'zoom') own(obj);
@@ -772,6 +790,7 @@
       }
     }
     function onWinUp(e) {
+      L.snap = null;
       if (L.marquee) {
         const m = L.marquee; L.marquee = null;
         if (!L.draft && !L.drag) winOn(false);
@@ -795,7 +814,11 @@
     }
     // Pasar el ratón por encima: resalta el dibujo y cambia el cursor.
     function onHover(e) {
-      if (destroyed || L.drag || L.draft || L.marquee || store.state.tool || !env.active()) return;
+      if (destroyed || L.drag || L.draft || L.marquee || !env.active()) return;
+      if (store.state.tool) {                               // con una herramienta elegida: vista previa del punto pegado a la línea del indicador
+        if (myPane !== 'main') { const l2 = local(e), had = !!L.snap; if (l2.inPane && !isUi(e.target)) dataAt(l2.x, l2.y); else L.snap = null; if (had || L.snap) repaint(); }
+        return;
+      }
       const loc = local(e);
       if (!isUi(e.target)) updateChip(loc);
       const hit = loc.inPane && !isUi(e.target) ? hitAt(loc.x, loc.y) : null;
@@ -834,7 +857,7 @@
     host.addEventListener('mousemove', onHover);
     host.addEventListener('dblclick', onDbl, true);
     host.addEventListener('contextmenu', onCtx, true);
-    host.addEventListener('mouseleave', () => { softHideChip(); delete host.dataset.cur; if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
+    host.addEventListener('mouseleave', () => { if (L.snap) { L.snap = null; repaint(); } softHideChip(); delete host.dataset.cur; if (L.hoverId) { L.hoverId = null; host.classList.remove('draw-over'); repaint(); } });
 
     // Cambios en el almacén (de este u otro gráfico): repintar y ajustar el cursor.
     const off = store.on((kind) => {

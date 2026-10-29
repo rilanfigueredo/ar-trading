@@ -86,7 +86,7 @@
     renderAll();
   }
   function setPref(key, val) { prefs()[key] = val; X.saveCfg(); renderAll(); X.eachView((v) => v.draw && v.draw.repaint()); }
-  const shiftFn = () => { const layer = layerNow(); return layer ? (pt) => layer.offsetPoint(pt, 26, 26) : null; };
+  const shiftFn = () => { const layer = layerNow(); return layer ? (pt, d) => layer.offsetPoint(pt, 26, 26, d && d.pane) : null; };
   const selIds = () => store.selIds(symNow()).filter((id) => visNow(symNow(), id));
   // Compartir / dejar de compartir con los demás gráficos del mismo activo. Al dejar de compartir, el dibujo se queda en el gráfico activo.
   function toggleShare(sym, ids) {

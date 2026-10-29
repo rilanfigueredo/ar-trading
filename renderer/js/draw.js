@@ -376,7 +376,8 @@
       // v0.12: cada dibujo pertenece al gráfico donde se creó (d.chart). Solo se ve en los demás gráficos del mismo activo si d.shared.
       // Los dibujos antiguos (sin d.chart) se siguen viendo en todos.
       visibleIn: (d, chartId) => !!d.shared || !d.chart || !chartId || d.chart === chartId,
-      listFor: (sym, chartId) => list(sym).filter((d) => store.visibleIn(d, chartId)),
+      // pane: 'main' (panel del precio), el nombre de un indicador ('rsi'...) o sin indicar = todos (lista de objetos)
+      listFor: (sym, chartId, pane) => list(sym).filter((d) => store.visibleIn(d, chartId) && (pane === undefined || (d.pane || 'main') === pane)),
       isHidden: (sym, d) => !!d.hidden || inherited(sym, d, 'hidden'),
       isLocked: (sym, d) => !!d.locked || inherited(sym, d, 'locked'),
       prefs: () => getPrefs(),
@@ -473,7 +474,7 @@
         const copies = src.map((d) => {
           const c = clone(d);
           c.id = newId('d'); c.locked = false;
-          if (shift) c.pts = c.pts.map(shift);
+          if (shift) c.pts = c.pts.map((p) => shift(p, c));
           return c;
         });
         setList(sym, list(sym).concat(copies));
@@ -491,7 +492,7 @@
           c.id = newId('d'); c.locked = false; c.hidden = false;
           if (!c.shared) c.chart = chartId;
           if (!find(sym, d.id) || !c.folder || !store.folder(sym, c.folder)) delete c.folder;
-          if (shift) c.pts = c.pts.map(shift);
+          if (shift) c.pts = c.pts.map((p) => shift(p, c));
           return c;
         });
         setList(sym, list(sym).concat(copies));

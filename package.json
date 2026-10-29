@@ -1,7 +1,7 @@
 {
   "name": "ar-trading",
   "productName": "Ar_Trading",
-  "version": "0.22.14",
+  "version": "0.22.15",
   "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
   "main": "main.js",
   "scripts": {

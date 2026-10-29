@@ -177,7 +177,8 @@
           const a1 = o.indexOf(live[i]), b1 = o.indexOf(live[j]);
           [o[a1], o[b1]] = [o[b1], o[a1]];
         }
-      } else if (action === 'off') c.on = false;
+      } else if (action === 'settings') { openIndSettings(view, name); return; }
+      else if (action === 'off') c.on = false;
       saveCfg();
       view.refreshIndicators();
       if (!$('panel').classList.contains('hidden') && view.index === A.cfg.active) renderPanel();
@@ -1236,6 +1237,136 @@
   const refreshInd = () => { saveCfg(); activeView().refreshIndicators(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
   const refreshMas = () => { saveCfg(); activeView().refreshMas(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
 
+  // Un campo de ajuste de un indicador (texto, selector, casilla, color o número). onChange se llama tras cada cambio.
+  function indFieldEl(c, f, onChange, cls) {
+    const w = document.createElement(cls ? 'div' : 'label');
+    w.className = cls || 'ind-field';
+    const lab = document.createElement('span'); lab.textContent = f.label;
+    let inp;
+    if (f.type === 'select') {
+      inp = document.createElement('select');
+      f.options.forEach(([v, name]) => { const o = document.createElement('option'); o.value = v; o.textContent = name; inp.appendChild(o); });
+      inp.value = c[f.prop];
+      inp.onchange = () => { c[f.prop] = inp.value; onChange(); };
+    } else if (f.type === 'check') {
+      inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!c[f.prop];
+      inp.onchange = () => { c[f.prop] = inp.checked; onChange(); };
+    } else if (f.type === 'color') {
+      inp = document.createElement('input'); inp.type = 'color'; inp.value = c[f.prop];
+      inp.oninput = () => { c[f.prop] = inp.value; onChange(); };
+    } else {
+      inp = document.createElement('input'); inp.type = 'number'; inp.min = f.min; inp.max = f.max; inp.value = c[f.prop];
+      inp.onchange = () => {
+        const v = Math.max(f.min, Math.min(f.max, parseInt(inp.value, 10) || c[f.prop]));
+        inp.value = v; c[f.prop] = v; onChange();
+      };
+    }
+    w.append(lab, inp);
+    return w;
+  }
+  // Definición de los indicadores en paneles aparte. tab: 's' = pestaña Estilo, 'v' = pestaña Valores, 'b' = en las dos (títulos).
+  const STYLE_OPTS = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
+  function levelFields(labels) {
+    return [
+      { type: 'title', label: labels[0], tab: 'b' },
+      { label: 'Valor', prop: 'ob', min: 1, max: 99, tab: 'v' }, { label: 'Color', prop: 'obColor', type: 'color', tab: 's' }, { label: 'Estilo', prop: 'obStyle', type: 'select', options: STYLE_OPTS, tab: 's' },
+      { type: 'title', label: labels[1], tab: 'b' },
+      { label: 'Valor', prop: 'mid', min: 1, max: 99, tab: 'v' }, { label: 'Color', prop: 'midColor', type: 'color', tab: 's' }, { label: 'Estilo', prop: 'midStyle', type: 'select', options: STYLE_OPTS, tab: 's' },
+      { type: 'title', label: labels[2], tab: 'b' },
+      { label: 'Valor', prop: 'os', min: 1, max: 99, tab: 'v' }, { label: 'Color', prop: 'osColor', type: 'color', tab: 's' }, { label: 'Estilo', prop: 'osStyle', type: 'select', options: STYLE_OPTS, tab: 's' },
+      { type: 'title', label: 'Fondo entre la banda superior e inferior', tab: 's' },
+      { label: 'Mostrar', prop: 'bgOn', type: 'check', tab: 's' }, { label: 'Color', prop: 'bgColor', type: 'color', tab: 's' }, { label: 'Opacidad %', prop: 'bgOpacity', min: 0, max: 100, tab: 's' },
+    ];
+  }
+  const IND_DEFS = {
+    rsi: {
+      title: 'RSI',
+      hint: 'También puedes mover el RSI con las flechas de su panel y ajustar su escala con la rueda sobre su barra de valores.',
+      fields: () => [
+        { label: 'Período', prop: 'len', min: 2, max: 500, tab: 'v' },
+        { label: 'Color de la línea', prop: 'color', type: 'color', tab: 's' },
+        { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6, tab: 's' },
+      ].concat(levelFields(['Sobrecompra', 'Línea central', 'Sobreventa'])),
+    },
+    stoch: {
+      title: 'Estocástico',
+      fields: () => [
+        { label: '%K', prop: 'k', min: 2, max: 500, tab: 'v' },
+        { label: 'Suavizado %K', prop: 'sm', min: 1, max: 100, tab: 'v' },
+        { label: '%D', prop: 'd', min: 1, max: 100, tab: 'v' },
+        { label: 'Color %K', prop: 'kColor', type: 'color', tab: 's' },
+        { label: 'Color %D', prop: 'dColor', type: 'color', tab: 's' },
+        { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6, tab: 's' },
+      ].concat(levelFields(['Banda superior', 'Banda central', 'Banda inferior'])),
+    },
+    delta: {
+      title: 'Delta (compra − venta)',
+      hint: 'Volumen de compra agresiva menos venta agresiva de cada vela. Solo hay datos en Binance (Bybit, KuCoin y Bitstamp no entregan el volumen de compra).',
+      fields: () => [
+        { label: 'Color positivo (compra domina)', prop: 'upColor', type: 'color', tab: 's' },
+        { label: 'Color negativo (venta domina)', prop: 'downColor', type: 'color', tab: 's' },
+      ],
+    },
+    cvd: {
+      title: 'Delta acumulado (CVD)',
+      hint: 'Suma del delta desde la primera vela cargada. Al cargar más historial el nivel cambia; lo que importa es la forma.',
+      fields: () => [
+        { label: 'Color de la línea', prop: 'color', type: 'color', tab: 's' },
+        { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6, tab: 's' },
+      ],
+    },
+  };
+  // Ventana de ajustes de un indicador (doble clic sobre su línea): pestañas Estilo y Valores. Los cambios se ven al momento.
+  function openIndSettings(view, name) {
+    const df = IND_DEFS[name];
+    if (!df) return;
+    if (view.index !== A.cfg.active) setActive(view.index);
+    const c = view.cfg.ind[name];
+    const backup = clone(c);
+    const fields = df.fields();
+    const hasValues = fields.some((f) => f.tab === 'v');
+    let tab = 's', finished = false;
+    const apply = () => { saveCfg(); view.refreshIndicators(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      if (!ok) { Object.keys(c).forEach((k) => { delete c[k]; }); Object.assign(c, clone(backup)); apply(); if (!$('panel').classList.contains('hidden')) renderPanel(); }
+    };
+    openModal((box) => {
+      const head = document.createElement('div'); head.className = 'props-head';
+      const h3 = document.createElement('h3'); h3.textContent = df.title; head.appendChild(h3);
+      const body = document.createElement('div'); body.className = 'props-body';
+      const tabBtns = {};
+      const fill = () => {
+        body.innerHTML = '';
+        let lastTitle = null, shown = 0;
+        fields.forEach((f) => {
+          if (f.tab !== tab && f.tab !== 'b') return;
+          if (f.type === 'title') { lastTitle = f; return; }
+          if (lastTitle) { const tt = document.createElement('h4'); tt.textContent = lastTitle.label; body.appendChild(tt); lastTitle = null; }
+          const w = indFieldEl(c, f, () => { apply(); if (!$('panel').classList.contains('hidden')) renderPanel(); }, 'field');
+          body.appendChild(w); shown++;
+        });
+        if (!shown) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Este indicador no tiene ajustes en esta pestaña.'; body.appendChild(p); }
+        if (df.hint && tab === 's') { const p = document.createElement('p'); p.className = 'hint small'; p.textContent = df.hint; body.appendChild(p); }
+        decoratePalette(body);
+      };
+      [['s', 'Estilo'], ['v', 'Valores']].forEach(([k, label]) => {
+        if (k === 'v' && !hasValues) return;
+        const b = document.createElement('button'); b.className = 'props-tab' + (k === tab ? ' active' : ''); b.textContent = label;
+        b.onclick = () => { tab = k; Object.keys(tabBtns).forEach((x) => tabBtns[x].classList.toggle('active', x === tab)); fill(); };
+        tabBtns[k] = b; head.appendChild(b);
+      });
+      box.appendChild(head); box.appendChild(body);
+      fill();
+      const act = document.createElement('div'); act.className = 'row-actions props-actions';
+      const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Aceptar'; ok.onclick = () => { finish(true); closeModal(); };
+      const no = document.createElement('button'); no.className = 'btn secondary'; no.textContent = 'Cancelar'; no.onclick = () => { finish(false); closeModal(); };
+      const sp = document.createElement('span'); sp.className = 'spacer';
+      act.append(sp, ok, no); box.appendChild(act);
+    }, { floating: true, onClose: () => finish(true) });
+  }
+
   // Fila de un indicador: casilla de mostrar + parámetros.
   function indBlock(parent, title, key, fields, hintText) {
     const c = activeCfg().ind[key];
@@ -1254,29 +1385,7 @@
         const tt = document.createElement('div'); tt.className = 'ind-sub'; tt.textContent = f.label; params.appendChild(tt);
         return;
       }
-      const w = document.createElement('label');
-      w.className = 'ind-field';
-      const lab = document.createElement('span'); lab.textContent = f.label;
-      let inp;
-      if (f.type === 'select') {
-        inp = document.createElement('select');
-        f.options.forEach(([v, name]) => { const o = document.createElement('option'); o.value = v; o.textContent = name; inp.appendChild(o); });
-        inp.value = c[f.prop];
-        inp.onchange = () => { c[f.prop] = inp.value; refreshInd(); };
-      } else if (f.type === 'check') {
-        inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!c[f.prop];
-        inp.onchange = () => { c[f.prop] = inp.checked; refreshInd(); };
-      } else if (f.type === 'color') {
-        inp = document.createElement('input'); inp.type = 'color'; inp.value = c[f.prop];
-        inp.oninput = () => { c[f.prop] = inp.value; refreshInd(); };
-      } else {
-        inp = document.createElement('input'); inp.type = 'number'; inp.min = f.min; inp.max = f.max; inp.value = c[f.prop];
-        inp.onchange = () => {
-          const v = Math.max(f.min, Math.min(f.max, parseInt(inp.value, 10) || c[f.prop]));
-          inp.value = v; c[f.prop] = v; refreshInd();
-        };
-      }
-      w.append(lab, inp);
+      const w = indFieldEl(c, f, refreshInd);
       params.appendChild(w);
     });
     box.appendChild(params);
@@ -1301,39 +1410,7 @@
 
     const h4a = document.createElement('h4'); h4a.textContent = 'En paneles aparte';
     p.appendChild(h4a);
-    const styleOpts = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
-    const levelFields = (labels) => [
-      { type: 'title', label: labels[0] },
-      { label: 'Valor', prop: 'ob', min: 1, max: 99 }, { label: 'Color', prop: 'obColor', type: 'color' }, { label: 'Estilo', prop: 'obStyle', type: 'select', options: styleOpts },
-      { type: 'title', label: labels[1] },
-      { label: 'Valor', prop: 'mid', min: 1, max: 99 }, { label: 'Color', prop: 'midColor', type: 'color' }, { label: 'Estilo', prop: 'midStyle', type: 'select', options: styleOpts },
-      { type: 'title', label: labels[2] },
-      { label: 'Valor', prop: 'os', min: 1, max: 99 }, { label: 'Color', prop: 'osColor', type: 'color' }, { label: 'Estilo', prop: 'osStyle', type: 'select', options: styleOpts },
-      { type: 'title', label: 'Fondo entre la banda superior e inferior' },
-      { label: 'Mostrar', prop: 'bgOn', type: 'check' }, { label: 'Color', prop: 'bgColor', type: 'color' }, { label: 'Opacidad %', prop: 'bgOpacity', min: 0, max: 100 },
-    ];
-    indBlock(p, 'RSI', 'rsi', [
-      { label: 'Período', prop: 'len', min: 2, max: 500 },
-      { label: 'Color de la línea', prop: 'color', type: 'color' },
-      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
-    ].concat(levelFields(['Sobrecompra', 'Línea central', 'Sobreventa'])), 'También puedes mover el RSI con las flechas de su panel y ajustar su escala con la rueda sobre su barra de valores.');
-    indBlock(p, 'Estocástico', 'stoch', [
-      { label: '%K', prop: 'k', min: 2, max: 500 },
-      { label: 'Suavizado %K', prop: 'sm', min: 1, max: 100 },
-      { label: '%D', prop: 'd', min: 1, max: 100 },
-      { label: 'Color %K', prop: 'kColor', type: 'color' },
-      { label: 'Color %D', prop: 'dColor', type: 'color' },
-      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
-    ].concat(levelFields(['Banda superior', 'Banda central', 'Banda inferior'])));
-
-    indBlock(p, 'Delta (compra − venta)', 'delta', [
-      { label: 'Color positivo (compra domina)', prop: 'upColor', type: 'color' },
-      { label: 'Color negativo (venta domina)', prop: 'downColor', type: 'color' },
-    ], 'Volumen de compra agresiva menos venta agresiva de cada vela. Solo hay datos en Binance (Bybit, KuCoin y Bitstamp no entregan el volumen de compra).');
-    indBlock(p, 'Delta acumulado (CVD)', 'cvd', [
-      { label: 'Color de la línea', prop: 'color', type: 'color' },
-      { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
-    ], 'Suma del delta desde la primera vela cargada. Al cargar más historial el nivel cambia; lo que importa es la forma.');
+    ['rsi', 'stoch', 'delta', 'cvd'].forEach((k) => { const df = IND_DEFS[k]; indBlock(p, df.title, k, df.fields(), df.hint); });
 
     const h4b = document.createElement('h4'); h4b.textContent = 'Sobre el precio';
     p.appendChild(h4b);

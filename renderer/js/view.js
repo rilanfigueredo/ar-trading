@@ -568,7 +568,64 @@
         if (!chk || !isFinite(chk.from) || !isFinite(chk.to) || !(chk.to > chk.from)) ps.applyOptions({ autoScale: true });
       },
     };
-    view.draw = G.drawStore && window.TVDraw && window.TVDraw.createLayer ? window.TVDraw.createLayer(drawEnv, G.drawStore) : null;
+    // Dibujos también sobre los indicadores (RSI, Estocástico, Delta, CVD): una capa por panel, con su propia escala y el imán sobre la línea.
+    const subLayers = {};
+    function subEnv(name) {
+      const ser = () => (s.sub[name] ? s.sub[name].main : null);
+      const dec = name === 'rsi' || name === 'stoch' ? 2 : 1;
+      return Object.assign({}, drawEnv, {
+        pane: name,
+        series: ser,
+        active: () => !!(s.chart && ser() && s.bars.length && !s.loading && !isVol()),
+        yOfPrice(p) { const sr = ser(); if (!sr) return null; const y = sr.priceToCoordinate(p); return num(y) ? y : null; },
+        priceOfY(y) { const sr = ser(); if (!sr) return null; const p = sr.coordinateToPrice(y); return num(p) ? p : null; },
+        paneRect() { const sr = ser(); const pe = sr && sr.getPane().getHTMLElement(); return pe ? pe.getBoundingClientRect() : null; },
+        fmtPrice: (v) => fmtVal(v, dec),
+        // valores del indicador en la vela i: el imán se pega a la línea (en el estocástico, a %K o %D)
+        snapValues(i) {
+          const sub = s.sub[name]; if (!sub || !sub.vals) return [];
+          return Object.keys(sub.vals).map((k) => sub.vals[k][i]).filter((v) => typeof v === 'number' && isFinite(v));
+        },
+        zoomTo(t1, t2) {
+          if (!s.chart) return;
+          let a = logicalAtTime(Math.min(t1, t2)), b = logicalAtTime(Math.max(t1, t2));
+          if (a === null || b === null) return;
+          if (b - a < 3) { const m = (a + b) / 2; a = m - 1.5; b = m + 1.5; }
+          zoomStack.push({ range: s.chart.timeScale().getVisibleLogicalRange(), auto: mainScale().options().autoScale, prange: null, log: vcfg.scale === 'log' });
+          if (zoomStack.length > 30) zoomStack.shift();
+          s.chart.timeScale().setVisibleLogicalRange({ from: a, to: b });
+        },
+      });
+    }
+    function syncSubLayers() {
+      if (!view.draw || !G.drawStore || !window.TVDraw || !window.TVDraw.createLayer) return;
+      SUB_ORDER.forEach((name) => {
+        const sub = s.sub[name], cur = subLayers[name];
+        if (!sub) { if (cur) { cur.layer.destroy(); delete subLayers[name]; } return; }
+        if (cur && cur.series === sub.main) return;
+        if (cur) cur.layer.destroy();
+        const layer = window.TVDraw.createLayer(subEnv(name), G.drawStore);
+        layer.attach(sub.main);
+        subLayers[name] = { layer, series: sub.main };
+      });
+    }
+    const mainLayer = G.drawStore && window.TVDraw && window.TVDraw.createLayer ? window.TVDraw.createLayer(drawEnv, G.drawStore) : null;
+    const allLayers = () => [mainLayer].concat(Object.keys(subLayers).map((k) => subLayers[k].layer));
+    const layerOf = (pane) => (!pane || pane === 'main' ? mainLayer : (subLayers[pane] && subLayers[pane].layer));
+    view.draw = mainLayer ? {
+      prim: mainLayer.prim,
+      attach: (ser) => mainLayer.attach(ser),
+      detach: () => mainLayer.detach(),
+      repaint() { allLayers().forEach((l) => l.repaint()); },
+      cancel() { allLayers().forEach((l) => l.cancel()); },
+      finish() { allLayers().forEach((l) => { if (l.hasDraft()) l.finish(); }); },
+      hasDraft: () => allLayers().some((l) => l.hasDraft()),
+      undoPoint() { return allLayers().some((l) => l.undoPoint()); },
+      editText(id) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); if (l) l.editText(id); },
+      clearRuler() { allLayers().forEach((l) => l.clearRuler()); },
+      offsetPoint(pt, dx, dy, pane) { const l = layerOf(pane) || mainLayer; return l.offsetPoint(pt, dx, dy); },
+      destroy() { allLayers().forEach((l) => l.destroy()); Object.keys(subLayers).forEach((k) => delete subLayers[k]); },
+    } : null;
     // Alturas de los paneles: las que el usuario deja al arrastrar los separadores se guardan y no se vuelven a tocar.
     function paneKeys() {
       const map = [];
@@ -577,6 +634,7 @@
       return map;
     }
     function snapshotHeights() {
+      if (s.maxPane) return;               // con un panel ampliado las alturas son temporales: no se guardan
       if (!vcfg.paneH) vcfg.paneH = {};
       let changed = false;
       try {
@@ -590,9 +648,10 @@
     }
     function layoutPanes(apply) {
       const panes = s.chart.panes();
-      if (panes.length > 1 && apply) {
+      if (s.maxPane && !s.sub[s.maxPane]) s.maxPane = null;
+      if (panes.length > 1 && (apply || s.maxPane)) {
         const H = vcfg.paneH || {};
-        paneKeys().forEach(([k, ser]) => ser.getPane().setStretchFactor(H[k] || (k === 'main' ? 3 : 1)));
+        paneKeys().forEach(([k, ser]) => ser.getPane().setStretchFactor(s.maxPane ? (k === s.maxPane ? 1000 : 0.001) : (H[k] || (k === 'main' ? 3 : 1))));
       }
       s.hasPanes = panes.length > 1;
       setTimeout(positionLegend, 60);
@@ -689,6 +748,7 @@
       orderPanes();
       layoutPanes(relayout);
       ensureSubLegends();
+      syncSubLayers();
       if (relayout) healSubs();
 
       // Pivotes
@@ -756,9 +816,11 @@
           b.title = title;
           b.onmousedown = (e) => e.stopPropagation();
           b.ondblclick = (e) => e.stopPropagation();
-          b.onclick = (e) => { e.stopPropagation(); s.lastLegendClick = Date.now(); G.indAction(view, name, action); };
+          b.onclick = (e) => { e.stopPropagation(); s.lastLegendClick = Date.now(); if (action === 'max') setMaxPane(s.maxPane === name ? null : name); else G.indAction(view, name, action); };
           sub.btnEl.appendChild(b);
         };
+        mk('⚙', 'Ajustes del indicador (doble clic sobre la línea o el rótulo)', 'settings');
+        mk(s.maxPane === name ? '⤡' : '⤢', s.maxPane === name ? 'Volver al tamaño normal (doble clic en el panel o Esc)' : 'Ampliar este panel (doble clic en el panel)', 'max');
         if (at > 0) mk('▲', 'Mover el panel hacia arriba', 'up');
         if (at < ord.length - 1) mk('▼', 'Mover el panel hacia abajo', 'down');
         mk('✕', 'Quitar indicador', 'off');
@@ -1438,12 +1500,65 @@
       e.preventDefault();
       showAxisMenu(e.clientX, e.clientY, hit);
     });
+    // Ampliar un panel de indicador (los demás casi desaparecen) o volver al tamaño normal
+    function setMaxPane(name) {
+      s.maxPane = name && s.sub[name] ? name : null;
+      layoutPanes(true);
+      ensureSubLegends();
+      setTimeout(() => { try { s.chart.applyOptions({}); } catch (e) { /* ok */ } positionLegend(); if (view.draw) view.draw.repaint(); }, 30);
+    }
+    // ¿El doble clic cayó sobre la línea (o la barra) del indicador? Margen de 7 px.
+    function onIndicatorLine(name, e, hit) {
+      const sub = s.sub[name];
+      if (!sub || !sub.vals) return false;
+      const x = e.clientX - chartEl.getBoundingClientRect().left, y = e.clientY - hit.rect.top;
+      const lg = s.chart.timeScale().coordinateToLogical(x);
+      if (!num(lg)) return false;
+      const i0 = Math.floor(lg), fr = lg - i0;
+      return Object.keys(sub.vals).some((k) => {
+        const ser = sub[k], arr = sub.vals[k];
+        if (!ser || !arr) return false;
+        const v0 = arr[i0], v1 = arr[i0 + 1];
+        if (name === 'delta') {                                  // histograma: toda la barra, entre el cero y el valor
+          const v = arr[Math.round(lg)], yv = ser.priceToCoordinate(v), yz = ser.priceToCoordinate(0);
+          return num(yv) && num(yz) && y >= Math.min(yv, yz) - 3 && y <= Math.max(yv, yz) + 3;
+        }
+        if (!num(v0) && !num(v1)) return false;
+        const a = num(v0) ? v0 : v1, b = num(v1) ? v1 : v0;
+        const yy = ser.priceToCoordinate(a + (b - a) * fr);
+        return num(yy) && Math.abs(yy - y) <= 7;
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !s.maxPane || !(s.hover || index === G.activeIndex())) return;
+      if (view.draw && view.draw.hasDraft()) return;
+      setMaxPane(null);
+    });
     // Doble clic sobre el gráfico (no sobre los ejes ni los botones de un panel).
     chartEl.addEventListener('dblclick', (e) => {
       if (overAxis(e)) return;
       const rect = chartEl.getBoundingClientRect();
       if (e.clientY > rect.bottom - (s.chart.timeScale().height() || 0)) return;
-      if (e.target && e.target.closest && (e.target.closest('.pl-btns') || e.target.closest('.pane-legend'))) return;
+      if (e.target && e.target.closest && e.target.closest('.pl-btns')) return;
+      // Doble clic sobre el rótulo de un indicador: sus ajustes
+      if (e.target && e.target.closest && e.target.closest('.pane-legend')) {
+        const nm = SUB_ORDER.find((n) => s.sub[n] && s.sub[n].legendEl && s.sub[n].legendEl.contains(e.target));
+        if (nm) { e.preventDefault(); G.indAction(view, nm, 'settings'); }
+        return;
+      }
+      // Doble clic dentro de un panel de indicador: sobre su línea abre los ajustes; en cualquier otra parte lo amplía (o lo devuelve a su tamaño)
+      {
+        const hp = paneAt(e.clientY);
+        if (hp && !hp.main) {
+          const nm = SUB_ORDER.find((n) => s.sub[n] && s.sub[n].main === hp.ser);
+          if (nm) {
+            e.preventDefault();
+            if (onIndicatorLine(nm, e, hp)) G.indAction(view, nm, 'settings');
+            else setMaxPane(s.maxPane === nm ? null : nm);
+            return;
+          }
+        }
+      }
       // Al hacer clic dos veces seguidas en una flecha del panel, el botón se vuelve a dibujar y el doble clic llega al gráfico: no debe ocultar los indicadores.
       if (e.target && !chartEl.contains(e.target)) return;
       if (Date.now() - (s.lastLegendClick || 0) < 900) return;
@@ -1727,6 +1842,7 @@
         ps.setAutoScale(false);
         ps.setVisibleRange({ from: priceInternal(z.prange.from, z.log), to: priceInternal(z.prange.to, z.log) });
       },
+      toggleMaxPane(name) { setMaxPane(s.maxPane === name ? null : name); },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
       // Pestaña en segundo plano: el gráfico sigue vivo pero no pide datos; al volver se pone al día.
       setSuspended(on) { s.suspended = !!on; if (!on && !s.destroyed && s.bars.length) { try { poll(); } catch (e) { /* ok */ } } },
