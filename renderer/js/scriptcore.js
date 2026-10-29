@@ -509,7 +509,7 @@
         if (c.colors) throw fail('marker(): "color" debe ser un solo color.');
         const shape = o.shape === undefined ? 'circle' : o.shape;
         if (!['circle', 'arrowUp', 'arrowDown', 'square'].includes(shape)) throw fail("marker(): \"shape\" debe ser 'circle', 'arrowUp', 'arrowDown' o 'square'.");
-        out.marks.push({ idx: i, pos: where, color: c.color, shape, text: String(o.text !== undefined ? o.text : '').slice(0, 12) });
+        out.marks.push({ idx: i, pos: where, color: c.color, shape, text: String(o.text !== undefined ? o.text : '').slice(0, 40) });
       },
       // Segmento horizontal a un precio entre dos velas (v0.22.4): segment(velaInicial, precio, velaFinal, { color, width, style })
       segment(i1, price, i2, o) {
@@ -564,9 +564,7 @@
     if (!strat && !out.plots.length && !out.marks.length && !out.segments.length && !usesMarks) {
       throw fail('El script no dibuja nada: usa plot(...) para una línea, histogram(...) para barras o marker(...) / segment(...) para marcas.');
     }
-    if (!out.overlay && (out.marks.length || out.segments.length)) {
-      throw fail("marker(...) y segment(...) se dibujan sobre las velas: usa indicator({ overlay: true }).");
-    }
+    // (v0.22.14) marker y segment también se pueden usar en un script de panel aparte: se dibujan sobre las velas
     if (out.overlay && out.plots.some((p) => p.kind === 'hist')) {
       throw fail("Los histogramas solo se pueden dibujar en un panel aparte: usa indicator({ overlay: false }) o cambia histogram por plot.");
     }

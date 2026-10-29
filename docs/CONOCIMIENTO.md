@@ -23,7 +23,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.22.13)
+## 3. Funciones actuales (v0.22.14)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -119,6 +119,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.22.14: ejemplo «Divergencias RSI vs swings» (scriptexamples.js): swings del ejemplo Swings, RSI base + otros largos (acuerdo), fuerza (cociente/producto), estados NC/C/S, cadena D1–D3, nivel protegido; marker/segment permitidos en scripts de panel aparte; marker.text hasta 40 caracteres. Test: `test/divergencias.test.js`, `tools/prueba_v2214.py`. Pendiente (fases B/C): zonas de liquidez, comparación entre temporalidades, registro/estadísticas de eficacia.
 - v0.22.13: pestañas Estilo/Coordenadas en `openProps` (drawui.js, `coordsBlock`): precios a mano (rect/fib: máx y mín; hline/hray: precio) y ancho del rectángulo en d/h/min/s.
 - v0.22.12: `spanText(sec)` en draw.js (ancho hasta el minuto); `logMeasure` devuelve también `text`.
 - v0.22.11: texto de las medidas del rectángulo editable (`mColor`, `mSize`, `mBold`, `mItalic`).

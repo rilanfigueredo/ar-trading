@@ -1,8 +1,25 @@
-AR_TRADING - VERSION 0.22.13
+AR_TRADING - VERSION 0.22.14
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.14 - INDICADOR DE DIVERGENCIAS RSI vs SWINGS (primera version)
+- Nuevo ejemplo en Scripts > Ejemplos: "Divergencias RSI vs swings". La estructura la pones tu: el script usa los swings del ejemplo
+  "Swings" (3 velas + barrido) y SOLO compara los swings con el RSI.
+  * Bajista: 2.º swing alto mas alto que el 1.º, pero RSI mas bajo en ese 2.º swing. Alcista: al reves con los bajos.
+  * FUERZA: cuanto se movio el precio (%) en relacion a cuanto se movio el RSI (puntos). Formula "cociente" (precio % / puntos RSI)
+    o "producto" (precio % x puntos RSI / 100). Ej.: precio +37,5 % y RSI -22 puntos -> 1,7.
+  * ESTADO: NC = no confirmada; C = CONFIRMADA (el precio rompe el minimo que produjo el 2.º maximo, o el maximo que produjo el 2.º minimo,
+    con el cuerpo o con la mecha, a eleccion); S = superada (nuevo extremo antes de romper el nivel).
+  * CADENA: D1, D2, D3 (doble y triple divergencia seguidas en el mismo sentido); se corta si un par no diverge.
+  * RSI ADAPTADO: largo base 14 editable, y prueba otros largos (de 7 a 28 por defecto). "Acuerdo" = % de largos que tambien muestran la divergencia
+    (minimo editable). Filtros: distancia entre swings, fuerza minima.
+  * Dibujo: en la vela del 2.º swing sale el texto  D2 +37.5%/-22.0 F1.7 75% NC  (cadena, precio %, RSI puntos, fuerza, acuerdo, estado);
+    en el panel del RSI se traza la linea de la divergencia; el nivel protegido se dibuja (continuo si se confirmo, punteado si sigue pendiente).
+- Los scripts de panel aparte ahora tambien pueden usar marker() y segment() (se dibujan sobre las velas). Texto de marker: hasta 40 caracteres.
+- Sin repintar en lo que ya se confirmo (probado). Como todo pivote, el swing se conoce unas velas despues de la vela donde se marca.
+- Probado solo con datos simulados y tests; falta probar con BTC real, y las fases siguientes (zonas de liquidez, comparar temporalidades, estadisticas de eficacia).
 
 NOVEDADES DE LA v0.22.13 - PESTAÑA "COORDENADAS" EN LAS PROPIEDADES
 - Rectangulo, Retroceso de Fibonacci, Linea horizontal y Rayo horizontal: en su ventana de propiedades hay dos pestañas junto al titulo,

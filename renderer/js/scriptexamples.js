@@ -133,6 +133,148 @@ swings.slice(-maxSwings).forEach(function (s) {
 `,
     },
     {
+      name: 'Divergencias RSI vs swings',
+      code: `// DIVERGENCIAS RSI vs SWINGS. Tú pones la estructura; el script solo compara los swings con el RSI.
+// Compara dos swings seguidos del mismo tipo (con las reglas del ejemplo "Swings": 3 velas + barrido).
+//  - Divergencia BAJISTA: el 2.º swing ALTO es más alto que el 1.º, pero el RSI en ese 2.º swing es más BAJO.
+//  - Divergencia ALCISTA: el 2.º swing BAJO es más bajo que el 1.º, pero el RSI en ese 2.º swing es más ALTO.
+// FUERZA = cuánto se movió el precio (%) en relación con lo que se movió el RSI (puntos). Ej.: sube 37,5 % y el RSI baja 22 puntos
+//   -> cociente 1,7 (por cada punto de RSI, el precio se movió 1,7 %). También hay la fórmula "producto" (precio % x puntos RSI / 100).
+// ESTADO:  NC = no confirmada. C = CONFIRMADA: el precio rompe el MÍNIMO que produjo el 2.º máximo (bajista), o el MÁXIMO que produjo
+//   el 2.º mínimo (alcista). S = superada: antes de romper, el precio hizo un nuevo extremo más allá del 2.º swing.
+// CADENA: D1 = primera divergencia, D2 = la siguiente seguida en el mismo sentido (doble), D3 = triple... Se corta si un par no diverge.
+// RSI ADAPTADO: además del largo base, prueba varios largos de RSI; "acuerdo" = % de largos que también muestran la divergencia.
+// Texto de cada marca (en la vela del 2.º swing):  D2 +37.5%/-22.0 F1.7 75% NC   (cadena, precio %, RSI puntos, fuerza, acuerdo, estado).
+// Ojo: el swing se confirma varias velas DESPUÉS de la vela donde se marca (igual que cualquier pivote); no sirve tal cual para operar en vivo.
+indicator({ name: 'Divergencias RSI', overlay: false, precision: 2 });
+
+const largo = input('Largo del RSI (base)', 14, { min: 2, max: 200 });
+const probar = input('Probar también otros largos de RSI', true);
+const largoMin = input('Probar desde el largo', 7, { min: 2, max: 200 });
+const largoMax = input('Probar hasta el largo', 28, { min: 2, max: 200 });
+const acuerdoMin = input('Acuerdo mínimo entre largos (%)', 50, { min: 0, max: 100 });
+const distMin = input('Distancia mínima entre los dos swings (velas)', 3, { min: 1, max: 5000 });
+const distMax = input('Distancia máxima entre los dos swings (velas)', 500, { min: 2, max: 20000 });
+const formula = input('Fórmula de la fuerza', 'cociente', { options: ['cociente', 'producto'] });
+const fuerzaMin = input('Fuerza mínima para mostrar', 0, { min: 0, max: 100000 });
+const confirmar = input('Confirmar rompiendo con', 'cuerpo', { options: ['cuerpo', 'mecha'] });
+const verBajistas = input('Mostrar divergencias bajistas', true);
+const verAlcistas = input('Mostrar divergencias alcistas', true);
+const verNivel = input('Dibujar el nivel protegido', true);
+const verTexto = input('Mostrar el detalle en la marca', true);
+const maxSenales = input('Máximo de señales dibujadas (las más recientes)', 200, { min: 5, max: 3000 });
+const colorBaja = inputColor('Color bajista', '#ef5350');
+const colorAlza = inputColor('Color alcista', '#26a69a');
+const colorSup = inputColor('Color de las superadas', '#787b86');
+
+// ---------- 1) Swings (las 3 reglas del ejemplo Swings; el swing existe desde la vela "barrido") ----------
+const cand = [], esperan = [], swings = [];
+const hay = function (tipo, ref) { return cand.some(function (k) { return k.tipo === tipo && k.ref === ref; }); };
+for (let j = 1; j < n; j++) {
+  if (j >= 2) {
+    const c = j - 1;
+    if (high[c] > high[c - 1] && high[c] > high[j] && !hay('alto', c)) cand.push({ tipo: 'alto', ref: c });
+    if (low[c] < low[c - 1] && low[c] < low[j] && !hay('bajo', c)) cand.push({ tipo: 'bajo', ref: c });
+  }
+  for (let k = cand.length - 1; k >= 0; k--) {
+    const c = cand[k];
+    if (c.tipo === 'alto') {
+      if (high[j] > high[c.ref]) c.ref = j;
+      else if (low[j] < low[c.ref]) { swings.push({ tipo: 'alto', ref: c.ref, barrido: j }); cand.splice(k, 1); }
+    } else {
+      if (low[j] < low[c.ref]) c.ref = j;
+      else if (high[j] > high[c.ref]) { swings.push({ tipo: 'bajo', ref: c.ref, barrido: j }); cand.splice(k, 1); }
+    }
+  }
+  for (let a = cand.length - 1; a >= 1; a--) {
+    for (let b = 0; b < a; b++) if (cand[a].tipo === cand[b].tipo && cand[a].ref === cand[b].ref) { cand.splice(a, 1); break; }
+  }
+}
+swings.sort(function (a, b) { return a.ref - b.ref; });
+const altos = swings.filter(function (s) { return s.tipo === 'alto'; });
+const bajos = swings.filter(function (s) { return s.tipo === 'bajo'; });
+
+// ---------- 2) RSI base y RSI de los otros largos ----------
+const rsiBase = ta.rsi(close, largo);
+const otros = [];
+if (probar) { for (let L = Math.min(largoMin, largoMax); L <= Math.max(largoMin, largoMax); L++) otros.push(ta.rsi(close, L)); }
+
+// ---------- 3) Divergencias ----------
+const senales = [];
+const analizar = function (lista, contrarios, esAlto) {
+  let cadena = 0;
+  for (let k = 1; k < lista.length; k++) {
+    const A = lista[k - 1], B = lista[k];
+    const dist = B.ref - A.ref;
+    if (dist < distMin || dist > distMax) { cadena = 0; continue; }
+    const pa = esAlto ? high[A.ref] : low[A.ref];
+    const pb = esAlto ? high[B.ref] : low[B.ref];
+    const ra = rsiBase[A.ref], rb = rsiBase[B.ref];
+    if (isNaN(ra) || isNaN(rb)) { cadena = 0; continue; }
+    const precioOk = esAlto ? pb > pa : pb < pa;
+    const rsiOk = esAlto ? rb < ra : rb > ra;
+    if (!precioOk || !rsiOk) { cadena = 0; continue; }
+    let votos = 0, total = 0;
+    for (let q = 0; q < otros.length; q++) {
+      const va = otros[q][A.ref], vb = otros[q][B.ref];
+      if (isNaN(va) || isNaN(vb)) continue;
+      total++;
+      if (esAlto ? vb < va : vb > va) votos++;
+    }
+    const acuerdo = total ? (votos / total) * 100 : 100;
+    if (acuerdo < acuerdoMin) { cadena = 0; continue; }
+    cadena++;
+    const dp = (pb / pa - 1) * 100, dr = rb - ra;
+    const fuerza = formula === 'producto' ? (Math.abs(dp) * Math.abs(dr)) / 100 : Math.abs(dp) / Math.max(Math.abs(dr), 0.5);
+    // nivel protegido: el último swing contrario entre A y B (el que "produjo" el 2.º swing); si no hay, el extremo contrario entre A y B
+    let prot = -1;
+    for (let q = 0; q < contrarios.length; q++) if (contrarios[q].ref > A.ref && contrarios[q].ref < B.ref) prot = contrarios[q].ref;
+    if (prot < 0) {
+      prot = A.ref;
+      for (let j = A.ref; j <= B.ref; j++) if (esAlto ? low[j] < low[prot] : high[j] > high[prot]) prot = j;
+    }
+    const nivel = esAlto ? low[prot] : high[prot];
+    // estado: confirmada (rompe el nivel), superada (nuevo extremo antes de romper) o no confirmada
+    let estado = 'NC', conf = -1;
+    for (let j = B.ref + 1; j < n; j++) {
+      const rompe = esAlto ? (confirmar === 'cuerpo' ? close[j] < nivel : low[j] < nivel) : (confirmar === 'cuerpo' ? close[j] > nivel : high[j] > nivel);
+      if (rompe) { estado = 'C'; conf = Math.max(j, B.barrido); break; }
+      if (esAlto ? high[j] > pb : low[j] < pb) { estado = 'S'; break; }
+    }
+    if (fuerza < fuerzaMin) continue;
+    senales.push({ esAlto: esAlto, A: A.ref, B: B.ref, cadena: cadena, dp: dp, dr: dr, fuerza: fuerza, acuerdo: acuerdo, prot: prot, nivel: nivel, estado: estado, conf: conf, ra: ra, rb: rb });
+  }
+};
+if (verBajistas) analizar(altos, bajos, true);
+if (verAlcistas) analizar(bajos, altos, false);
+senales.sort(function (a, b) { return a.B - b.B; });
+
+// ---------- 4) Dibujo: RSI + líneas de divergencia en el RSI; marcas y nivel protegido en las velas ----------
+const lineaBaja = new Array(n).fill(NaN), lineaAlza = new Array(n).fill(NaN);
+const fmt = function (v, d) { return (v >= 0 ? '+' : '') + v.toFixed(d); };
+const dibujar = senales.slice(-maxSenales);
+dibujar.forEach(function (s) {
+  const arr = s.esAlto ? lineaBaja : lineaAlza;
+  for (let j = s.A; j <= s.B; j++) arr[j] = s.ra + ((s.rb - s.ra) * (j - s.A)) / (s.B - s.A);
+  const color = s.estado === 'S' ? colorSup : (s.esAlto ? colorBaja : colorAlza);
+  const texto = verTexto ? 'D' + s.cadena + ' ' + fmt(s.dp, 1) + '%/' + fmt(s.dr, 1) + ' F' + s.fuerza.toFixed(1) + ' ' + Math.round(s.acuerdo) + '% ' + s.estado : 'D' + s.cadena;
+  marker(s.B, s.esAlto ? 'above' : 'below', { color: color, shape: s.estado === 'S' ? 'square' : 'circle', text: texto });
+  if (s.estado === 'C') marker(s.conf, s.esAlto ? 'above' : 'below', { color: color, shape: s.esAlto ? 'arrowDown' : 'arrowUp', text: 'C' });
+  if (verNivel) {
+    if (s.estado === 'C') segment(s.prot, s.nivel, s.conf, { color: color, width: 2 });
+    else if (s.estado === 'NC') segment(s.prot, s.nivel, n - 1, { color: color, width: 1, style: 'dotted' });
+  }
+});
+
+plot(rsiBase, { color: '#7e57c2', width: 2, title: 'RSI' });
+plot(lineaBaja, { color: colorBaja, width: 2, title: 'Divergencia bajista' });
+plot(lineaAlza, { color: colorAlza, width: 2, title: 'Divergencia alcista' });
+hline(70, { color: '#787b86', style: 'dashed' });
+hline(50, { color: '#787b86', style: 'dotted' });
+hline(30, { color: '#787b86', style: 'dashed' });
+`,
+    },
+    {
       name: 'Cruce de medias (estrategia)',
       code: `// Estrategia: compra cuando la media rápida cruza hacia arriba la lenta y vende (corto) cuando cruza hacia abajo.
 // Capital, tipo y valor del tamaño (% del capital, monto fijo o contratos), comisión y deslizamiento se cambian en «Aplicados en este gráfico».
