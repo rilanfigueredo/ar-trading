@@ -1,8 +1,15 @@
-AR_TRADING - VERSION 0.22.15
+AR_TRADING - VERSION 0.22.16
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.16 - PUNTAS DE LINEA, FUSIONAR POLILINEAS Y MOVER CON FLECHAS
+- Linea de tendencia y polilinea: en Propiedades (Estilo) hay "Punta del inicio" y "Punta del final", cada una por separado: Ninguna, Flecha, Circulo o Barra vertical (para medir rangos). Ej.: inicia en circulo y termina en flecha.
+- Linea de tendencia, horizontal y rayo: con la linea seleccionada, al pasar el mouse por encima sale "+ Texto" (o el texto actual) para escribir o cambiar su texto.
+- Polilineas: Mayus + clic sobre cada dibujo los suma a la seleccion. Clic derecho > "Fusionar las N polilineas en una sola" (quedan unidas por un tramo).
+  Sobre una fusionada: "Dividir en las N polilineas originales" (vuelven con su estilo) o "Dividir aqui" (corta en el tramo donde hiciste clic derecho).
+- Flechas del teclado: con cualquier dibujo (o varios) seleccionado, se mueven 1 px; con Mayus, 10 px. Vale para lineas, rectangulos, textos, tablas, Fibonacci, etc. (y tambien dentro de los paneles RSI/Estocastico).
 
 NOVEDADES DE LA v0.22.15 - PANELES DE INDICADORES COMO EN TRADINGVIEW
 - Doble clic en cualquier parte de un panel de indicador (RSI, Estocastico, Delta, CVD): se AMPLIA ocupando todo el espacio. Otro doble clic (o Escape, o el boton ⤢/⤡ de su leyenda) lo restaura.

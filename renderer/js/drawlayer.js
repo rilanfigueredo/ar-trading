@@ -133,6 +133,22 @@
       }
     }
 
+    // Punta de un extremo (flecha, círculo o barra vertical) en (x,y); (ox,oy) es el otro lado de la línea, para orientar la flecha.
+    function drawCap(ctx, kind, x, y, ox, oy, d) {
+      if (!kind || kind === 'none') return;
+      const lw = d.width || 1, sz = 5 + lw * 2.5;
+      ctx.save(); ctx.setLineDash([]); ctx.lineJoin = 'miter';
+      if (kind === 'circle') { ctx.beginPath(); ctx.arc(x, y, sz * 0.6, 0, Math.PI * 2); ctx.fillStyle = env.bg(); ctx.fill(); ctx.stroke(); }
+      else if (kind === 'bar') { ctx.beginPath(); ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz); ctx.stroke(); }
+      else if (kind === 'arrow') {
+        const a = Math.atan2(y - oy, x - ox), sp = 0.45, L2 = sz * 1.6;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        ctx.lineTo(x - L2 * Math.cos(a - sp), y - L2 * Math.sin(a - sp)); ctx.lineTo(x - L2 * Math.cos(a + sp), y - L2 * Math.sin(a + sp));
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+
     function drawOne(ctx, d, w, h, o) {
       const P = toPx(d);
       if (!P || !P.length) return;
@@ -144,6 +160,8 @@
             seg(ctx, G.lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w));
             const a = P[0].x <= P[1].x ? P[0] : P[1], b = P[0].x <= P[1].x ? P[1] : P[0];
             drawLineText(ctx, d, a.x, a.y, b.x, b.y, w);
+            drawCap(ctx, d.capA, P[0].x, P[0].y, P[1].x, P[1].y, d);
+            drawCap(ctx, d.capB, P[1].x, P[1].y, P[0].x, P[0].y, d);
           }
           break;
         case 'hline':
@@ -154,7 +172,14 @@
           seg(ctx, [P[0].x, P[0].y, Math.max(w + 50, P[0].x), P[0].y]);
           drawLineText(ctx, d, P[0].x, P[0].y, w, P[0].y, w);
           break;
-        case 'poly': drawPoly(ctx, d, P, color, o); break;
+        case 'poly':
+          drawPoly(ctx, d, P, color, o);
+          if (P.length > 1) {
+            const n = P.length;
+            drawCap(ctx, d.capA, P[0].x, P[0].y, P[1].x, P[1].y, d);
+            drawCap(ctx, d.capB, P[n - 1].x, P[n - 1].y, P[n - 2].x, P[n - 2].y, d);
+          }
+          break;
         case 'rect': if (P.length > 1) drawRect(ctx, d, P, w, color); break;
         case 'channel': drawChannel(ctx, d, P, w, color); break;
         case 'fib': if (P.length > 1) drawFib(ctx, d, P, w, o); break;
@@ -676,7 +701,43 @@
       inp.onmousedown = (e) => e.stopPropagation();
       setTimeout(() => { inp.focus(); inp.select(); }, 0);
     }
+    // Línea de tendencia / horizontal / rayo seleccionada: al pasar el mouse por la línea sale "+ Texto" para escribir su texto.
+    function updateLineChip(loc) {
+      const sym = env.symbol();
+      if (store.state.multi.length !== 1 || !store.state.sel || store.state.sel.sym !== sym || store.state.tool || L.draft || L.drag) return false;
+      const d = store.get(sym, store.state.sel.id);
+      if (!d || !(d.type === 'trend' || d.type === 'hline' || d.type === 'hray') || store.isLocked(sym, d) || !loc.inPane) return false;
+      const hit = hitAt(loc.x, loc.y);
+      if (!hit || hit.d.id !== d.id || hit.handle !== null) return false;
+      const pr = env.paneRect(), cr = env.chartEl.getBoundingClientRect();
+      if (!pr) return false;
+      ensureChip();
+      clearTimeout(chipTimer); chipTimer = null;
+      chipFor = { id: d.id, line: true };
+      chipEl.textContent = d.text ? '✎ ' + d.text : '＋ Texto';
+      chipEl.title = d.text ? 'Cambiar el texto de la línea' : 'Agregar texto a la línea';
+      chipEl.style.display = 'block';
+      chipEl.style.left = Math.max(2, loc.x - 28) + 'px';
+      chipEl.style.top = Math.max(2, pr.top - cr.top + loc.y - 40) + 'px';
+      return true;
+    }
+    function ensureChip() {
+      if (chipEl) return;
+      chipEl = document.createElement('button');
+      chipEl.className = 'poly-chip';
+      chipEl.onmouseenter = () => { clearTimeout(chipTimer); chipTimer = null; };
+      chipEl.onmouseleave = () => softHideChip();
+      chipEl.onmousedown = (e) => e.stopPropagation();
+      chipEl.onclick = (e) => {
+        e.stopPropagation();
+        if (!chipFor) return;
+        if (chipFor.line) { const d = store.get(env.symbol(), chipFor.id); hideChip(); if (d) openEditor(d, false); }
+        else openPointEditor(chipFor.id, chipFor.idx);
+      };
+      host.appendChild(chipEl);
+    }
     function updateChip(loc) {
+      if (updateLineChip(loc)) return;
       const d = selectedPoly();
       const P = d && toPx(d);
       if (!P || !loc.inPane) { softHideChip(); return; }
@@ -685,15 +746,7 @@
       if (best < 0) { softHideChip(); return; }
       const pr = env.paneRect(), cr = env.chartEl.getBoundingClientRect();
       if (!pr) return;
-      if (!chipEl) {
-        chipEl = document.createElement('button');
-        chipEl.className = 'poly-chip';
-        chipEl.onmouseenter = () => { clearTimeout(chipTimer); chipTimer = null; };
-        chipEl.onmouseleave = () => softHideChip();
-        chipEl.onmousedown = (e) => e.stopPropagation();
-        chipEl.onclick = (e) => { e.stopPropagation(); if (chipFor) openPointEditor(chipFor.id, chipFor.idx); };
-        host.appendChild(chipEl);
-      }
+      ensureChip();
       clearTimeout(chipTimer); chipTimer = null;
       chipFor = { id: d.id, idx: best };
       const has = d.labels && d.labels[best];
@@ -724,7 +777,10 @@
       }
       const mod = e.ctrlKey || e.metaKey;
       if (e.shiftKey) {
-        // Shift + arrastrar: recuadro de selección (con Ctrl también se conserva lo ya seleccionado)
+        // Shift + clic sobre un dibujo: lo suma o quita de la selección (para fusionar polilíneas, mover varios, etc.)
+        const hs = hitAt(loc.x, loc.y);
+        if (hs) { stop(e); store.select(sym, hs.d.id, 'toggle'); return; }
+        // Shift + arrastrar en vacío: recuadro de selección (con Ctrl también se conserva lo ya seleccionado)
         stop(e);
         L.marquee = { x1: loc.x, y1: loc.y, x2: loc.x, y2: loc.y, add: mod };
         winOn(true);

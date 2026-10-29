@@ -274,6 +274,14 @@
       if (Object.keys(segs).some((k) => segs[k] && segs[k].hidden)) item('Restaurar los tramos eliminados', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.hidden; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
       if (Object.keys(segs).some((k) => segs[k] && segs[k].color)) item('Quitar los colores de los tramos', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.color; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
     }
+    // Polilíneas: fusionar varias seleccionadas y dividir
+    if (many && ids.length > 1 && ids.every((i) => (store.get(sym, i) || {}).type === 'poly')) {
+      item(`Fusionar las ${ids.length} polilíneas en una sola`, () => store.mergePolys(sym, ids));
+    }
+    if (!many && d.type === 'poly') {
+      if (d.parts && d.parts.length > 1) item(`Dividir en las ${d.parts.length} polilíneas originales`, () => store.splitPoly(sym, id));
+      if (seg >= 1 && seg <= d.pts.length - 3) item(`Dividir aquí (en el tramo ${seg + 1})`, () => store.splitPoly(sym, id, seg));
+    }
     // Plantillas: al pasar el mouse se despliegan las guardadas para esta herramienta
     {
       const wrap = el('div', 'ctx-wrap');
@@ -819,7 +827,8 @@
         const s = el('select'); opts.forEach(([v, tx]) => { const o = el('option', '', tx); o.value = v; s.appendChild(o); });
         s.value = val; s.onchange = () => fn(s.value); return s;
       };
-      const DASH_OPTS = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
+  const CAP_OPTS = [['none', 'Ninguna'], ['arrow', 'Flecha'], ['circle', 'Círculo'], ['bar', 'Barra vertical']];
+  const DASH_OPTS = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
       // Texto sobre la línea / niveles: mismos controles en tendencia, horizontal, rayo horizontal y Fibonacci.
       const textBlock = (d, withContent) => {
         body.appendChild(el('h4', '', withContent ? 'Texto' : 'Texto de los niveles'));
@@ -1006,6 +1015,10 @@
           field('Color de línea', colorIn(d.color, (v) => patch({ color: v })));
           field('Grosor', numIn(d.width || 1, 1, 8, 1, (v) => patch({ width: v })));
           field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })));
+          if (t === 'trend' || t === 'poly') {
+            field('Punta del inicio', selIn(CAP_OPTS, d.capA || 'none', (v) => patch({ capA: v })));
+            field('Punta del final', selIn(CAP_OPTS, d.capB || 'none', (v) => patch({ capB: v })));
+          }
           if (t === 'poly') {
             body.appendChild(el('h4', '', 'Textos de los puntos (también: pasa el mouse por un punto con la polilínea seleccionada)'));
             const cwp = el('span', 'cwrap');
@@ -1137,6 +1150,17 @@
   }
 
   // ---------- Atajos de teclado ----------
+  function nudgeSel(sym, layer, ids, dx, dy) {
+    const list = unlocked(sym, ids).map((id) => store.get(sym, id)).filter((d) => d && d.pts && d.pts.length && d.pts.every((p) => p && typeof p.t === 'number'));
+    if (!list.length) return false;
+    store.begin(sym);
+    list.forEach((d) => {
+      const pts = d.pts.map((p) => Object.assign({}, p, layer.offsetPoint(p, dx, dy, d.pane)));
+      store.patch(sym, d.id, { pts });
+    });
+    store.end();
+    return true;
+  }
   function onKey(e) {
     const tag = (e.target && e.target.tagName) || '';
     const itype = (e.target && e.target.type) || '';
@@ -1159,6 +1183,13 @@
     if (k === 'Enter' && layer && layer.hasDraft()) { e.preventDefault(); layer.finish(); return; }
     if (k === 'Enter' && !layer?.hasDraft() && ids.length === 1 && !e.ctrlKey && !e.altKey && editSelText()) { e.preventDefault(); return; }
     if ((k === 'Delete' || k === 'Backspace') && ids.length) { e.preventDefault(); deleteSel(); return; }
+    // Flechas: mueven lo seleccionado (1 px; con Mayús 10 px). Vale para cualquier dibujo.
+    if (ids.length && layer && !store.state.tool && !layer.hasDraft() && !e.ctrlKey && !e.metaKey && !e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) {
+      const st = e.shiftKey ? 10 : 1;
+      const dx = k === 'ArrowLeft' ? -st : k === 'ArrowRight' ? st : 0, dy = k === 'ArrowUp' ? -st : k === 'ArrowDown' ? st : 0;
+      if (nudgeSel(sym, layer, ids, dx, dy)) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       const low = k.toLowerCase();
       if (isZ || isY) {

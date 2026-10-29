@@ -43,11 +43,11 @@
   function defaults(type) {
     const base = { color: '#2962ff', width: 2, dash: 'solid' };
     switch (type) {
-      case 'trend': return Object.assign(base, { extL: false, extR: false }, textOpts('center'));
+      case 'trend': return Object.assign(base, { extL: false, extR: false, capA: 'none', capB: 'none' }, textOpts('center'));
       case 'hline': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
       case 'hray': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
       case 'channel': return Object.assign(base, { fill: true, fillOpacity: 12, extL: false, extR: false });
-      case 'poly': return Object.assign(base, { tColor: null, tSize: 12, tBold: false, tItalic: false });
+      case 'poly': return Object.assign(base, { capA: 'none', capB: 'none', tColor: null, tSize: 12, tBold: false, tItalic: false });
       case 'fib': return {
         color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true, logScale: false,
         levels: fibLevels(), tColor: null, tSize: 11, tBold: false, tItalic: false, tH: 'left', tV: 'above',
@@ -481,6 +481,63 @@
         st.sel = { sym, id: copies[copies.length - 1].id }; st.multi = copies.map((c) => c.id);
         changed(); emit('select');
         return copies;
+      },
+      // Polilíneas: fusionar varias en una sola (unidas por un tramo) y volver a separarlas.
+      // d.parts = [{ n: puntos, st: estilo }] recuerda las piezas originales para poder dividirlas igual que antes.
+      mergePolys(sym, ids) {
+        const pane = (d) => d.pane || 'main';
+        const src = ids.map((id) => find(sym, id)).filter((d) => d && d.type === 'poly' && d.pts && d.pts.length > 1 && !d.locked);
+        if (src.length < 2 || src.some((d) => pane(d) !== pane(src[0]))) return null;
+        src.sort((x, y) => x.pts[0].t - y.pts[0].t);
+        snap(sym);
+        const merged = clone(src[0]);
+        merged.id = newId('d'); merged.pts = []; merged.labels = {}; merged.segs = {}; merged.parts = [];
+        const STY = ['color', 'width', 'dash', 'capA', 'capB', 'tColor', 'tSize', 'tBold', 'tItalic'];
+        src.forEach((d) => {
+          const off = merged.pts.length;
+          d.pts.forEach((p) => merged.pts.push(clone(p)));
+          Object.keys(d.labels || {}).forEach((k) => { merged.labels[Number(k) + off] = d.labels[k]; });
+          Object.keys(d.segs || {}).forEach((k) => { merged.segs[Number(k) + off] = clone(d.segs[k]); });
+          (d.parts && d.parts.length ? d.parts : [{ n: d.pts.length, st: STY.reduce((o, k) => { if (d[k] !== undefined) o[k] = d[k]; return o; }, {}) }]).forEach((q) => merged.parts.push(clone(q)));
+        });
+        merged.capA = src[0].capA || 'none'; merged.capB = src[src.length - 1].capB || 'none';
+        const first = list(sym).findIndex((d) => d.id === src[0].id);
+        const rest = list(sym).filter((d) => !src.some((q) => q.id === d.id));
+        rest.splice(Math.min(first, rest.length), 0, merged);
+        setList(sym, rest);
+        st.sel = { sym, id: merged.id }; st.multi = [merged.id];
+        changed(); emit('select');
+        return merged;
+      },
+      // Divide una polilínea: sin 'seg' vuelve a las piezas originales (si fue fusionada); con 'seg' la corta en ese tramo.
+      splitPoly(sym, id, seg) {
+        const d = find(sym, id);
+        if (!d || d.type !== 'poly' || d.locked) return [];
+        let cuts;
+        if (seg === undefined || seg === null) {
+          if (!d.parts || d.parts.length < 2) return [];
+          cuts = []; let acc = 0; d.parts.forEach((q) => { cuts.push([acc, acc + q.n, q.st]); acc += q.n; });
+          if (acc !== d.pts.length) return [];
+        } else {
+          if (seg < 1 || seg > d.pts.length - 3) return [];            // cada pieza debe quedar con 2 puntos como mínimo
+          cuts = [[0, seg + 1, null], [seg + 1, d.pts.length, null]];
+        }
+        snap(sym);
+        const pieces = cuts.map(([a, b, sty]) => {
+          const c = clone(d);
+          c.id = newId('d'); delete c.parts; c.pts = d.pts.slice(a, b).map(clone); c.labels = {}; c.segs = {};
+          Object.keys(d.labels || {}).forEach((k) => { if (k >= a && k < b) c.labels[k - a] = d.labels[k]; });
+          Object.keys(d.segs || {}).forEach((k) => { if (k >= a && k < b - 1) c.segs[k - a] = clone(d.segs[k]); });
+          if (sty) Object.assign(c, clone(sty));
+          return c;
+        });
+        const i = list(sym).findIndex((q) => q.id === d.id);
+        const rest = list(sym).filter((q) => q.id !== d.id);
+        rest.splice(Math.max(0, i), 0, ...pieces);
+        setList(sym, rest);
+        st.sel = { sym, id: pieces[0].id }; st.multi = pieces.map((c) => c.id);
+        changed(); emit('select');
+        return pieces;
       },
       // Pega copias de dibujos (de cualquier activo/gráfico) en este activo. Mismo activo: se desplazan un poco.
       pasteMany(sym, items, shift, chartId) {
