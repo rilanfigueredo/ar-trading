@@ -544,3 +544,9 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .props-body .fib-row input[type=checkbox]:checked::after { left: 17px; }
 .modal-box.props .props-actions .btn { font-size: 14px; padding: 7px 16px; }
 .modal-box.props .hint.small { font-size: 12px; }
+
+/* v0.22.18: contornos de la ventana de ajustes (#fe9900) y de la pestaña activa (#13dbf3); pestañas en negrita */
+.modal-box.props { border: 2px solid #fe9900; }
+.props-tab { font-weight: 700; border: 2px solid transparent; border-radius: 6px 6px 0 0; padding: 5px 10px 6px; }
+.props-tab.active { border-color: #13dbf3; border-bottom-color: transparent; }
+.props-head.drag-grip { gap: 6px; }

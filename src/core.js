@@ -295,12 +295,12 @@ const bitstampFirstCache = {};
 async function bitstampFirst(native, step) {
   const key = native + '|' + step;
   if (bitstampFirstCache[key] !== undefined) return bitstampFirstCache[key];
+  // v0.22.18: el inicio se saca SIEMPRE de las velas de 1 día (es el dato fiable: 15/08/2011 en BTCUSD). Antes se probaba con el paso pedido
+  // (1 h, 3 h...) y si Bitstamp contestaba con una vela más reciente, el gráfico creía que el historial ya se había acabado y dejaba de ir atrás.
   let first = null;
-  for (const st of step === 86400 ? [86400] : [step, 86400]) {
-    const json = await httpGet(`/api/v2/ohlc/${native}/`, { step: String(st), limit: '1', start: '0' }, EX_HOSTS.bitstamp);
-    const rows = parseBitstampKlines(json);
-    if (rows.length) { first = rows[0]; break; }
-  }
+  const json = await httpGet(`/api/v2/ohlc/${native}/`, { step: '86400', limit: '1', start: '0' }, EX_HOSTS.bitstamp);
+  const rows = parseBitstampKlines(json);
+  if (rows.length) first = rows[0];
   if (first) bitstampFirstCache[key] = first;      // si no se pudo saber, no se guarda (se vuelve a intentar)
   return first;
 }

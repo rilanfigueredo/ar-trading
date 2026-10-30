@@ -1,8 +1,13 @@
-AR_TRADING - VERSION 0.22.17
+AR_TRADING - VERSION 0.22.18
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.18 - AJUSTES
+- Plantillas de dibujo: ahora guardan y aplican TODO (antes faltaban las puntas de la linea de tendencia y de la polilinea, y las medidas del rectangulo). Se comprobo con una prueba automatica que cada propiedad de cada herramienta entra en la plantilla.
+- Bitstamp con velas menores a un dia (1 h, 3 h, 1 m...): el programa decidia por error que el historial se habia acabado. Ahora el inicio se calcula siempre con las velas de 1 dia (BTCUSD: 15/08/2011) y, al elegir una temporalidad menor a un dia, el historial se sigue cargando solo en segundo plano hasta el inicio (hasta ~160.000 velas; para 1 h llega a 2011). Al desplazarte hacia atras sigue cargando mas.
+- Ventana de ajustes de las herramientas: contorno #fe9900, pestana activa con contorno #13dbf3 y titulos de pestana en negrita.
 
 NOVEDADES DE LA v0.22.17 - AJUSTES GENERALES
 - Flechas del teclado: ahora funcionan las 4 (antes izquierda/derecha se redondeaban a media vela y no se notaban). Mueven 1 px; con Mayus, 10 px.

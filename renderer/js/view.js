@@ -1368,7 +1368,9 @@
     async function autoFill(token) {
       const tf = tfNow();
       const heavy = L.ratioOf(tf) > L.MAX_RATIO; // barras exactas muy pesadas: menos barras objetivo, más bloques de tope
-      const TARGET = heavy ? 120 : 1500, MAX_BLOCKS = heavy ? 600 : 150;
+      // Bitstamp con velas menores a un día: se sigue cargando en segundo plano hasta el inicio del historial (2011).
+      const deepBs = exId() === 'bitstamp' && !trOn() && L.baseSec(tf) && L.baseSec(tf) < 86400;
+      const TARGET = deepBs ? 160000 : heavy ? 120 : 1500, MAX_BLOCKS = deepBs ? 400 : heavy ? 600 : 150;
       let used = 0;
       const pages = Math.max(4, Math.min(16, Math.ceil((300 * L.ratioOf(tf)) / 1000)));
       while (token === s.token && !s.destroyed && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
