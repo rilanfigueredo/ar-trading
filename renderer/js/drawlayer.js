@@ -190,7 +190,7 @@
         default: break;
       }
       ctx.setLineDash([]);
-      if (o && ((o.selected && o.single) || (o.draft && d.type !== 'zoom'))) drawHandles(ctx, d, P, w);
+      if (o && (o.selected || (o.draft && d.type !== 'zoom'))) drawHandles(ctx, d, P, w);
     }
 
     function drawRect(ctx, d, P, w, color) {
@@ -503,8 +503,8 @@
       if (snapped && myPane !== 'main') L.snap = { t, p };      // en un indicador se muestra el valor exacto del punto pegado a la línea
       return { t, p };
     }
-    function shiftPt(pt, dx, dy) {
-      const t = env.timeOfX(env.xOfTime(pt.t) + dx), p = env.priceOfY(env.yOfPrice(pt.p) + dy);
+    function shiftPt(pt, dx, dy, fine) {
+      const t = (fine && env.timeOfXFine ? env.timeOfXFine : env.timeOfX)(env.xOfTime(pt.t) + dx), p = env.priceOfY(env.yOfPrice(pt.p) + dy);
       return num(t) && num(p) ? { t, p } : pt;
     }
     // Punto de referencia para la horizontal con Shift al crear un dibujo (el último punto ya puesto).
@@ -946,7 +946,7 @@
       editText(id) { const d = store.get(env.symbol(), id); if (d) openEditor(d, false); },
       clearRuler() { if (L.ruler) { L.ruler = null; repaint(); } },
       // Desplazamiento (en píxeles) de un punto, para duplicar un dibujo sin taparlo.
-      offsetPoint(pt, dx, dy) { return shiftPt(pt, dx, dy); },
+      offsetPoint(pt, dx, dy, fine) { return shiftPt(pt, dx, dy, fine); },
       destroy() {
         destroyed = true;
         off(); cancel(); winOn(false);

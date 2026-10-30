@@ -1,8 +1,16 @@
-AR_TRADING - VERSION 0.22.16
+AR_TRADING - VERSION 0.22.17
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.22.17 - AJUSTES GENERALES
+- Flechas del teclado: ahora funcionan las 4 (antes izquierda/derecha se redondeaban a media vela y no se notaban). Mueven 1 px; con Mayus, 10 px.
+- Ventana de propiedades de los dibujos (doble clic): ahora con pestanas Estilo, Texto, Contenido (tablas), Niveles (Fibonacci), Tramos (polilinea), Coordenadas y Objeto; solo salen las que aplican a cada herramienta.
+  Diseno mas limpio, textos mas grandes y casillas tipo interruptor (mas grandes). Las opciones que dependen de un interruptor (relleno, medidas, linea central, fondo) se apagan y se atenuan cuando esta desactivado.
+  Se puede mover desde cualquier parte de la cabecera (no solo el titulo) a cualquier lugar de la pantalla, igual que la ventana de Ajustes. Lo mismo vale para la ventana de ajustes de indicadores.
+- Seleccion de varios dibujos (Mayus + clic o recuadro): todos muestran sus vertices, como cuando se selecciona uno; se mueven juntos al arrastrar o con las flechas.
+- Selector de color propio: se abre en HEX (#rrggbb) con cuadro de color, barra de tono y casilla para escribir el codigo; boton HEX/RGB para cambiar de formato. Reemplaza al selector del sistema.
 
 NOVEDADES DE LA v0.22.16 - PUNTAS DE LINEA, FUSIONAR POLILINEAS Y MOVER CON FLECHAS
 - Linea de tendencia y polilinea: en Propiedades (Estilo) hay "Punta del inicio" y "Punta del final", cada una por separado: Ninguna, Flecha, Circulo o Barra vertical (para medir rangos). Ej.: inicia en circulo y termina en flecha.

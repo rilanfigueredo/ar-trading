@@ -505,3 +505,42 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .time-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 4px 0; }
 .time-cell { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted, #9aa0aa); }
 .time-cell input { width: 84px; }
+
+/* v0.22.17: selector de color propio (HEX por defecto) */
+.cp-pop { width: 240px; padding: 12px; }
+.cp-sv { display: block; width: 216px; height: 140px; border-radius: 6px; cursor: crosshair; touch-action: none; }
+.cp-hue { display: block; width: 216px; height: 14px; margin-top: 10px; border-radius: 7px; cursor: pointer; touch-action: none; }
+.cp-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.cp-prev { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); flex: none; }
+.cp-hex { flex: 1; min-width: 0; font-size: 15px; font-family: ui-monospace, Consolas, monospace; padding: 5px 8px; text-transform: lowercase; }
+.cp-rgb { display: flex; gap: 4px; flex: 1; }
+.cp-rgb input { width: 100%; min-width: 0; padding: 5px 4px; font-size: 14px; }
+.cp-mode { background: var(--hover); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 12px; cursor: pointer; }
+
+/* v0.22.17: ventana de propiedades de dibujos y de indicadores: pestañas, más aire, textos más grandes, interruptores */
+.modal-box.props { width: 500px; padding: 0 18px 16px; }
+.modal-box.props.wide { width: 720px; }
+.props-head.drag-grip { margin: 0 -18px 8px; padding: 12px 18px 0; border-radius: 8px 8px 0 0; gap: 18px; flex-wrap: wrap; align-items: flex-end; background: var(--hover); }
+.props-head h3 { font-size: 17px; font-weight: 600; padding-bottom: 8px; margin-right: 6px; }
+.props-tab { font-size: 15px; padding: 6px 2px 8px; }
+.props-body .props-sec { padding-top: 6px; }
+.props-body .field { padding: 9px 0; font-size: 15px; border-bottom: 1px solid rgba(128,128,128,.12); min-height: 30px; }
+.props-body .field > span:first-child { font-size: 15px; }
+.props-body input[type=text], .props-body input[type=number], .props-body select { font-size: 15px; padding: 6px 9px; }
+.props-body h4 { margin: 18px 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.props-body .hint { font-size: 13px; line-height: 1.4; }
+.props-body .field.off { opacity: .4; }
+.props-body input[type=color] { width: 40px; height: 30px; border-radius: 6px; }
+.props-body .btn.small { font-size: 12.5px; padding: 4px 9px; }
+.props-body input[type=checkbox], .props-body .tbl-chk input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; width: 42px; height: 24px; border-radius: 12px; background: #4a4f5c; position: relative; cursor: pointer; flex: none; border: 0; transition: background .15s; margin: 0;
+}
+.props-body input[type=checkbox]::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+.props-body input[type=checkbox]:checked { background: #2962ff; }
+.props-body input[type=checkbox]:checked::after { left: 21px; }
+.props-body input[type=checkbox]:disabled { cursor: not-allowed; }
+.props-body .fib-row input[type=checkbox] { width: 34px; height: 20px; border-radius: 10px; }
+.props-body .fib-row input[type=checkbox]::after { width: 14px; height: 14px; }
+.props-body .fib-row input[type=checkbox]:checked::after { left: 17px; }
+.modal-box.props .props-actions .btn { font-size: 14px; padding: 7px 16px; }
+.modal-box.props .hint.small { font-size: 12px; }

@@ -791,25 +791,44 @@
       const patch = (o) => { if (cur()) store.patch(sym, id, o); };
       const d0 = cur();
       const t = d0.type;
-      // Pestañas "Estilo" / "Coordenadas" (rectángulo, Fibonacci, línea y rayo horizontales), al lado del título
+      // Pestañas (Estilo, Texto, Contenido, Niveles, Tramos, Coordenadas, Objeto): solo aparecen las que tienen algo que mostrar.
       const hasCoords = t === 'rect' || t === 'fib' || t === 'hline' || t === 'hray';
-      let tab = 'style';
+      const TABS = [['style', 'Estilo'], ['text', 'Texto'], ['content', 'Contenido'], ['levels', 'Niveles'], ['segs', 'Tramos'], ['coords', 'Coordenadas'], ['obj', 'Objeto']];
+      let tab = t === 'text' ? 'text' : 'style';
+      box.classList.add('props');
       const head = el('div', 'props-head');
       head.appendChild(el('h3', '', D.TYPES[t].label));
       const tabBtns = {};
-      if (hasCoords) {
-        [['style', 'Estilo'], ['coords', 'Coordenadas']].forEach(([k, label]) => {
-          const b = el('button', 'props-tab', label);
-          b.onclick = () => { tab = k; Object.keys(tabBtns).forEach((x) => tabBtns[x].classList.toggle('active', x === tab)); fill(); };
-          tabBtns[k] = b; head.appendChild(b);
-        });
-        tabBtns.style.classList.add('active');
-      }
+      TABS.forEach(([k, label]) => {
+        const b = el('button', 'props-tab', label);
+        b.onclick = () => { tab = k; showTab(); };
+        tabBtns[k] = b; head.appendChild(b);
+      });
       box.appendChild(head);
-      const body = el('div', 'props-body');
-      box.appendChild(body);
+      const bodyWrap = el('div', 'props-body');
+      box.appendChild(bodyWrap);
+      const secs = {};
+      let body = bodyWrap;
+      const sec = (k) => { body = secs[k]; };
+      const showTab = () => {
+        let any = false;
+        TABS.forEach(([k]) => {
+          const has = secs[k] && secs[k].childNodes.length > 0;
+          tabBtns[k].style.display = has ? '' : 'none';
+          if (k === tab && !has) tab = 'style';
+        });
+        TABS.forEach(([k]) => { const on = k === tab; tabBtns[k].classList.toggle('active', on); if (secs[k]) secs[k].style.display = on ? '' : 'none'; if (on) any = true; });
+        if (!any && secs.style) { tab = 'style'; secs.style.style.display = ''; }
+      };
 
       const field = (label, ctrl) => { const f = el('div', 'field'); f.append(el('span', '', label), ctrl); body.appendChild(f); return f; };
+      const sub = (txt) => body.appendChild(el('h4', '', txt));
+      // Una casilla que habilita o deshabilita otras opciones: apagada, las demás se ven atenuadas y no se pueden tocar.
+      const gate = (fld, others) => {
+        const chk = fld.querySelector('input[type=checkbox]');
+        const upd = () => others.forEach((f) => { f.classList.toggle('off', !chk.checked); f.querySelectorAll('input,select,button').forEach((x) => { x.disabled = !chk.checked; }); });
+        const old = chk.onchange; chk.onchange = () => { if (old) old(); upd(); }; upd();
+      };
       const colorIn = (val, fn) => { const i = el('input'); i.type = 'color'; i.value = hexOk(val); i.oninput = () => fn(i.value); return i; };
       const checkIn = (val, fn) => { const i = el('input'); i.type = 'checkbox'; i.checked = !!val; i.onchange = () => fn(i.checked); return i; };
       const numIn = (val, min, max, step, fn) => {
@@ -831,7 +850,7 @@
   const DASH_OPTS = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
       // Texto sobre la línea / niveles: mismos controles en tendencia, horizontal, rayo horizontal y Fibonacci.
       const textBlock = (d, withContent) => {
-        body.appendChild(el('h4', '', withContent ? 'Texto' : 'Texto de los niveles'));
+        if (!withContent) sub('Texto de los niveles');
         if (withContent) {
           const ti = el('input'); ti.type = 'text'; ti.value = d.text || ''; ti.style.width = '230px'; ti.placeholder = 'Escribe un texto (opcional)';
           ti.oninput = () => patch({ text: ti.value });
@@ -864,7 +883,7 @@
         const resize = (rows, cols) => { const nd = { rows: rows || cur().rows, cols: cols || cur().cols, cells: clone(cur().cells), colStyles: clone(cur().colStyles) }; D.fixTable(nd); tSel = new Set(); patch({ rows: nd.rows, cols: nd.cols, cells: nd.cells, colStyles: nd.colStyles }); fill(); };
         const numChange = (val, min, max, fn) => { const i = el('input'); i.type = 'number'; i.min = min; i.max = max; i.value = val; i.style.width = '80px'; i.onchange = () => { const v = parseInt(i.value, 10); if (isFinite(v)) fn(Math.max(min, Math.min(max, v))); }; return i; };
         const alignSel = (val, fn) => selIn([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']], val || 'left', fn);
-        body.appendChild(el('h4', '', 'Forma de la tabla'));
+        sec('style'); sub('Forma de la tabla');
         field('Filas', numChange(d.rows, 1, 30, (v) => resize(v, null)));
         field('Columnas', numChange(d.cols, 1, 30, (v) => resize(null, v)));
         field('Fijar la tabla al borde del gráfico', selIn([['none', 'No (se mueve con el gráfico)'], ['left', 'A la izquierda'], ['right', 'A la derecha']], d.pin || 'none', (v) => patch({ pin: v })));
@@ -881,7 +900,7 @@
         field('Color del fondo', colorIn(d.fillColor, (v) => patch({ fillColor: v })));
         field('Opacidad del fondo', rangeIn(d.fillOpacity == null ? 10 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
 
-        body.appendChild(el('h4', '', 'Contenido y celdas'));
+        sec('content'); sub('Contenido y celdas');
         body.appendChild(el('p', 'hint small', 'Escribe en las celdas o pega desde Excel (copia las celdas en Excel y pega en la celda donde empieza). Clic en una celda la selecciona; Shift + clic suma o quita celdas. Abajo cambias el contorno y el texto de las celdas elegidas.'));
         const gridWrap = el('div', 'tbl-wrap');
         const grid = el('div', 'tbl-grid');
@@ -937,7 +956,7 @@
         }
         drawCellBox();
 
-        body.appendChild(el('h4', '', 'Estilo por columna'));
+        sub('Estilo por columna');
         body.appendChild(el('p', 'hint small', 'Cada columna puede tener su propio texto: por ejemplo la 1 solo en negrita y la 2 solo en cursiva y de otro color. Una celda con ajustes propios manda sobre su columna.'));
         for (let c = 0; c < d.cols; c++) {
           const cs = d.colStyles[c] || {};
@@ -992,16 +1011,17 @@
           body.appendChild(row);
           body.appendChild(el('p', 'hint small', 'Se mantiene el borde izquierdo del rectángulo y se mueve el derecho. Acepta números grandes, por ejemplo 1258 días.'));
         }
-        const hh = el('h4', '', 'Objeto'); body.appendChild(hh);
-        field('Bloqueado (no se puede mover ni borrar)', checkIn(d.locked, (v) => patch({ locked: v })));
       }
 
       function fill() {
-        body.innerHTML = '';
+        bodyWrap.innerHTML = '';
+        TABS.forEach(([k]) => { secs[k] = el('div', 'props-sec'); bodyWrap.appendChild(secs[k]); });
+        body = secs.style;
         const d = cur();
         if (!d) return;
-        if (hasCoords && tab === 'coords') { coordsBlock(d); return; }
+        if (hasCoords) { sec('coords'); coordsBlock(d); sec('style'); }
         if (t === 'text') {
+          sec('text');
           const ti = el('input'); ti.type = 'text'; ti.value = d.text || ''; ti.style.width = '230px';
           ti.oninput = () => { if (ti.value.trim()) patch({ text: ti.value }); };
           field('Texto', ti);
@@ -1012,6 +1032,7 @@
         } else if (t === 'table') {
           tableBlock(d);
         } else {
+          sec('style');
           field('Color de línea', colorIn(d.color, (v) => patch({ color: v })));
           field('Grosor', numIn(d.width || 1, 1, 8, 1, (v) => patch({ width: v })));
           field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })));
@@ -1019,8 +1040,30 @@
             field('Punta del inicio', selIn(CAP_OPTS, d.capA || 'none', (v) => patch({ capA: v })));
             field('Punta del final', selIn(CAP_OPTS, d.capB || 'none', (v) => patch({ capB: v })));
           }
+          if (t === 'rect' || t === 'channel') {
+            const fF = field('Relleno', checkIn(d.fill, (v) => patch({ fill: v })));
+            const fO = field('Opacidad del relleno', rangeIn(d.fillOpacity == null ? 15 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
+            gate(fF, [fO]);
+          }
+          if (t === 'rect') {
+            sub('Línea central');
+            const fC = field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
+            const cw = el('span', 'cwrap');
+            cw.appendChild(colorIn(d.cColor || d.color, (v) => patch({ cColor: v })));
+            const same = el('button', 'btn secondary small', 'Como el borde'); same.onclick = () => { patch({ cColor: null }); fill(); };
+            cw.appendChild(same);
+            gate(fC, [field('Color', cw), field('Tipo de línea', selIn(DASH_OPTS, d.cDash || 'dashed', (v) => patch({ cDash: v }))), field('Grosor', numIn(d.cWidth || 1, 1, 8, 1, (v) => patch({ cWidth: v })))]);
+          }
+          if (t === 'fib') {
+            const fT = field('Línea de tendencia (punteada)', checkIn(d.trendLine, (v) => patch({ trendLine: v })));
+            void fT;
+            const fB = field('Fondo entre niveles', checkIn(d.bg, (v) => patch({ bg: v })));
+            const fBo = field('Opacidad del fondo', rangeIn(d.bgOpacity == null ? 10 : d.bgOpacity, (v) => patch({ bgOpacity: v })));
+            gate(fB, [fBo]);
+          }
           if (t === 'poly') {
-            body.appendChild(el('h4', '', 'Textos de los puntos (también: pasa el mouse por un punto con la polilínea seleccionada)'));
+            sec('text');
+            sub('Textos de los puntos (también: pasa el mouse por un punto con la polilínea seleccionada)');
             const cwp = el('span', 'cwrap');
             cwp.appendChild(colorIn(d.tColor || d.color, (v) => patch({ tColor: v })));
             const sameP = el('button', 'btn secondary small', 'Como la línea');
@@ -1037,7 +1080,8 @@
               field(`Punto ${i + 1}`, inp);
             });
             if (d.pts.length > 1) {
-              body.appendChild(el('h4', '', 'Tramos (color propio o eliminar)'));
+              sec('segs');
+              sub('Tramos (color propio o eliminar)');
               for (let i = 0; i < d.pts.length - 1; i++) {
                 const sg = (d.segs && d.segs[i]) || {};
                 const wrapS = el('div', 'seg-row');
@@ -1050,47 +1094,30 @@
               }
             }
           }
-          if (t === 'trend' || t === 'channel' || t === 'fib' || t === 'rect') {
-            field('Ampliar a la izquierda', checkIn(d.extL, (v) => patch({ extL: v })));
-            field('Ampliar a la derecha', checkIn(d.extR, (v) => patch({ extR: v })));
-          }
-          if (t === 'rect' || t === 'channel') {
-            field('Relleno', checkIn(d.fill, (v) => patch({ fill: v })));
-            field('Opacidad del relleno', rangeIn(d.fillOpacity == null ? 15 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
-          }
-          if (t === 'rect') {
-            body.appendChild(el('h4', '', 'Medidas (escala logarítmica)'));
-            field('Mostrar ancho y alto', checkIn(d.measure, (v) => patch({ measure: v })));
-            const mw = el('span', 'cwrap');
-            mw.appendChild(colorIn(d.mColor || d.color, (v) => patch({ mColor: v })));
-            const msame = el('button', 'btn secondary small', 'Como el borde'); msame.onclick = () => { patch({ mColor: null }); fill(); };
-            mw.appendChild(msame);
-            field('Color del texto de las medidas', mw);
-            field('Tamaño del texto (px)', numIn(d.mSize || 12, 8, 60, 1, (v) => patch({ mSize: v })));
-            field('Negrita', checkIn(d.mBold !== false, (v) => patch({ mBold: v })));
-            field('Cursiva', checkIn(d.mItalic, (v) => patch({ mItalic: v })));
-
-            body.appendChild(el('p', 'hint', 'Ancho: tiempo exacto hasta el minuto (por ejemplo 1345 días, 2 días 12 h 35 min o 14 h 15 min). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
-            body.appendChild(el('h4', '', 'Línea central'));
-            field('Mostrar línea central', checkIn(d.center, (v) => patch({ center: v })));
-            const cw = el('span', 'cwrap');
-            cw.appendChild(colorIn(d.cColor || d.color, (v) => patch({ cColor: v })));
-            const same = el('button', 'btn secondary small', 'Como el borde'); same.onclick = () => { patch({ cColor: null }); fill(); };
-            cw.appendChild(same);
-            field('Color de la línea central', cw);
-            field('Tipo de línea central', selIn(DASH_OPTS, d.cDash || 'dashed', (v) => patch({ cDash: v })));
-            field('Grosor de la línea central', numIn(d.cWidth || 1, 1, 8, 1, (v) => patch({ cWidth: v })));
-          }
         }
-        if (t === 'trend' || t === 'hline' || t === 'hray' || t === 'rect') textBlock(d, true);
+        if (t === 'trend' || t === 'hline' || t === 'hray' || t === 'rect') { sec('text'); textBlock(d, true); }
+        if (t === 'rect') {
+          sec('text');
+          sub('Medidas (escala logarítmica)');
+          const fM = field('Mostrar ancho y alto', checkIn(d.measure, (v) => patch({ measure: v })));
+          const mw = el('span', 'cwrap');
+          mw.appendChild(colorIn(d.mColor || d.color, (v) => patch({ mColor: v })));
+          const msame = el('button', 'btn secondary small', 'Como el borde'); msame.onclick = () => { patch({ mColor: null }); fill(); };
+          mw.appendChild(msame);
+          gate(fM, [
+            field('Color del texto de las medidas', mw),
+            field('Tamaño del texto (px)', numIn(d.mSize || 12, 8, 60, 1, (v) => patch({ mSize: v }))),
+            field('Negrita', checkIn(d.mBold !== false, (v) => patch({ mBold: v }))),
+            field('Cursiva', checkIn(d.mItalic, (v) => patch({ mItalic: v }))),
+          ]);
+          body.appendChild(el('p', 'hint', 'Ancho: tiempo exacto hasta el minuto (por ejemplo 1345 días, 2 días 12 h 35 min o 14 h 15 min). Alto: décadas = log10(precio mayor ÷ precio menor); 1,000 = el precio se multiplica por 10, 0,301 = se duplica. Es exacto en cualquier parte del gráfico y no cambia con el zoom ni el tamaño.'));
+        }
         if (t === 'fib') {
-          field('Línea de tendencia (punteada)', checkIn(d.trendLine, (v) => patch({ trendLine: v })));
-          field('Niveles de Fibonacci basados en escala logarítmica', checkIn(!!d.logScale, (v) => patch({ logScale: v })));
+          sec('text'); textBlock(d, false);
+          sec('levels');
+          field('Niveles basados en escala logarítmica', checkIn(!!d.logScale, (v) => patch({ logScale: v })));
           field('Mostrar el precio de cada nivel', checkIn(d.showPrice, (v) => patch({ showPrice: v })));
-          field('Fondo entre niveles', checkIn(d.bg, (v) => patch({ bg: v })));
-          field('Opacidad del fondo', rangeIn(d.bgOpacity == null ? 10 : d.bgOpacity, (v) => patch({ bgOpacity: v })));
-          textBlock(d, false);
-          body.appendChild(el('h4', '', 'Niveles (0 = segundo punto, 1 = primer punto)'));
+          sub('Niveles (0 = segundo punto, 1 = primer punto)');
           const lvBox = el('div', 'fib-levels');
           body.appendChild(lvBox);
           const drawLevels = () => {
@@ -1121,10 +1148,16 @@
           };
           drawLevels();
         }
-        body.appendChild(el('h4', '', 'Objeto'));
+        sec('obj');
+        if (t === 'trend' || t === 'channel' || t === 'fib' || t === 'rect') {
+          field('Ampliar a la izquierda', checkIn(d.extL, (v) => patch({ extL: v })));
+          field('Ampliar a la derecha', checkIn(d.extR, (v) => patch({ extR: v })));
+        }
         field('Bloqueado (no se puede mover ni borrar)', checkIn(d.locked, (v) => patch({ locked: v })));
         field('Oculto', checkIn(d.hidden, (v) => patch({ hidden: v })));
-        X.decoratePalette(body);
+        body = secs.style;
+        showTab();
+        X.decoratePalette(bodyWrap);
       }
       fill();
 
@@ -1155,7 +1188,7 @@
     if (!list.length) return false;
     store.begin(sym);
     list.forEach((d) => {
-      const pts = d.pts.map((p) => Object.assign({}, p, layer.offsetPoint(p, dx, dy, d.pane)));
+      const pts = d.pts.map((p) => Object.assign({}, p, layer.offsetPoint(p, dx, dy, d.pane, true)));
       store.patch(sym, d.id, { pts });
     });
     store.end();

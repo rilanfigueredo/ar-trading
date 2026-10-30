@@ -534,6 +534,15 @@
       active: () => !!(s.chart && s.series && s.bars.length && !s.loading && !isVol()),
       xOfTime(t) { const lg = logicalAtTime(t); return lg === null ? null : xOfLogical(lg); },
       timeOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? timeAtLogical(lg) : null; },
+      // Igual que timeOfX pero sin redondear a la vela (para mover dibujos con las flechas, píxel a píxel).
+      timeOfXFine(x) {
+        const ts = s.chart.timeScale(), r = ts.getVisibleLogicalRange();
+        if (!r) return null;
+        const ref = Math.round((r.from + r.to) / 2), rc = ts.logicalToCoordinate(ref);
+        if (rc === null || rc === undefined) return null;
+        const lg = ref + (x - rc) / ts.options().barSpacing;
+        return timeAtLogical(lg);
+      },
       logicalOfX(x) { const lg = s.chart.timeScale().coordinateToLogical(x); return num(lg) ? lg : null; },
       centerTime: (i) => s.bars[i].time + spanAt(i) / 2,
       barsBetween(t1, t2) { const a = logicalAtTime(t1), b = logicalAtTime(t2); return a === null || b === null ? 0 : Math.round(Math.abs(b - a)); },
@@ -623,7 +632,7 @@
       undoPoint() { return allLayers().some((l) => l.undoPoint()); },
       editText(id) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); if (l) l.editText(id); },
       clearRuler() { allLayers().forEach((l) => l.clearRuler()); },
-      offsetPoint(pt, dx, dy, pane) { const l = layerOf(pane) || mainLayer; return l.offsetPoint(pt, dx, dy); },
+      offsetPoint(pt, dx, dy, pane, fine) { const l = layerOf(pane) || mainLayer; return l.offsetPoint(pt, dx, dy, fine); },
       destroy() { allLayers().forEach((l) => l.destroy()); Object.keys(subLayers).forEach((k) => delete subLayers[k]); },
     } : null;
     // Alturas de los paneles: las que el usuario deja al arrastrar los separadores se guardan y no se vuelven a tocar.

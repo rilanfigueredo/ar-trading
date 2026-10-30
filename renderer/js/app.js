@@ -405,7 +405,7 @@
     const box = $('modalBox');
     const floating = !!(opts && opts.floating);
     box.innerHTML = '';
-    box.classList.remove('wide');
+    box.classList.remove('wide', 'props');
     $('modal').classList.toggle('floating', floating);
     delete box.dataset.kind;
     box.style.left = box.style.top = '';
@@ -424,12 +424,12 @@
         floatPos = pos;
       };
       place();
-      const grip = box.querySelector('h3');
+      const grip = box.querySelector('.props-head') || box.querySelector('h3');
       if (grip) {
         grip.classList.add('drag-grip');
         grip.title = 'Arrastra para mover esta ventana';
         grip.onpointerdown = (e) => {
-          if (e.button !== 0) return;
+          if (e.button !== 0 || (e.target.closest && e.target.closest('button'))) return;
           const sx = e.clientX, sy = e.clientY, ox = pos.x, oy = pos.y;
           grip.setPointerCapture(e.pointerId);
           grip.onpointermove = (m) => { pos.x = ox + m.clientX - sx; pos.y = oy + m.clientY - sy; place(); };
@@ -462,7 +462,7 @@
 
   // ---------- Paleta de colores propia ----------
   let palEl = null;
-  function closePalette() { if (palEl) { palEl.remove(); palEl = null; } }
+  function closePalette() { if (palEl) { palEl.remove(); palEl = null; } if (typeof closeColorPicker === 'function') closeColorPicker(); }
   function addToPalette(hex) {
     const h = String(hex).toLowerCase();
     if (!/^#[0-9a-f]{6}$/.test(h)) return false;
@@ -506,6 +506,101 @@
     palEl = pop;
   }
   document.addEventListener('mousedown', (e) => { if (palEl && !palEl.contains(e.target) && !e.target.classList.contains('pal-btn')) closePalette(); }, true);
+  // ---------- Selector de color propio (v0.22.17): se abre en HEX; el selector nativo del sistema arrancaba en RGB ----------
+  let cpEl = null;
+  function closeColorPicker() { if (cpEl) { cpEl.remove(); cpEl = null; } }
+  const cpHexOk = (h) => /^#[0-9a-f]{6}$/i.test(h);
+  const cpToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const cpToHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  function cpRgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+    return [h, mx ? d / mx : 0, mx];
+  }
+  function cpHsvToRgb(h, s, v) {
+    const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+  }
+  function openColorPicker(inp) {
+    closeColorPicker(); closePalette();
+    if (inp.disabled) return;
+    const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; };
+    const pop = mk('div', 'pal-pop cp-pop');
+    let [h, sat, val] = cpRgbToHsv(...cpToRgb(cpHexOk(inp.value) ? inp.value : '#2962ff'));
+    const W = 216, H = 140;
+    const sv = mk('canvas', 'cp-sv'); sv.width = W; sv.height = H;
+    const hu = mk('canvas', 'cp-hue'); hu.width = W; hu.height = 14;
+    const row = mk('div', 'cp-row');
+    const sw = mk('span', 'cp-prev');
+    const hex = mk('input', 'cp-hex'); hex.type = 'text'; hex.maxLength = 7; hex.spellcheck = false;
+    const mode = mk('button', 'cp-mode', 'HEX');
+    const rgbRow = mk('div', 'cp-rgb'); rgbRow.style.display = 'none';
+    const rgbIn = [0, 1, 2].map(() => { const i = mk('input'); i.type = 'number'; i.min = 0; i.max = 255; rgbRow.appendChild(i); return i; });
+    let rgbMode = false;
+    const cur = () => cpToHex(...cpHsvToRgb(h, sat, val));
+    const draw = () => {
+      const c = sv.getContext('2d');
+      c.fillStyle = cpToHex(...cpHsvToRgb(h, 1, 1)); c.fillRect(0, 0, W, H);
+      let g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      const x = sat * W, y = (1 - val) * H;
+      c.lineWidth = 2; c.strokeStyle = '#fff'; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.stroke();
+      c.lineWidth = 1; c.strokeStyle = '#000'; c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2); c.stroke();
+      const hc = hu.getContext('2d');
+      const hg = hc.createLinearGradient(0, 0, W, 0);
+      for (let i = 0; i <= 6; i++) hg.addColorStop(i / 6, cpToHex(...cpHsvToRgb(i * 60, 1, 1)));
+      hc.fillStyle = hg; hc.fillRect(0, 0, W, 14);
+      const hx = (h / 360) * W; hc.lineWidth = 2; hc.strokeStyle = '#fff'; hc.strokeRect(hx - 2, 0, 4, 14);
+      const col = cur(); sw.style.background = col;
+      if (document.activeElement !== hex) hex.value = col;
+      const rgb = cpToRgb(col); rgbIn.forEach((i, k) => { if (document.activeElement !== i) i.value = rgb[k]; });
+    };
+    const push = (fin) => {
+      const col = cur();
+      inp.value = col;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      if (fin) inp.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const drag = (cv, fn) => {
+      cv.onpointerdown = (e) => {
+        cv.setPointerCapture(e.pointerId);
+        const go = (m) => { const r = cv.getBoundingClientRect(); fn(Math.max(0, Math.min(1, (m.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (m.clientY - r.top) / r.height))); draw(); push(false); };
+        go(e);
+        cv.onpointermove = go;
+        cv.onpointerup = () => { cv.onpointermove = null; cv.onpointerup = null; push(true); };
+      };
+    };
+    drag(sv, (x, y) => { sat = x; val = 1 - y; });
+    drag(hu, (x) => { h = Math.min(359.99, x * 360); });
+    hex.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') hex.blur(); };
+    hex.oninput = () => {
+      let t = hex.value.trim(); if (t && t[0] !== '#') t = '#' + t;
+      if (cpHexOk(t)) { [h, sat, val] = cpRgbToHsv(...cpToRgb(t)); draw(); push(true); }
+    };
+    hex.onblur = () => { hex.value = cur(); };
+    rgbIn.forEach((i) => {
+      i.onkeydown = (e) => e.stopPropagation();
+      i.oninput = () => { const v = rgbIn.map((q) => Math.max(0, Math.min(255, parseInt(q.value, 10) || 0))); [h, sat, val] = cpRgbToHsv(...v); draw(); push(true); };
+    });
+    mode.title = 'Cambiar entre HEX y RGB';
+    mode.onclick = () => { rgbMode = !rgbMode; mode.textContent = rgbMode ? 'RGB' : 'HEX'; hex.style.display = rgbMode ? 'none' : ''; rgbRow.style.display = rgbMode ? '' : 'none'; draw(); };
+    row.append(sw, hex, rgbRow, mode);
+    pop.append(sv, hu, row);
+    document.body.appendChild(pop);
+    const r = inp.getBoundingClientRect();
+    pop.style.left = Math.max(4, Math.min(window.innerWidth - pop.offsetWidth - 4, r.left)) + 'px';
+    const below = r.bottom + 6, top = below + pop.offsetHeight > window.innerHeight - 4 ? Math.max(4, r.top - pop.offsetHeight - 6) : below;
+    pop.style.top = top + 'px';
+    cpEl = pop; draw();
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'INPUT' && t.type === 'color') { e.preventDefault(); e.stopPropagation(); openColorPicker(t); }
+  }, true);
+  document.addEventListener('mousedown', (e) => { if (cpEl && !cpEl.contains(e.target) && !(e.target.tagName === 'INPUT' && e.target.type === 'color')) closeColorPicker(); }, true);
   // Icono de la paleta: un cuadrado con muchos colores, para que se entienda que ahí se abre la paleta
   const PAL_ICON = (() => {
     const cols = ['#f23645', '#ff9800', '#ffeb3b', '#4caf50', '#00bcd4', '#2962ff', '#7e57c2', '#e91e63', '#9e9e9e'];
@@ -1333,6 +1428,7 @@
       if (!ok) { Object.keys(c).forEach((k) => { delete c[k]; }); Object.assign(c, clone(backup)); apply(); if (!$('panel').classList.contains('hidden')) renderPanel(); }
     };
     openModal((box) => {
+      box.classList.add('props');
       const head = document.createElement('div'); head.className = 'props-head';
       const h3 = document.createElement('h3'); h3.textContent = df.title; head.appendChild(h3);
       const body = document.createElement('div'); body.className = 'props-body';
