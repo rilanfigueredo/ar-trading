@@ -1,13 +1,13 @@
 {
   "name": "ar-trading",
   "productName": "Ar_Trading",
-  "version": "0.22.18",
+  "version": "0.23.0",
   "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "browser": "node server.js",
-    "test": "node test/lib.test.js && node test/indicators.test.js && node test/draw.test.js && node test/exchanges.test.js && node test/connection.test.js && node test/trades.test.js && node test/script.test.js && node test/backtest.test.js && node test/store.test.js && node test/futureaxis.test.js && node test/http.test.js && node test/swings.test.js && node test/polymerge.test.js",
+    "test": "node test/lib.test.js && node test/indicators.test.js && node test/draw.test.js && node test/exchanges.test.js && node test/connection.test.js && node test/trades.test.js && node test/script.test.js && node test/backtest.test.js && node test/store.test.js && node test/futureaxis.test.js && node test/http.test.js && node test/swings.test.js && node test/polymerge.test.js && node test/liq.test.js",
     "dist": "electron-builder --win"
   },
   "devDependencies": {

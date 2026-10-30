@@ -340,7 +340,19 @@ function getTradeStore() {
   return tradeStore;
 }
 function tradeStatus() { return getTradeStore().status(); }
-function shutdown() { if (tradeStore) tradeStore.shutdown(); }
+// Mapa de liquidaciones (v0.23): servicio en src/liq/. Arranca con el programa para ir guardando memoria.
+let liqSvc = null;
+function getLiq() {
+  const path = require('path');
+  if (!liqSvc) {
+    liqSvc = require('./liq').create({ dir: path.join(tradeDir || path.join(__dirname, '..', 'data'), 'liq' + (MOCK() ? '-simulado' : '')), mock: MOCK() });
+    liqSvc.start().catch(() => {});
+  }
+  return liqSvc;
+}
+function liqStart() { try { getLiq(); } catch (e) { /* el aviso lo da liqMap */ } }
+async function liqMap(p) { return getLiq().getMap(p); }
+function shutdown() { if (tradeStore) tradeStore.shutdown(); if (liqSvc) liqSvc.stop(); }
 
 async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days, probe }) {
   if (exchange === 'bnftrades') return getTradeStore().bars({ symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days });
@@ -533,4 +545,4 @@ async function testConnection() {
   return { mock: false, results: out };
 }
 
-module.exports = { setDataDir, tradeStatus, shutdown, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { mockPrice, setDataDir, tradeStatus, shutdown, liqStart, liqMap, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

@@ -11,6 +11,7 @@ let win = null;
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
+ipcMain.handle('liqMap', async (_e, p) => core.liqMap(p));
 ipcMain.handle('tradeStatus', async () => core.tradeStatus());
 ipcMain.handle('testConnection', async () => core.testConnection());
 ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
@@ -79,6 +80,7 @@ app.whenReady().then(() => {
   core.setDataDir(app.getPath('userData'));
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
+  core.liqStart();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

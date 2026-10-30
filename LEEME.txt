@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.22.18
+AR_TRADING - VERSION 0.23.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23 - MAPA DE LIQUIDACIONES (ESTIMADO)
+- IMPORTANTE: es una ESTIMACION. Los exchanges (Binance, Bybit, OKX) NO publican las posiciones de cada persona. El mapa se calcula con el interes abierto (dato real), el precio (real) y suposiciones sobre el apalancamiento (5x, 10x, 25x, 50x, 100x) y sobre largos/cortos. Sirve para comparar zonas entre si, no como dato exacto. El metodo y las suposiciones estan en docs/CONOCIMIENTO.md (seccion 3).
+- Como abrirlo: (1) boton "+" de las pestanas > "Mapa de liquidaciones" (pestana nueva con BTCUSDT 15m), o (2) en cualquier grafico de BTCUSDT: panel de Indicadores (icono de la derecha) > "Mapa de liquidaciones" > casilla. Cada grafico guarda su propia configuracion.
+- Que se ve: franjas horizontales de color (azul verdoso = poco, verde, amarillo, rojo = mucho) que empiezan cuando se abren posiciones y terminan cuando el precio las toca. A la derecha, un perfil por precio con curvas acumuladas (roja = cortos arriba, verde = largos abajo) y lineas naranjas en los niveles mas fuertes con su precio en el eje. Circulos = liquidaciones REALES ya ocurridas.
+- Ajustes: ver Combinado / solo Binance / solo Bybit / solo OKX, apalancamientos, intensidad, historial (3 a 30 dias), envejecimiento, tamano de casilla, ancho del perfil, niveles clave y reparto por apalancamiento.
+- Memoria: el programa guarda precio, interes abierto y liquidaciones en la carpeta data/liq mientras esta encendido. La primera vez baja el historial que da cada exchange (Binance 30 dias, Bybit 7, OKX unos 5); las liquidaciones reales (circulos) solo se acumulan desde que el programa esta abierto.
+- Avisos: sobre el grafico sale un chip por exchange (verde = bien, amarillo = aviso, rojo = fallo con el motivo al pasar el mouse). Si una fuente falla NO se reemplaza en silencio.
+- Limites honestos: Binance no publica sin clave sus tramos de margen, se usa 0,4 % por defecto (no verificado). Binance entrega solo 1 liquidacion por segundo (se pierden datos en picos). Solo BTCUSDT por ahora.
+- Probado con datos simulados y pruebas automaticas. NO probado con Binance/Bybit/OKX reales ni en Windows: ver lo que hay que probar al final de este mensaje.
 
 NOVEDADES DE LA v0.22.18 - AJUSTES
 - Plantillas de dibujo: ahora guardan y aplican TODO (antes faltaban las puntas de la linea de tendencia y de la polilinea, y las medidas del rectangulo). Se comprobo con una prueba automatica que cada propiedad de cada herramienta entra en la plantilla.

@@ -63,7 +63,7 @@
   function newChart(symbol, tf) {
     return {
       symbol: symbol || 'BTCUSDT', exchange: 'binance', tf, chartType: 'candles', scale: 'normal', invert: false,
-      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, scripts: [], candle: defaultCandle(), look: defaultLook(), wm: defaultWm(),
+      ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, scripts: [], candle: defaultCandle(), look: defaultLook(), wm: defaultWm(), liq: window.TVLiqMap ? window.TVLiqMap.defaults() : undefined,
     };
   }
   // Herramientas de dibujo (v0.7): preferencias globales. Los dibujos van en cfg.drawings[símbolo].
@@ -1195,10 +1195,11 @@
     const c = cfg && cfg.charts && (cfg.charts[cfg.active] || cfg.charts[0]);
     if (!c) return 'BTCUSDT-1H';
     const lst = (cfg.lists || []).find((l) => l.id === cfg.listActive);
-    return [lst && lst.name ? String(lst.name).toUpperCase() : '', c.symbol, tfShort(c.tf)].filter(Boolean).join('-');
+    return [lst && lst.name ? String(lst.name).toUpperCase() : '', c.symbol, tfShort(c.tf), c.liq && c.liq.on ? 'LIQ' : ''].filter(Boolean).join('-');
   }
   const curTabLabel = () => tabLabelOf(A.cfg);
   let switching = false;
+  const pendingLiq = new Set();                       // v0.23: pestañas nuevas que nacen con el mapa de liquidaciones activado
   async function switchTab(id) {
     if (id === A.tabId || switching) return;
     switching = true;
@@ -1211,6 +1212,12 @@
         let saved = null;
         try { saved = await API.getConfig(id); } catch (e) { /* valores por defecto */ }
         const cfg = migrate(saved);
+        if (pendingLiq.has(id)) {
+          pendingLiq.delete(id);
+          cfg.layout = '1'; cfg.active = 0;
+          Object.assign(cfg.charts[0], { symbol: 'BTCUSDT', exchange: 'binance', tf: 'm:15' });
+          cfg.charts[0].liq.on = true;
+        }
         cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
         (cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
         const gridEl = document.createElement('div');
@@ -1275,9 +1282,29 @@
     });
     const nb = hh('button', 'tab-new', '+'); nb.title = tabs.length >= MAXTABS ? `Máximo ${MAXTABS} pestañas` : 'Nueva pestaña (gráfico limpio BTCUSDT, 1h)';
     nb.disabled = tabs.length >= MAXTABS;
-    nb.onclick = async () => {
+    const openNew = async (liq) => {
       nb.disabled = true;
-      try { const r = await API.openWindow(); if (r && r.ok) await switchTab(r.id); else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; } } catch (e) { nb.disabled = false; }
+      try {
+        const r = await API.openWindow();
+        if (r && r.ok) { if (liq) pendingLiq.add(r.id); await switchTab(r.id); }
+        else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; }
+      } catch (e) { nb.disabled = false; }
+    };
+    // v0.23: el "+" ofrece un menú: gráfico limpio o mapa de liquidaciones
+    nb.onclick = (ev) => {
+      ev.stopPropagation();
+      document.querySelectorAll('.tab-menu').forEach((m) => m.remove());
+      const m = hh('div', 'ctx-menu tab-menu');
+      [['Nuevo gráfico limpio', () => openNew(false)], ['Mapa de liquidaciones', () => openNew(true)]].forEach(([t, fn]) => {
+        const b = hh('button', 'ctx-item'); b.append(hh('span', 'ctx-check', ''), hh('span', '', t));
+        b.onclick = () => { m.remove(); fn(); };
+        m.appendChild(b);
+      });
+      document.body.appendChild(m);
+      const r = nb.getBoundingClientRect();
+      m.style.left = Math.min(r.left, window.innerWidth - m.offsetWidth - 6) + 'px'; m.style.top = (r.bottom + 4) + 'px';
+      const off = (e2) => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('mousedown', off, true); } };
+      document.addEventListener('mousedown', off, true);
     };
     bar.appendChild(nb);
   }
@@ -1516,6 +1543,12 @@
       { label: 'Grosor de la línea', prop: 'width', min: 1, max: 6 },
     ], 'Calculados con el máximo, mínimo y cierre del período anterior. Automático: día hasta 15m, semana hasta 4h, mes en el resto.');
 
+    if (window.TVLiqMap) {                                                         // v0.23
+      const h4l = document.createElement('h4'); h4l.textContent = 'Mapa de liquidaciones';
+      p.appendChild(h4l);
+      window.TVLiqMap.panel(p, activeCfg().liq, (soft) => { saveCfg(); const v = activeView(); if (v && v.refreshLiq) v.refreshLiq(soft !== true); if (soft !== true) renderPanel(); });
+    }
+
     // Medias móviles: un grupo para EMA y otro para SMA, cada uno con su interruptor.
     const h4c = document.createElement('h4'); h4c.textContent = 'Medias móviles';
     p.appendChild(h4c);
@@ -1607,6 +1640,7 @@
     $('btnSettings').innerHTML = ICONS.settings; $('btnScripts').innerHTML = ICONS.scripts;
     $('btnSettings').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'settings') closeModal(); else openSettings(); };
     $('btnIndicators').onclick = togglePanel;
+    document.addEventListener('tv-open-panel', () => { const p = $('panel'); if (p.classList.contains('hidden')) togglePanel(); else renderPanel(); });
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { if (!(window.TVDrawUI && window.TVDrawUI.cancelProps())) closeModal(); if (A.max >= 0) { A.max = -1; A.cfg.max = -1; applyMax(); saveCfg(); } }
@@ -1682,6 +1716,7 @@
       if (!['candles', 'line', 'area'].includes(out.chartType)) out.chartType = 'candles';
       if (!['normal', 'log', 'percent'].includes(out.scale)) out.scale = 'normal';
       out.invert = !!out.invert;
+      out.liq = window.TVLiqMap ? window.TVLiqMap.clean(c.liq) : c.liq;          // v0.23: mapa de liquidaciones por gráfico
       const srcInd = c.ind || legacyInd;
       out.ind = {};
       Object.keys(defInd).forEach((k) => { out.ind[k] = Object.assign({}, defInd[k], srcInd[k] || {}); });

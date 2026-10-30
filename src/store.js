@@ -140,7 +140,7 @@ function create(dir) {
       let act = c ? c.listActive : undefined;
       if (act === undefined && w.id === 'w1') act = s.listActive;
       const lst = (Array.isArray(s.lists) ? s.lists : []).find((l) => l && l.id === act);
-      const parts = [lst && lst.name ? String(lst.name).toUpperCase() : '', ch ? (ch.symbol || 'BTCUSDT') : 'BTCUSDT', ch ? tfLabel(ch.tf) : '1H'];
+      const parts = [lst && lst.name ? String(lst.name).toUpperCase() : '', ch ? (ch.symbol || 'BTCUSDT') : 'BTCUSDT', ch ? tfLabel(ch.tf) : '1H', ch && ch.liq && ch.liq.on ? 'LIQ' : ''];
       return { id: w.id, label: parts.filter(Boolean).join('-') };
     });
   }

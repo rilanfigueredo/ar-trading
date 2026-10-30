@@ -27,6 +27,7 @@
     ? {
         klines: (p) => desktop.klines(p),
         aggTrades: (p) => desktop.aggTrades(p),
+        liqMap: (p) => desktop.liqMap(p),
         tradeStatus: () => desktop.tradeStatus(),
         testConnection: () => desktop.testConnection(),
         symbols: (ex) => desktop.symbols({ exchange: ex || 'binance' }),
@@ -45,6 +46,7 @@
     : {
         klines: (p) => http('/api/klines?' + new URLSearchParams(p).toString()),
         aggTrades: (p) => http('/api/aggtrades?' + new URLSearchParams(p).toString()),
+        liqMap: (p) => http('/api/liqmap?' + new URLSearchParams(p).toString()),
         tradeStatus: () => http('/api/tradestatus'),
         testConnection: () => http('/api/testconnection'),
         symbols: (ex) => http('/api/symbols?exchange=' + (ex || 'binance')),

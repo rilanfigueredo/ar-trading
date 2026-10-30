@@ -289,6 +289,14 @@
           colors: () => { const lv = lookVars(); return { text: lv.text, crossBack: lv.isDark ? '#2a2e39' : '#4c525e' }; },
         });
       }
+      if (window.TVLiqMap) {                                             // v0.23: mapa de liquidaciones (capa sobre el gráfico)
+        vcfg.liq = window.TVLiqMap.clean(vcfg.liq);
+        s.liq = window.TVLiqMap.create({
+          host, lc: LC, api: API, chart: () => s.chart, series: () => s.series, bars: () => s.bars, tfSec: () => (tfNow().kind === 'vol' ? 0 : tfNow().sec),
+          cfg: () => vcfg.liq, symbol: () => vcfg.symbol, dark: () => lookVars().isDark, suspended: () => !!s.suspended,
+          openPanel: () => { try { document.dispatchEvent(new CustomEvent('tv-open-panel', { detail: { view } })); } catch (e) { /* ok */ } },
+        });
+      }
       applyBarSpacingLimit();
       applyScaleMode();
     }
@@ -326,6 +334,7 @@
       const old = s.series;
       if (old && s.pivot) { try { old.detachPrimitive(s.pivot); } catch (e) { /* ya quitado */ } }
       if (old && s.fut) { try { old.detachPrimitive(s.fut); } catch (e) { /* ya quitado */ } }
+      if (old && s.liq) { try { old.detachPrimitive(s.liq.prim); } catch (e) { /* ya quitado */ } }
       if (view.draw) view.draw.detach();
       const def = { candles: LC.CandlestickSeries, line: LC.LineSeries, area: LC.AreaSeries }[vcfg.chartType];
       s.series = s.chart.addSeries(def, mainOptions(), pi);
@@ -333,6 +342,7 @@
       if (old) s.chart.removeSeries(old);
       if (s.pivot) s.series.attachPrimitive(s.pivot);
       if (s.fut) s.series.attachPrimitive(s.fut);
+      if (s.liq) { s.series.attachPrimitive(s.liq.prim); s.liq.onSeries(); }
       if (view.draw) view.draw.attach(s.series);
       applyScaleMode();
     }
@@ -1112,7 +1122,7 @@
         removeEmptyPanes();
         syncIndicators(true);
         const n = s.bars.length;
-        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 7 });
+        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 7 + (s.liq ? s.liq.extraBars() : 0) });
         renderLegend(null);
         s.loading = false;
         setStatus('En vivo', 'live');
@@ -1305,7 +1315,7 @@
         removeEmptyPanes();
         syncIndicators(true);
         const n = s.bars.length;
-        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 7 });
+        s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 7 + (s.liq ? s.liq.extraBars() : 0) });
         renderLegend(null);
         s.loading = false;
         if (view.draw) view.draw.repaint();
@@ -1821,6 +1831,7 @@
         const nx = ex || exId();
         if (sym === vcfg.symbol && nx === exId()) return;
         vcfg.symbol = sym; vcfg.exchange = nx; renderWatermark(); load();
+        if (s.liq) s.liq.refresh(false);
       },
       setTf(id) {
         if (id === vcfg.tf) return;
@@ -1864,6 +1875,7 @@
       applyTimer() { updateTimer(); },
       applyCandleStyle() { applyHostVars(); if (s.series && vcfg.chartType === 'candles') s.series.applyOptions(mainOptions()); renderLegend(null); },
       applyTz() { refreshFormatters(); },
+      refreshLiq(force) { if (s.liq) s.liq.refresh(force !== false); },
       refreshMas() { if (s.bars.length) { syncMas(); renderLegend(null); } },
       refreshIndicators() { if (s.bars.length) syncIndicators(true); },
       redrawLegend() { renderLegend(null); },
@@ -1898,6 +1910,7 @@
       destroy() {
         s.destroyed = true;
         if (s.scr) s.scr.destroy();
+        if (s.liq) s.liq.destroy();
         clearInterval(s.trTimer);
         document.removeEventListener('keydown', onRpKey);
         if (s.rp && s.rp.timer) clearInterval(s.rp.timer);

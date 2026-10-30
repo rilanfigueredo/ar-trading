@@ -550,3 +550,13 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .props-tab { font-weight: 700; border: 2px solid transparent; border-radius: 6px 6px 0 0; padding: 5px 10px 6px; }
 .props-tab.active { border-color: #13dbf3; border-bottom-color: transparent; }
 .props-head.drag-grip { gap: 6px; }
+
+/* v0.23: mapa de liquidaciones (aviso sobre el gráfico) */
+.liq-badge { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; max-width: 70%; padding: 3px 8px; border-radius: 6px; font-size: 11px; background: rgba(10,16,42,.72); color: #d1d4dc; border: 1px solid rgba(255,255,255,.12); }
+.liq-badge.hidden { display: none; }
+.liq-badge .liq-t { font-weight: 700; }
+.liq-badge .liq-chip { padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; cursor: help; }
+.liq-badge .liq-chip.ok { color: #26c680; } .liq-badge .liq-chip.warn { color: #ffb74d; } .liq-badge .liq-chip.bad { color: #ff5252; }
+.liq-badge .liq-note { opacity: .75; } .liq-badge .liq-err { color: #ff8a80; font-weight: 600; }
+.liq-badge .liq-btn { cursor: pointer; border: 1px solid rgba(255,255,255,.3); border-radius: 4px; padding: 0 6px; background: transparent; color: inherit; font-size: 11px; }
+.liq-badge .liq-btn:hover { background: rgba(255,255,255,.12); }
