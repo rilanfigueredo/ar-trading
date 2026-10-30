@@ -68,7 +68,7 @@ global.fetch = async (url) => {
   calls.length = 0;
   answers = [{ data: { pair: 'BTC/USD', ohlc: [{ timestamp: '1315000000', open: '5', high: '5', low: '5', close: '5', volume: '1' }] } }];
   const pr = await core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '15m', endTime: 1400000000000, limit: 1, probe: '1' });
-  eq(pr.length, 1); assert.ok(calls[0].includes('start=0') && calls[0].includes('step=900') && calls[0].includes('limit=1'), calls[0]);
+  eq(pr.length, 1); assert.ok(calls[0].includes('start=0') && calls[0].includes('step=86400') && calls[0].includes('limit=1'), calls[0]);
   const pr2 = await core.klines({ exchange: 'bitstamp', symbol: 'BTCUSD', interval: '15m', endTime: 1300000000000, limit: 1, probe: '1' });
   eq(pr2.length, 0); eq(calls.length, 1);                           // antes de la primera vela real: ahora sí es el inicio (y no repite la consulta)
   answers = [{ last: '100', percent_change_24: '2.5', open_24: '97' }];
