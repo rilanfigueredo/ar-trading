@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } = require('electron');
 const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
@@ -72,6 +72,40 @@ ipcMain.handle('service:factoryReset', async () => {
   } catch (err) { return { ok: false, error: err.message }; }
 });
 
+// ----- Datos propios (v0.23.5) -----
+const dataBase = () => Service.resolveDataDir(app.getPath('userData')).dir;
+ipcMain.handle('data:status', async () => {
+  const st = await core.dataStatus();
+  const sv = Service.read(app.getPath('userData'));
+  return Object.assign(st, { desktop: true, dataDir: sv.dataDir, recordTrades: sv.recordTrades, tradeDays: sv.tradeDays, defaultDir: app.getPath('userData') });
+});
+ipcMain.handle('data:setRecord', async (_e, on, days) => {
+  try { Service.write(app.getPath('userData'), { recordTrades: !!on, tradeDays: Number(days) || 30 }); if (on) core.tradesStart(Number(days) || 30); return { ok: true, needsRestart: !on }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('data:openFolder', async () => { const e = await shell.openPath(dataBase()); return { ok: !e, error: e }; });
+ipcMain.handle('data:backup', async () => {
+  try {
+    const r = await dialog.showOpenDialog(win, { title: 'Elige dónde guardar la copia de seguridad', properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    core.flushData();                                        // se guarda lo pendiente antes de copiar
+    const out = await Service.backup(dataBase(), r.filePaths[0]);
+    return { ok: true, path: out.path, bytes: out.bytes };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('data:setDir', async () => {
+  try {
+    const r = await dialog.showOpenDialog(win, { title: 'Elige la carpeta para tus datos históricos (ej. un disco externo)', properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    const dest = r.filePaths[0];
+    if (dest === dataBase()) return { ok: false, error: 'Esa ya es la carpeta de datos actual.' };
+    core.shutdown();                                         // se guarda lo pendiente y se paran las descargas mientras se copia
+    const bytes = await Service.copyData(dataBase(), dest);
+    Service.write(app.getPath('userData'), { dataDir: dest });
+    return { ok: true, path: dest, bytes, needsRestart: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('data:resetDir', async () => { try { Service.write(app.getPath('userData'), { dataDir: '' }); return { ok: true, needsRestart: true }; } catch (err) { return { ok: false, error: err.message }; } });
+
 function createWindow() {
   const b = store.getMainBounds();
   const opts = {
@@ -109,10 +143,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  core.setDataDir(app.getPath('userData'));
+  // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
+  const dd = Service.resolveDataDir(app.getPath('userData'));
+  core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
-  core.liqStart();
+  core.liqStart(); core.histStart();
+  { const sv = Service.read(app.getPath('userData')); if (sv.recordTrades) core.tradesStart(sv.tradeDays); }
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -24,7 +24,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.23.3)
+## 3. Funciones actuales (v0.23.5)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -58,6 +58,14 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Listas — buscador (v0.12):** `openAdd()` en watch.js (búsqueda con ranking, pestañas por exchange, teclado). Iconos: jsDelivr (spothq/cryptocurrency-icons) → CoinCap → letra; permitidos en la CSP de index.html (`img-src`).
 - **Fallo de indicadores que "desaparecían" (v0.12):** el doble clic sobre las flechas del panel llegaba al gráfico (el botón se redibuja) y `toggleSubs` ocultaba todos los indicadores. Ahora se ignora el doble clic sobre `.pane-legend` y justo después de pulsar una flecha (`s.lastLegendClick`).
 
+### Datos propios (v0.23.5)
+- **Archivo permanente, nada se recorta.** `src/liq/store.js`: `arch-candles5m.jsonl`, `arch-oi-<ex>.jsonl` (solo se AÑADE al final filas con t mayor al último archivado) y `events-AAAA-MM.jsonl` (liquidaciones reales, un archivo por mes). En memoria y en `candles.json`/`oi-<ex>.json` solo 40 días (`MEM_SEC`) = lo que usa el estimador. Al abrir se cargan solo los meses de eventos recientes. Datos de versiones anteriores pasan al archivo al primer arranque.
+- **`src/hist.js`** (carpeta `hist/`): velas 1 m de Binance Futuros (`klines1m-AAAA-MM.jsonl`, [t,o,h,l,c,v]) hacia adelante cada 5 min y hacia atrás hasta `backfillDays` (365; 20 en simulado); funding (`funding-binance.jsonl`, desde 2019-09-10). Fusiona por tiempo, sin duplicar; si falla, el error queda en el estado (no se sustituye nada).
+- **Carpeta de datos elegible:** `service.json` guarda `dataDir`; `Service.resolveDataDir` (main.js) la valida al arrancar y, si no se puede escribir (disco desconectado), usa la de siempre y avisa (`note.error`). `data:setDir` copia `trades*/liq*/hist*` a la nueva y pide reiniciar; no borra la anterior. Config de ventanas sigue en userData.
+- **Grabar operaciones siempre:** `service.json` `recordTrades`/`tradeDays` → `core.tradesStart()` al arrancar (apagado por defecto: 4–9 GB/año).
+- **Copia de seguridad:** `Service.backup(src, dest)` crea `Ar_Trading_datos_AAAA-MM-DD_HHMM` con las carpetas de datos (no ajustes). No permite destino dentro de los datos.
+- **Estado:** `core.dataStatus()` → `GET /api/data/status` / IPC `data:status`; lo dibuja `fillData` (Ajustes > Datos). El reseteo de fábrica conserva datos, `dataDir` y `recordTrades`.
+- Límite honesto: solo se guarda con el programa abierto. Pendiente: servicio 24/7 sin ventana (server.js ya sirve para eso), compresión de eventos antiguos, otros activos y exchanges.
 ### Ajustes y servicio (v0.23.3)
 - `openSettings()` (app.js) es una ventana flotante con el estilo `props` y pestañas General / Gráfico / Plantillas / Paleta / Datos / Servicio (`settingsTab` recuerda la última; `fill()` redibuja el cuerpo). Clase `setwin` en styles.css (contornos #fe9900, pestaña activa #13dbf3, interruptores).
 - Tema: `cfg.theme` = 'dark' | 'light' | 'system'. Lo que se VE lo da `effTheme()` (app.js) / `L.resolveTheme(theme, systemLight)` (lib.js, con test en `test/service.test.js`); sigue a `prefers-color-scheme` en vivo. `migrate` normaliza valores raros a 'dark'.
@@ -136,6 +144,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.23.5: datos propios: archivo permanente (sin recorte), velas 1 m + funding (`src/hist.js`), Ajustes > Datos, carpeta elegible, copia de seguridad, grabar operaciones (ver §3).
 - v0.23.4: el reseteo de fábrica conserva operaciones (`trades*`) y liquidaciones (`liq*`).
 - v0.23.3: Ajustes por pestañas, tema Claro/Oscuro/Sistema con iconos, pestaña Servicio (aceleración, caché, reseteo de fábrica), interruptores y contornos (ver §3).
 - v0.23.2: bandas del mapa de liquidaciones empiezan en su t0 (arreglo de `logicalToCoordinate` con fracciones), comprobación de validez con las velas y filtro «Solo zonas de swing» (ver §3).

@@ -1,8 +1,19 @@
-AR_TRADING - VERSION 0.23.4
+AR_TRADING - VERSION 0.23.5
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.5 - TUS PROPIOS DATOS HISTORICOS (sin depender de terceros)
+- Nada se borra: las liquidaciones reales, el interes abierto y el precio de 5 min del mapa de liquidaciones ahora se guardan PARA SIEMPRE (antes se recortaban a 35 dias). Lo que ya tenias guardado pasa al archivo permanente. El programa no se hace mas lento con los anos (en memoria solo usa los ultimos 40 dias).
+- NUEVO: velas de 1 minuto y funding de Binance Futuros (BTCUSDT) guardados en la carpeta "hist". El funding baja todo su historial (desde 2019) y las velas de 1 min se completan hacia atras hasta 1 ano, poco a poco sin saturar a Binance.
+- NUEVO en Ajustes > Datos: lista de lo que tienes guardado (desde cuando, hasta cuando, filas y peso en MB/GB) y avisos de error de cada fuente.
+- NUEVO: interruptor "Grabar siempre las operaciones de BTCUSDT" (4 a 9 GB por ano; apagado por defecto).
+- NUEVO: "Cambiar carpeta de datos" (por ejemplo un disco externo o una carpeta de OneDrive/Google Drive/Dropbox): copia tus datos a la carpeta nueva y pide reiniciar; la carpeta anterior NO se borra. Si el disco no esta conectado, el programa avisa y usa la carpeta de siempre.
+- NUEVO: "Copia de seguridad" con un clic (crea una carpeta con fecha en el sitio que elijas) y "Abrir carpeta de datos".
+- El reseteo de fabrica conserva la carpeta de datos elegida y la grabacion de operaciones.
+- IMPORTANTE: solo se guarda mientras el programa esta ABIERTO. Las liquidaciones reales llegan en vivo y no se pueden pedir despues. Para no perder nada, dejalo abierto.
+- Probado con datos simulados y pruebas automaticas. NO probado con Binance real ni en Windows.
 
 NOVEDADES DE LA v0.23.4 - EL RESETEO DE FABRICA CONSERVA TUS DATOS HISTORICOS
 - Ya NO borra las operaciones descargadas ni la memoria del mapa de liquidaciones (carpetas trades y liq): no se pueden recuperar. Solo borra ajustes, pestanas, dibujos, plantillas, scripts y cache de velas.

@@ -135,6 +135,6 @@ function create(opt) {
     };
     return out;
   }
-  return { start, stop, getMap, status: () => JSON.parse(JSON.stringify(status)), store, deps };
+  return { dataInfo: () => { store.flush(); return store.info(); }, start, stop, getMap, status: () => JSON.parse(JSON.stringify(status)), store, deps };
 }
 module.exports = { create, mockDeps, mockPrice };

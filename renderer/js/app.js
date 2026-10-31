@@ -1148,6 +1148,7 @@
         }
 
         if (tab === 'datos') {
+          fillData(body, mk, title, hint);
           title('Conexión con las fuentes de datos');
           hint('Comprueba en este equipo qué fuentes responden (Binance, Bybit, Coinbase y los archivos históricos) y a qué velocidad. Sirve para saber qué datos se pueden usar.');
           const connBtn = mk('button', { className: 'btn secondary', textContent: 'Probar conexión' });
@@ -1177,6 +1178,51 @@
       act.append(mk('span', { className: 'spacer' }), close);
       box.appendChild(act);
     }, { floating: true });
+  }
+
+  // Pestaña «Datos» (v0.23.5): qué datos propios hay guardados, carpeta, copia de seguridad y grabación de operaciones
+  const fmtBytes = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(0, Math.round(b / 1024)) + ' KB');
+  const fmtDay = (sec) => (sec ? new Date(sec * 1000).toISOString().slice(0, 10) : '—');
+  function fillData(body, mk, title, hint) {
+    title('Mis datos guardados');
+    hint('Se guardan en tu equipo SIN límite de tiempo, mientras el programa está abierto. Lo que no se guarda ahora no se puede recuperar después (los exchanges solo dan unos días de liquidaciones).');
+    const box = mk('div', {}); body.appendChild(box);
+    const say = mk('div', { className: 'svc-msg' });
+    const render = (r) => {
+      box.innerHTML = '';
+      if (r.note && r.note.error) box.appendChild(mk('div', { className: 'svc-msg bad', textContent: r.note.error }));
+      if (r.mock) box.appendChild(mk('div', { className: 'hint', textContent: 'MODO SIMULADO: estos datos son de prueba.' }));
+      let grp = null;
+      r.sets.forEach((x) => {
+        if (x.group !== grp) { grp = x.group; box.appendChild(mk('div', { className: 'data-grp', textContent: grp })); }
+        const row = mk('div', { className: 'data-row ' + (x.state === 'ok' ? 'ok' : x.state === 'aviso' ? 'warn' : x.state === 'error' ? 'bad' : '') });
+        const top = mk('div', { className: 'data-top' });
+        top.append(mk('b', { textContent: x.name }), mk('span', { className: 'data-size', textContent: fmtBytes(x.bytes || 0) }));
+        row.appendChild(top);
+        const range = x.from ? `Desde ${fmtDay(x.from)} hasta ${fmtDay(x.to)}` + (x.rows ? ` · ${x.rows.toLocaleString('es')} filas` : '') : 'Aún sin datos';
+        row.appendChild(mk('div', { className: 'hint', textContent: range + (x.backfilling ? ' · completando hacia atrás…' : '') + (x.id === 'trades' ? (x.recording ? ' · grabando' : ' · no se graba ahora') : '') }));
+        if (x.err) row.appendChild(mk('div', { className: 'svc-msg bad', textContent: x.err }));
+        box.appendChild(row);
+      });
+      box.appendChild(mk('div', { className: 'hint', textContent: 'Total: ' + fmtBytes(r.totalBytes) + ' · Carpeta: ' + r.dir }));
+      if (r.desktop) {
+        const tr = mk('input', { type: 'checkbox', checked: !!r.recordTrades });
+        const f = mk('div', { className: 'field' }); f.append(mk('span', { textContent: 'Grabar siempre las operaciones de BTCUSDT (4 a 9 GB por año)' }), tr); box.appendChild(f);
+        tr.onchange = async () => { const x = await API.data.setRecord(tr.checked, r.tradeDays); say.textContent = x && x.ok ? (tr.checked ? 'Grabación activada: empieza ahora y se retoma cada vez que abras el programa.' : 'Grabación desactivada: se aplica al reiniciar el programa. Lo ya guardado se conserva.') : 'No se pudo cambiar: ' + ((x && x.error) || ''); say.className = 'svc-msg' + (x && x.ok ? '' : ' bad'); };
+        const acts = mk('div', { className: 'row-actions' });
+        const bOpen = mk('button', { className: 'btn secondary', textContent: 'Abrir carpeta de datos' }); bOpen.onclick = () => API.data.openFolder();
+        const bBack = mk('button', { className: 'btn secondary', textContent: 'Copia de seguridad…' });
+        bBack.onclick = async () => { bBack.disabled = true; say.textContent = 'Copiando… puede tardar si hay muchos datos.'; say.className = 'svc-msg'; const x = await API.data.backup(); bBack.disabled = false; if (x && x.canceled) { say.textContent = ''; return; } say.textContent = x && x.ok ? `Copia lista (${fmtBytes(x.bytes)}): ${x.path}` : 'No se pudo copiar: ' + ((x && x.error) || ''); say.className = 'svc-msg' + (x && x.ok ? '' : ' bad'); };
+        const bDir = mk('button', { className: 'btn secondary', textContent: 'Cambiar carpeta de datos…' });
+        bDir.onclick = async () => { bDir.disabled = true; say.textContent = 'Copiando tus datos a la carpeta nueva… no cierres el programa.'; say.className = 'svc-msg'; const x = await API.data.setDir(); bDir.disabled = false; if (x && x.canceled) { say.textContent = ''; return; } if (x && x.ok) { say.textContent = `Datos copiados a ${x.path} (${fmtBytes(x.bytes)}). Reinicia el programa para usarla; la carpeta anterior NO se borra.`; const rb = mk('button', { className: 'btn', textContent: 'Reiniciar ahora' }); rb.onclick = () => API.service.relaunch(); box.appendChild(rb); } else { say.textContent = 'No se pudo cambiar: ' + ((x && x.error) || ''); say.className = 'svc-msg bad'; } };
+        acts.append(bOpen, bBack, bDir);
+        if (r.dataDir) { const bRes = mk('button', { className: 'btn secondary', textContent: 'Volver a la carpeta de siempre' }); bRes.onclick = async () => { await API.data.resetDir(); say.textContent = 'Listo: se usará la de siempre al reiniciar (los datos nuevos de la otra carpeta no se mueven solos).'; }; acts.appendChild(bRes); }
+        box.appendChild(acts);
+        box.appendChild(mk('div', { className: 'hint', textContent: 'Consejo: para no depender del PC, elige una carpeta en un disco externo o en una carpeta sincronizada (OneDrive, Google Drive, Dropbox). Si el disco no está conectado, el programa avisa y usa la carpeta de siempre.' }));
+      }
+      box.appendChild(say);
+    };
+    API.data.status().then(render).catch((e) => { box.appendChild(mk('div', { className: 'svc-msg bad', textContent: 'No se pudo leer el estado: ' + e.message })); });
   }
 
   // Pestaña «Servicio»: rendimiento, caché y reseteo de fábrica

@@ -42,6 +42,10 @@
         openWindow: () => desktop.openWindow(),
         closeWindow: (id) => desktop.closeWindow(id),
         onShared: (cb) => desktop.onShared(cb),
+        data: {
+          status: () => desktop.dataStatus(), setRecord: (on, d) => desktop.dataSetRecord(on, d), openFolder: () => desktop.dataOpenFolder(),
+          backup: () => desktop.dataBackup(), setDir: () => desktop.dataSetDir(), resetDir: () => desktop.dataResetDir(),
+        },
         service: {
           get: () => desktop.serviceGet(), setHw: (on) => desktop.serviceSetHw(on), relaunch: () => desktop.serviceRelaunch(),
           clearCache: () => desktop.serviceClearCache(), factoryReset: () => desktop.serviceFactoryReset(),
@@ -66,6 +70,11 @@
         setActive: (id) => http('/api/window/active?w=' + id, { method: 'POST' }),
         openWindow: () => http('/api/window/new', { method: 'POST' }),
         closeWindow: (id) => http('/api/window/remove?w=' + id, { method: 'POST' }),
+        data: {
+          status: () => http('/api/data/status'), setRecord: async () => ({ ok: false }), openFolder: async () => ({ ok: false }),
+          backup: async () => ({ ok: false, error: 'Solo en la app de escritorio. En el navegador copia la carpeta data a mano.' }),
+          setDir: async () => ({ ok: false, error: 'Solo en la app de escritorio.' }), resetDir: async () => ({ ok: false }),
+        },
         service: {
           get: () => http('/api/service/get'), setHw: async () => ({ ok: false }), relaunch: async () => { location.reload(); return { ok: true }; },
           clearCache: async () => ({ ok: true }), factoryReset: () => http('/api/service/factoryreset', { method: 'POST' }),
