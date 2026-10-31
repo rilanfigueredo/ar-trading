@@ -22,7 +22,7 @@ assert.strictEqual(L.resolveTheme('light', false), 'light');
 assert.strictEqual(L.resolveTheme('dark', true), 'dark');
 assert.strictEqual(L.resolveTheme('raro', true), 'dark');
 
-// reseteo de fábrica: deja la carpeta como nueva (sin config, ventanas, datos descargados ni ajustes de servicio)
+// reseteo de fábrica: deja la carpeta como nueva (sin config, ventanas ni ajustes de servicio; CONSERVA operaciones y liquidaciones)
 const store = Store.create(dir);
 store.setConfig('w1', { theme: 'light', charts: [], scripts: [{ id: 'x' }] });
 store.addWindow('w2'); store.setConfig('w2', { layout: '2h' });
@@ -34,7 +34,8 @@ const core = require('../src/core');
 core.setDataDir(dir);
 svc.factoryReset({ dir, store, core, restart: false });
 const left = fs.readdirSync(dir).sort();
-assert.deepStrictEqual(left, ['otra-cosa.txt'], 'queda solo lo ajeno: ' + left);
+assert.deepStrictEqual(left, ['liq', 'otra-cosa.txt', 'trades'], 'los datos históricos se conservan: ' + left);
+assert.ok(fs.existsSync(path.join(dir, 'liq', 'x', 'a.json')) && fs.existsSync(path.join(dir, 'trades', 'BTCUSDT')));
 assert.strictEqual(store.listWindows().length, 1, 'vuelve a una sola pestaña');
 const fresh = store.getConfig('w1');
 assert.ok(!fresh || !fresh.theme || fresh.theme !== 'light', 'el tema guardado ya no está');

@@ -1244,9 +1244,9 @@
       mb.appendChild(mk('h3', { textContent: '¿Restablecer valores de fábrica?' }));
       mb.appendChild(mk('p', { className: 'hint', textContent: 'Se borrará TODO lo tuyo y no se puede deshacer:' }));
       const ul = mk('ul', { className: 'reset-list' });
-      ['Todas las pestañas y sus gráficos, símbolos y temporalidades', 'Dibujos, plantillas, paleta de colores, listas de seguimiento', 'Tus scripts, estrategias y resultados', 'Tema y demás ajustes', 'Lo descargado: velas guardadas, operaciones y memoria del mapa de liquidaciones'].forEach((t) => ul.appendChild(mk('li', { textContent: t })));
+      ['Todas las pestañas y sus gráficos, símbolos y temporalidades', 'Dibujos, plantillas, paleta de colores, listas de seguimiento', 'Tus scripts, estrategias y resultados', 'Tema y demás ajustes', 'Velas guardadas en caché (se vuelven a bajar solas)'].forEach((t) => ul.appendChild(mk('li', { textContent: t })));
       mb.appendChild(ul);
-      mb.appendChild(mk('p', { className: 'hint', textContent: 'El programa conserva todas sus herramientas y funciones. Se reiniciará solo.' }));
+      mb.appendChild(mk('p', { className: 'hint', textContent: 'NO se borran tus datos históricos: operaciones descargadas y memoria del mapa de liquidaciones. El programa conserva todas sus herramientas y funciones y se reiniciará solo.' }));
       const say = mk('div', { className: 'svc-msg' }); mb.appendChild(say);
       const rw = mk('div', { className: 'row-actions' });
       const yes = mk('button', { className: 'btn danger', textContent: 'Sí, borrar todo' });

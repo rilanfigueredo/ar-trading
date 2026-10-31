@@ -352,13 +352,10 @@ function getLiq() {
 }
 function liqStart() { try { getLiq(); } catch (e) { /* el aviso lo da liqMap */ } }
 async function liqMap(p) { return getLiq().getMap(p); }
-// Reseteo de fábrica (v0.23.3): borra lo descargado y acumulado (operaciones y memoria del mapa de liquidaciones).
+// Reseteo de fábrica: NO borra datos históricos propios (operaciones de data/trades ni memoria de liquidaciones de data/liq): no se pueden volver a bajar. Solo detiene los servicios.
 function resetData(opts) {
-  const path = require('path'), fs = require('fs');
   shutdown();
   tradeStore = null; liqSvc = null;
-  const base = tradeDir || path.join(__dirname, '..', 'data');
-  ['trades', 'trades-simulado', 'liq', 'liq-simulado'].forEach((d) => { try { fs.rmSync(path.join(base, d), { recursive: true, force: true }); } catch (e) { /* ok */ } });
   if (opts && opts.restart) liqStart();
 }
 function shutdown() { if (tradeStore) tradeStore.shutdown(); if (liqSvc) liqSvc.stop(); }

@@ -1,8 +1,11 @@
-AR_TRADING - VERSION 0.23.3
+AR_TRADING - VERSION 0.23.4
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.4 - EL RESETEO DE FABRICA CONSERVA TUS DATOS HISTORICOS
+- Ya NO borra las operaciones descargadas ni la memoria del mapa de liquidaciones (carpetas trades y liq): no se pueden recuperar. Solo borra ajustes, pestanas, dibujos, plantillas, scripts y cache de velas.
 
 NOVEDADES DE LA v0.23.3 - AJUSTES POR PESTAÑAS Y SERVICIO
 - La ventana de Ajustes (icono de la rueda) ahora tiene pestanas con contorno: General, Grafico, Plantillas, Paleta, Datos y Servicio. Se puede mover arrastrando el titulo.
