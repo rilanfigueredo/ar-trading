@@ -101,11 +101,26 @@ assert.strictEqual(ok.length, 1); assert.deepStrictEqual([ok[0].side, ok[0].usd]
   const p = M.params(M.clean({ mode: 'comb', src: { okx: false }, levs: { 100: false } }));
   assert.strictEqual(p.ex, 'binance,bybit'); assert.strictEqual(p.levs, '5,10,25,50');
   assert.strictEqual(M.params(M.clean({ mode: 'okx' })).ex, 'okx');
-  assert.deepStrictEqual(M.rampColor(0), [31, 159, 163]); assert.deepStrictEqual(M.rampColor(1), [255, 31, 31]);
+  assert.deepStrictEqual(M.rampColor(0), [38, 166, 166]);
   const segs = [[100, 0, 0, 1, 5, 0, 0, 0, 0], [101, 0, 0, 1, 50, 0, 0, 0, 0], [102, 0, 0, 1, 20, 0, 0, 0, 0], [50, 0, 10, 0, 99, 0, 0, 0, 0], [50, 0, 0, 0, 7, 0, 0, 0, 0]];
   const prof = M.profile(segs, 10);
   assert.strictEqual(prof.length, 4, 'el perfil solo cuenta niveles vivos');
   const pk = M.peaks(prof, 2, 0.004); assert.strictEqual(pk[0].bin, 101); assert.strictEqual(pk.length, 2);
   const cu = M.cumulative(prof, 1010); assert.strictEqual(cu.up.length, 2); assert.strictEqual(cu.dn.length, 2); assert.ok(cu.max > 0);
+  // --- filtro de ruido y color (v0.23.1) ---
+  const sg = [[100, 0, 0, 1, 10, 0, 0, 0, 0], [101, 0, 0, 1, 0, 0, 0, 5, 5], [102, 5, 0, 1, 0, 0, 0, 0, 30], [103, 0, 9, 1, 99, 0, 0, 0, 0]];
+  const bk = M.bucketize(sg, 1);
+  assert.strictEqual(bk.length, 3, 'las cubetas barridas (t1 > 0) no entran');
+  const merged = M.bucketize(sg, 2); assert.strictEqual(merged.length, 2); assert.ok(merged.find((b) => b.id === 50).items.length === 2);
+  assert.ok(M.heatVal([0, 0, 0, 0, 30]) > M.heatVal([10, 10, 10, 0, 0]), 'el 100x pesa más que el 5x–25x');
+  assert.ok(M.imp([0, 0, 0, 5, 5]) > M.imp([10, 0, 0, 0, 0]));
+  const pickedAll = M.pickBuckets(bk, 10, 0), pickedTop = M.pickBuckets(bk, 1, 0);
+  assert.strictEqual(pickedAll.length, 3); assert.strictEqual(pickedTop.length, 1); assert.strictEqual(pickedTop[0].id, 102, 'queda la de mayor apalancamiento');
+  assert.ok(M.pickBuckets(bk, 10, 0.5).every((b) => b.imp >= 0.5 * pickedTop[0].imp));
+  assert.strictEqual(M.clean({ detail: 99 }).detail, 3); assert.strictEqual(M.defaults().detail, 1);
+  assert.deepStrictEqual(M.rampColor(1), [255, 26, 26]);
+  const hot = svcMap => svcMap.segs.every((r) => r[2] === 0);
+  const svc3 = L.create({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'liqalive')), mock: true }); await svc3.start();
+  assert.ok(hot(svc3.getMap({})), 'el servidor solo envía niveles vivos'); svc3.stop();
   console.log('liq.test.js OK');
 })().catch((e) => { console.error(e); process.exit(1); });

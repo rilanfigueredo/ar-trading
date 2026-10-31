@@ -121,7 +121,7 @@ function create(opt) {
       cache = { key, per };
     }
     exs.forEach((ex) => { if (cache.per[ex]) lists.push(cache.per[ex].segs); });
-    let segs = E.mergeSegs(lists);
+    let segs = E.mergeSegs(lists).filter((r) => r[2] === 0);        // solo niveles VIVOS: los ya barridos no se muestran
     // se descartan los segmentos casi invisibles (< 0,1 % del mayor) para no enviar datos que no se ven
     let mx = 0; segs.forEach((r) => { const t = r[4] + r[5] + r[6] + r[7] + r[8]; if (t > mx) mx = t; });
     segs = segs.filter((r) => r[4] + r[5] + r[6] + r[7] + r[8] >= mx * 0.001);

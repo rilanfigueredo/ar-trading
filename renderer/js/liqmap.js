@@ -7,12 +7,13 @@
   'use strict';
   const LEVS = [5, 10, 25, 50, 100];
   const EXS = { binance: 'Binance', bybit: 'Bybit', okx: 'OKX' };
-  const COLS = ['#d9c2ff', '#b983ff', '#9a52ff', '#7a2de0', '#5b17b3'];     // perfil: un tono violeta por apalancamiento (5x claro … 100x oscuro)
+  const COLS = ['#e3c8ff', '#c77dff', '#9b4dff', '#ffb020', '#ff6a00'];     // perfil: 5x, 10x y 25x en lila/violeta; 50x y 100x en naranja (los más importantes)
+  const IMPW = [0.15, 0.3, 0.6, 1, 1.2];                                   // importancia por apalancamiento: manda el 50x–100x
   const KEY_COLOR = '#ff9800';
 
   // ---------- Configuración por gráfico (vcfg.liq) ----------
   function defaults() {
-    return { on: false, mode: 'comb', src: { binance: true, bybit: true, okx: true }, levs: { 5: true, 10: true, 25: true, 50: true, 100: true }, w: [10, 25, 30, 20, 15], scale: 1, days: 14, half: 72, bin: 0, profile: true, pw: 26, keys: 4, events: true };
+    return { on: false, mode: 'comb', src: { binance: true, bybit: true, okx: true }, levs: { 5: true, 10: true, 25: true, 50: true, 100: true }, w: [10, 25, 30, 20, 15], scale: 1, days: 14, half: 72, bin: 0, profile: true, pw: 26, keys: 4, events: true, detail: 1 };
   }
   const num = (v, a, b, d) => { const x = Number(v); return Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : d; };
   function clean(x) {
@@ -23,7 +24,7 @@
       src: { binance: x.src ? x.src.binance !== false : true, bybit: x.src ? x.src.bybit !== false : true, okx: x.src ? x.src.okx !== false : true },
       levs: {}, w: d.w.slice(), scale: num(x.scale, 0.2, 4, 1), days: [3, 7, 14, 30].includes(Number(x.days)) ? Number(x.days) : 14,
       half: [0, 24, 72, 168].includes(Number(x.half)) ? Number(x.half) : 72, bin: [0, 5, 10, 20, 50].includes(Number(x.bin)) ? Number(x.bin) : 0,
-      profile: x.profile !== false, pw: num(x.pw, 10, 40, 26), keys: Math.round(num(x.keys, 0, 8, 4)), events: x.events !== false,
+      profile: x.profile !== false, pw: num(x.pw, 10, 40, 26), keys: Math.round(num(x.keys, 0, 8, 4)), events: x.events !== false, detail: num(x.detail, 0.3, 3, 1),
     };
     LEVS.forEach((l) => { o.levs[l] = x.levs ? x.levs[l] !== false : true; });
     if (Array.isArray(x.w) && x.w.length === 5) o.w = x.w.map((v, i) => num(v, 0, 100, d.w[i]));
@@ -43,7 +44,7 @@
   }
 
   // ---------- Color: teal → verde → amarillo → rojo ----------
-  const STOPS = [[0, [31, 159, 163]], [0.35, [46, 204, 64]], [0.7, [255, 230, 0]], [1, [255, 31, 31]]];
+  const STOPS = [[0, [38, 166, 166]], [0.28, [46, 204, 40]], [0.55, [255, 232, 0]], [0.78, [255, 140, 0]], [1, [255, 26, 26]]];
   function rampColor(v) {
     v = Math.min(1, Math.max(0, v));
     for (let i = 1; i < STOPS.length; i++) {
@@ -54,14 +55,34 @@
     }
     return STOPS[STOPS.length - 1][1];
   }
-  const tot = (r) => r[4] + r[5] + r[6] + r[7] + r[8];
-  // Referencia de intensidad: percentil 97 de los segmentos (la lectura es RELATIVA: se compara una zona con otra)
-  function refOf(segs) {
-    if (!segs.length) return 1;
-    const a = segs.map(tot).sort((x, y) => x - y);
-    return a[Math.min(a.length - 1, Math.floor(a.length * 0.97))] || a[a.length - 1] || 1;
+    // Importancia de un nivel: pesa más el apalancamiento alto (50x–100x). Decide qué se muestra y el color (naranja/rojo = 50x–100x).
+  const imp = (lv) => lv[0] * IMPW[0] + lv[1] * IMPW[1] + lv[2] * IMPW[2] + lv[3] * IMPW[3] + lv[4] * IMPW[4];
+  // Valor de color: lo bajo (5x–25x) pesa poco; lo alto (50x–100x) pesa entero
+  const heatVal = (lv) => 0.35 * (lv[0] + lv[1] + lv[2]) + lv[3] + lv[4];
+
+  // Cubetas de precio: junta varias casillas en filas de al menos ~8 px (como las bandas gruesas de los mapas de referencia).
+  // Solo niveles VIVOS (los ya barridos no se dibujan). Cada cubeta guarda sus altas por tiempo para pintar el escalón de color.
+  function bucketize(segs, rowBins) {
+    const m = new Map();
+    segs.forEach((r) => {
+      if (r[2] !== 0) return;
+      const id = Math.floor(r[0] / rowBins);
+      let b = m.get(id);
+      if (!b) { b = { id, side: r[3], items: [], lv: [0, 0, 0, 0, 0], v: 0 }; m.set(id, b); }
+      b.items.push({ t0: r[1], w: [r[4], r[5], r[6], r[7], r[8]] });
+      for (let i = 0; i < 5; i++) b.lv[i] += r[4 + i];
+    });
+    m.forEach((b) => { b.items.sort((x, y) => x.t0 - y.t0); b.v = heatVal(b.lv); b.imp = imp(b.lv); });
+    return Array.from(m.values());
   }
-  const intensity = (t, ref, scale) => Math.min(1, (t / ref) * scale * 0.7);
+  // Filtro de ruido: de las cubetas visibles se dejan las más importantes. El cupo depende del alto de la pantalla,
+  // así que al alejar (muchas cubetas compiten por el mismo espacio) solo quedan las mayores y al acercar salen las de esa zona.
+  function pickBuckets(list, budget, minRel) {
+    if (!list.length) return [];
+    const sorted = list.slice().sort((a, b) => b.imp - a.imp);
+    const top = sorted[0].imp;
+    return sorted.slice(0, Math.max(1, budget)).filter((b) => b.imp >= top * minRel);
+  }
 
   // ---------- Perfil por precio (solo niveles vivos) ----------
   function profile(segs, binSize) {
@@ -71,14 +92,14 @@
       let b = m.get(r[0]);
       if (!b) { b = { bin: r[0], price: r[0] * binSize + binSize / 2, side: r[3], lv: [0, 0, 0, 0, 0], tot: 0 }; m.set(r[0], b); }
       for (let i = 0; i < 5; i++) b.lv[i] += r[4 + i];
-      b.tot = b.lv[0] + b.lv[1] + b.lv[2] + b.lv[3] + b.lv[4];
+      b.tot = b.lv[0] + b.lv[1] + b.lv[2] + b.lv[3] + b.lv[4]; b.imp = imp(b.lv);
     });
     return Array.from(m.values()).sort((a, b) => a.price - b.price);
   }
   // Niveles clave: las n barras más grandes del perfil, separadas al menos gapPct entre sí
   function peaks(prof, n, gapPct) {
     const out = [];
-    prof.slice().sort((a, b) => b.tot - a.tot).forEach((b) => {
+    prof.slice().sort((a, b) => b.imp - a.imp).forEach((b) => {
       if (out.length >= n) return;
       if (out.every((o) => Math.abs(o.price - b.price) / b.price > gapPct)) out.push(b);
     });
@@ -157,7 +178,7 @@
     function prepare(m) {
       const prof = profile(m.segs, m.binSize);
       const c = cfg();
-      return Object.assign(m, { ref: refOf(m.segs), prof, cum: cumulative(prof, m.price || 0), peaks: peaks(prof, c.keys, 0.004) });
+      return Object.assign(m, { prof, cum: cumulative(prof, m.price || 0), peaks: peaks(prof, c.keys, 0.004) });
     }
     function syncKeyLines() {
       const s = env.series();
@@ -189,32 +210,59 @@
           target.useBitmapCoordinateSpace((scope) => {
             const ctx = scope.context, hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
             const X = xMaker(); if (!X) return;
-            const lr = ch.timeScale().getVisibleLogicalRange(); if (!lr) return;
+            const ts = ch.timeScale(), lr = ts.getVisibleLogicalRange(); if (!lr) return;
             const bs = model.binSize, c = cfg();
-            const yA = se.priceToCoordinate(model.price || 0), yB = se.priceToCoordinate((model.price || 0) + 1000);
-            const key = [lr.from.toFixed(2), lr.to.toFixed(2), yA, yB, W, H, ver, c.scale].join('|');
+            const p0 = model.price || bs * 1000, ya = se.priceToCoordinate(p0), yb = se.priceToCoordinate(p0 + bs * 100);
+            if (ya === null || yb === null) return;
+            const key = [lr.from.toFixed(2), lr.to.toFixed(2), ya, yb, W, H, ver, c.scale, c.detail].join('|');
             if (cache.key !== key || !cache.cv) {
               const cv = cache.cv || document.createElement('canvas');
               cv.width = W; cv.height = H;
               const g = cv.getContext('2d');
               g.clearRect(0, 0, W, H);
-              const order = model.segs.slice().sort((a, b) => tot(a) - tot(b));
+              const pxBin = Math.abs(yb - ya) / 100 * vpr;
+              const rowBins = Math.max(1, Math.ceil((8 * vpr) / Math.max(pxBin, 0.01)));
+              const all = bucketize(model.segs, rowBins), vis = [];
+              all.forEach((bk) => {
+                const yT = se.priceToCoordinate((bk.id + 1) * rowBins * bs), yB = se.priceToCoordinate(bk.id * rowBins * bs);
+                if (yT === null || yB === null) return;
+                const top = Math.round(Math.min(yT, yB) * vpr), hgt = Math.round(Math.abs(yB - yT) * vpr);
+                if (top > H || top + hgt < 0) return;
+                bk.top = top; bk.hgt = Math.max(2, hgt - 1); vis.push(bk);
+              });
+              const picked = pickBuckets(vis, Math.round((H / vpr / 26) * c.detail), 0.1);
+              const refV = Math.max.apply(null, picked.map((bk) => bk.v).concat([1e-9]));
               const lut = []; for (let i = 0; i <= 40; i++) lut.push(rampColor(i / 40));
-              for (let k = 0; k < order.length; k++) {
-                const r = order[k];
-                const v = intensity(tot(r), model.ref, c.scale);
-                if (v < 0.1) continue;
-                const y1 = se.priceToCoordinate((r[0] + 1) * bs), y0 = se.priceToCoordinate(r[0] * bs);
-                if (y1 === null || y0 === null) continue;
-                const top = Math.round(Math.min(y0, y1) * vpr), hgt = Math.max(1, Math.round(Math.abs(y0 - y1) * vpr) - (Math.abs(y0 - y1) * vpr > 4 ? 1 : 0));
-                if (top > H || top + hgt < 0) continue;
-                const xa = X(r[1]), xb = r[2] ? X(r[2]) : W / hpr;
-                if (xa === null || xb === null) continue;
-                const a = Math.round(xa * hpr), b = Math.round(xb * hpr);
-                if (b < 0 || a > W || b <= a) continue;
-                const col = lut[Math.round(v * 40)];
-                g.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + (0.5 + 0.45 * v).toFixed(2) + ')';
-                g.fillRect(Math.max(0, a), top, Math.min(W, b) - Math.max(0, a), hgt);
+              picked.forEach((bk) => {
+                const cum = [0, 0, 0, 0, 0];
+                const runs = [];
+                bk.items.forEach((it) => {
+                  for (let i = 0; i < 5; i++) cum[i] += it.w[i];
+                  const x = X(it.t0); if (x === null) return;
+                  const idx = Math.round(Math.min(1, (heatVal(cum) / refV) * c.scale) * 40);
+                  const px = Math.max(0, Math.round(x * hpr));
+                  if (runs.length && runs[runs.length - 1].idx === idx) return;
+                  if (runs.length && runs[runs.length - 1].x === px) { runs[runs.length - 1].idx = idx; return; }
+                  runs.push({ x: px, idx });
+                });
+                runs.forEach((r, k) => {
+                  const x2 = k + 1 < runs.length ? runs[k + 1].x : W;
+                  if (x2 <= r.x || r.x > W) return;
+                  const col = lut[r.idx];
+                  g.fillStyle = 'rgb(' + col[0] + ',' + col[1] + ',' + col[2] + ')';
+                  g.fillRect(r.x, bk.top, x2 - r.x, bk.hgt);
+                });
+              });
+              // rayas verticales entre velas (como las barras por vela de los mapas de referencia); solo si hay sitio
+              const spacing = ts.options().barSpacing * hpr;
+              if (spacing >= 4) {
+                g.globalCompositeOperation = 'destination-out';
+                const gw = Math.max(1, Math.round(hpr));
+                for (let i = Math.floor(lr.from); i <= Math.ceil(lr.to) && i - lr.from < 3000; i++) {
+                  const x = ts.logicalToCoordinate(i + 0.5);
+                  if (x !== null) g.fillRect(Math.round(x * hpr), 0, gw, H);
+                }
+                g.globalCompositeOperation = 'source-over';
               }
               cache = { key, cv };
             }
@@ -348,7 +396,8 @@
     mk('Ver', sel([['comb', 'Combinado'], ['binance', 'Solo Binance'], ['bybit', 'Solo Bybit'], ['okx', 'Solo OKX']], c.mode, (v) => { c.mode = v; }));
     Object.keys(EXS).forEach((k) => mk('Suma ' + EXS[k], check(c.src[k], (v) => { c.src[k] = v; })));
     LEVS.forEach((l) => mk('Apalancamiento ' + l + 'x', check(c.levs[l], (v) => { c.levs[l] = v; })));
-    mk('Intensidad', range(0.2, 4, 0.1, c.scale, (v) => { c.scale = v; }));
+    mk('Detalle (más = más bandas)', range(0.3, 3, 0.1, c.detail, (v) => { c.detail = v; }));
+    mk('Intensidad del color', range(0.2, 4, 0.1, c.scale, (v) => { c.scale = v; }));
     mk('Historial', sel([[3, '3 días'], [7, '7 días'], [14, '14 días'], [30, '30 días']], c.days, (v) => { c.days = Number(v); }));
     mk('Antigüedad (vida media)', sel([[0, 'Sin envejecer'], [24, '24 h'], [72, '72 h'], [168, '7 días']], c.half, (v) => { c.half = Number(v); }));
     mk('Tamaño de casilla', sel([[0, 'Automático'], [5, '5 USD'], [10, '10 USD'], [20, '20 USD'], [50, '50 USD']], c.bin, (v) => { c.bin = Number(v); }));
@@ -367,7 +416,7 @@
     parent.appendChild(box);
   }
 
-  const api = { create, panel, defaults, clean, params, rampColor, intensity, refOf, profile, peaks, cumulative, LEVS, EXS };
+  const api = { create, panel, defaults, clean, params, rampColor, bucketize, pickBuckets, heatVal, imp, profile, peaks, cumulative, LEVS, EXS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVLiqMap = api;
 })(typeof self !== 'undefined' ? self : globalThis);

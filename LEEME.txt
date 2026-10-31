@@ -1,8 +1,15 @@
-AR_TRADING - VERSION 0.23.0
+AR_TRADING - VERSION 0.23.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.1 - MAPA DE LIQUIDACIONES MAS LIMPIO
+- Solo se muestran las zonas MAS IMPORTANTES. Si alejas el grafico se ocultan las pequenas y quedan pocas bandas; si acercas, aparecen tambien las importantes de esa zona. Nuevo control "Detalle (mas = mas bandas)" en el panel de Indicadores.
+- Las liquidaciones que el precio ya toco (barridas) ya NO se dibujan: esa parte del grafico queda vacia y limpia. Solo se ven las que siguen pendientes.
+- Estilo de barras como en Trading Different: bandas gruesas que empiezan en el momento en que se formaron y siguen hasta el borde derecho, con el color cambiando a medida que se acumulan.
+- Colores: azul verdoso y verde = apalancamientos bajos (5x a 25x); amarillo, naranja y ROJO = los fuertes en 50x y 100x. En el perfil lateral, el 50x y el 100x salen en naranja y el resto en lila/violeta. Los niveles clave (lineas naranjas) y el filtro dan mas peso a 50x-100x.
+- Sigue siendo una ESTIMACION y sin probar con los exchanges reales.
 
 NOVEDADES DE LA v0.23 - MAPA DE LIQUIDACIONES (ESTIMADO)
 - IMPORTANTE: es una ESTIMACION. Los exchanges (Binance, Bybit, OKX) NO publican las posiciones de cada persona. El mapa se calcula con el interes abierto (dato real), el precio (real) y suposiciones sobre el apalancamiento (5x, 10x, 25x, 50x, 100x) y sobre largos/cortos. Sirve para comparar zonas entre si, no como dato exacto. El metodo y las suposiciones estan en docs/CONOCIMIENTO.md (seccion 3).
