@@ -1931,6 +1931,7 @@
       replayState: { get: () => (s.rp ? 'on' : (s.rpPick ? 'pick' : 'off')) },
       loading: { get: () => s.loading },
       chart: { get: () => s.chart },
+      liq: { get: () => s.liq },
     });
     // Scripts propios (v0.20)
     if (window.TVScriptHost && window.TVScriptRunner) {

@@ -122,5 +122,27 @@ assert.strictEqual(ok.length, 1); assert.deepStrictEqual([ok[0].side, ok[0].usd]
   const hot = svcMap => svcMap.segs.every((r) => r[2] === 0);
   const svc3 = L.create({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'liqalive')), mock: true }); await svc3.start();
   assert.ok(hot(svc3.getMap({})), 'el servidor solo envía niveles vivos'); svc3.stop();
+  // --- niveles ya tomados y zonas de swing (v0.23.2) ---
+  // velas: sube a 85, cae a 76 con un rebote intermedio (máximo relativo 80 sin barrer), y está en 77
+  const H = [82, 84, 85, 83, 81, 79, 77.5, 80, 78, 77, 76.5, 78, 77.4];
+  const mkb = H.map((h, i) => ({ time: 1000 + i * 100, open: h - 1, high: h, low: h - 2, close: h - 1 }));
+  const sx = M.suffixExtremes(mkb);
+  assert.strictEqual(sx.hi[0], 85); assert.strictEqual(sx.hi[3], 83); assert.strictEqual(sx.lo[0], 74.5);
+  assert.strictEqual(M.firstBarAfter(mkb, 1000), 1); assert.strictEqual(M.firstBarAfter(mkb, 1050), 1); assert.strictEqual(M.firstBarAfter(mkb, 99999), mkb.length);
+  const mkSeg = (price, t0, side) => [Math.round(price / 1), t0, 0, side, 0, 0, 0, 5, 5];   // binSize 1
+  // un corto a 84 nacido antes de la caída: el máximo 85 lo cruzó DESPUÉS de nacer → tomado
+  assert.strictEqual(M.stillValid(mkSeg(84, 1000, 1), 1, mkb, sx), false, 'cruzado por el 85 tras nacer');
+  assert.strictEqual(M.stillValid(mkSeg(84, 1250, 1), 1, mkb, sx), true, 'nacido tras el 85, nadie lo cruzó');
+  assert.strictEqual(M.stillValid(mkSeg(79, 1300, 1), 1, mkb, sx), false, 'el 80 posterior lo cruzó');
+  assert.strictEqual(M.stillValid(mkSeg(79, 1700, 1), 1, mkb, sx), true, 'nacido en la vela del 80: la vela que lo contiene no cuenta');
+  assert.strictEqual(M.stillValid(mkSeg(75, 1000, 0), 1, mkb, sx), false, 'un largo en 75: la mínima 74,5 lo cruzó');
+  assert.strictEqual(M.stillValid(mkSeg(74, 1000, 0), 1, mkb, sx), true, 'un largo en 74 no fue tocado');
+  const sw = M.openSwings(mkb, sx, 0, mkb.length - 1, 2);
+  assert.ok(sw.highs.some((h) => h.p === 80), 'el rebote en 80 es un máximo sin barrer');
+  assert.ok(M.inSwingZone(mkSeg(81, 0, 1), 1, sw, 3), 'un corto justo sobre el máximo 80 está en zona');
+  assert.ok(!M.inSwingZone(mkSeg(86.5, 0, 1), 1, { highs: [{ p: 80 }], lows: [] }, 3), 'lejos del swing: fuera');
+  assert.ok(M.inSwingZone(mkSeg(74, 0, 0), 1, { highs: [], lows: [{ p: 74.5 }] }, 3), 'largo justo bajo un mínimo sin barrer');
+  assert.ok(!M.inSwingZone(mkSeg(78, 0, 0), 1, { highs: [], lows: [{ p: 74.5 }] }, 3), 'largo entre swings: fuera');
+  assert.strictEqual(M.defaults().swing, true); assert.strictEqual(M.defaults().zone, 3); assert.strictEqual(M.clean({ zone: 7 }).zone, 3);
   console.log('liq.test.js OK');
 })().catch((e) => { console.error(e); process.exit(1); });

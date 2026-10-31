@@ -24,7 +24,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/vendor/lightweight-charts.js`: TradingView Lightweight Charts **5.2.1** (incluida, no se descarga).
 - `LEEME.txt` (novedades + instalación), `docs/NOTAS_VELAS_VOLUMEN.txt`, `test/`.
 
-## 3. Funciones actuales (v0.23.1)
+## 3. Funciones actuales (v0.23.2)
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
 - **Temporalidades personalizables desde 1 segundo** (botón "+", unidades s/m/h/d/w/M); se arman agregando velas base de Binance (1s,1m,…,1w,1M). Ids: `s:N`, `m:N`, `h`→m, `d:N`, `w:N`, `M:N`.
 - **Varios gráficos**: diseños 1, 2 lado a lado, 2 apilados, 3, 4. Cada gráfico tiene su propio símbolo, temporalidad, tipo, escala, indicadores, medias, estilo de velas, fondo, rejilla y marca de agua (objeto de configuración `vcfg` por gráfico). Cruz y tiempo sincronizables entre gráficos (cruz exacta en horizontal y vertical, entre temporalidades distintas).
@@ -67,6 +67,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - **Memoria (`data/liq/`, ignorada por git):** `candles.json` (velas 5 min), `oi-<exchange>.json`, `events.jsonl`; se guarda cada 5 s con cambios y se recorta a 35 días. El servicio arranca con el programa (server.js y main.js llaman a `core.liqStart()`). **Primera vez:** se descargan 30 días de Binance, 7 de Bybit y ~5 de OKX (lo que permite cada API), así que el mapa nace con historial salvo que una fuente falle; las liquidaciones REALES solo se acumulan desde que el programa está encendido. El aviso sobre el gráfico muestra «Memoria desde …» y un chip por exchange (✓ / ! / ✕) con el motivo al pasar el mouse. Una fuente que falla NUNCA se sustituye en silencio.
 - **Endpoint:** `GET /api/liqmap?ex=…&levs=…&w=…&colSec=…&halfLife=…&binSize=…&sinceDays=…` (IPC `liqMap` en Electron). Devuelve segmentos `[casilla, t0, t1 (0 = vivo), lado (0 largos, 1 cortos), w5, w10, w25, w50, w100]` agregados por columna de tiempo y sin los casi invisibles (< 0,1 % del mayor).
 - **Dibujo:** `liqmap.js` pinta con canvas como primitiva de la serie principal (mapa por detrás de las velas, perfil/círculos por delante); el mapa se cachea en un canvas aparte y solo se repinta al cambiar zoom, escala o datos. `fitOffset` deja a la derecha el ancho del perfil.
+- **Validez y swings (v0.23.2):** `stillValid` descarta un nivel si alguna vela del gráfico (desde su t0) cruzó su casilla (`suffixExtremes`); `openSwings` busca fractales de k velas (k = clamp(round(velasVisibles/40),3,15)) aún no barridos; con `vcfg.liq.swing` (por defecto true) `inSwingZone` deja solo cortos entre el swing alto y +`zone` % (zone = 3) y largos entre −`zone` % y el swing bajo. **Trampa de la librería:** `timeScale().logicalToCoordinate()` devuelve 0 con índices NO enteros; `xMaker()` interpola entre enteros (`fn.lc`). Las bandas empiezan en su t0, nunca en el borde izquierdo.
 - **Modo simulado (`TV_MOCK=1`):** precio igual al de las velas simuladas, OI sintético y una liquidación falsa cada 2,5 s por exchange; la pantalla dice «DATOS SIMULADOS».
 
 ### Ventanas y barra (v0.22)
@@ -131,6 +132,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.23.2: bandas del mapa de liquidaciones empiezan en su t0 (arreglo de `logicalToCoordinate` con fracciones), comprobación de validez con las velas y filtro «Solo zonas de swing» (ver §3).
 - v0.23.1: mapa más limpio (ver §3): `bucketize/pickBuckets/heatVal/imp` en liqmap.js, `vcfg.liq.detail`, `/api/liqmap` solo devuelve niveles vivos, perfil con 50x/100x en naranja y niveles clave por importancia, `extraBars()` deja espacio al perfil en la vista inicial. Tests nuevos en `test/liq.test.js`.
 - v0.23.0: mapa de liquidaciones estimado (ver §3): `src/liq/*`, `renderer/js/liqmap.js`, menú del «+» de pestañas (`pendingLiq` en app.js), `vcfg.liq` (`newChart`/`migrate`), ganchos en view.js (`s.liq`, `refreshLiq`), `core.liqStart/liqMap`, ruta `/api/liqmap`, IPC `liqMap`, `store.tabs()` añade «LIQ» al nombre. La capa sobre un gráfico existente y la pestaña propia salen juntas porque son la misma capa (no hizo falta dividir en v0.23.1). `test/liq.test.js` en `npm test`.
 - v0.22.18: `STYLE_KEYS` incluye capA/capB y measure/mColor/mSize/mBold/mItalic (plantillas); test en `test/polymerge.test.js` exige que todo `defaults(tipo)` esté en `TEMPLATE_KEYS`. Bitstamp: `bitstampFirst` (core.js) usa solo velas de 1 día; `autoFill` (view.js) carga hasta 160.000 velas en segundo plano si es Bitstamp con base < 1 día (`deepBs`). NO verificado con la API real (sin red en la sesión). Contornos de la ventana de ajustes en styles.css.

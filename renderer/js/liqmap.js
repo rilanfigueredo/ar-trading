@@ -13,7 +13,7 @@
 
   // ---------- Configuración por gráfico (vcfg.liq) ----------
   function defaults() {
-    return { on: false, mode: 'comb', src: { binance: true, bybit: true, okx: true }, levs: { 5: true, 10: true, 25: true, 50: true, 100: true }, w: [10, 25, 30, 20, 15], scale: 1, days: 14, half: 72, bin: 0, profile: true, pw: 26, keys: 4, events: true, detail: 1 };
+    return { on: false, mode: 'comb', src: { binance: true, bybit: true, okx: true }, levs: { 5: true, 10: true, 25: true, 50: true, 100: true }, w: [10, 25, 30, 20, 15], scale: 1, days: 14, half: 72, bin: 0, profile: true, pw: 26, keys: 4, events: true, detail: 1, swing: true, zone: 3 };
   }
   const num = (v, a, b, d) => { const x = Number(v); return Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : d; };
   function clean(x) {
@@ -24,7 +24,7 @@
       src: { binance: x.src ? x.src.binance !== false : true, bybit: x.src ? x.src.bybit !== false : true, okx: x.src ? x.src.okx !== false : true },
       levs: {}, w: d.w.slice(), scale: num(x.scale, 0.2, 4, 1), days: [3, 7, 14, 30].includes(Number(x.days)) ? Number(x.days) : 14,
       half: [0, 24, 72, 168].includes(Number(x.half)) ? Number(x.half) : 72, bin: [0, 5, 10, 20, 50].includes(Number(x.bin)) ? Number(x.bin) : 0,
-      profile: x.profile !== false, pw: num(x.pw, 10, 40, 26), keys: Math.round(num(x.keys, 0, 8, 4)), events: x.events !== false, detail: num(x.detail, 0.3, 3, 1),
+      profile: x.profile !== false, pw: num(x.pw, 10, 40, 26), keys: Math.round(num(x.keys, 0, 8, 4)), events: x.events !== false, detail: num(x.detail, 0.3, 3, 1), swing: x.swing !== false, zone: [1, 2, 3, 5, 8].includes(Number(x.zone)) ? Number(x.zone) : 3,
     };
     LEVS.forEach((l) => { o.levs[l] = x.levs ? x.levs[l] !== false : true; });
     if (Array.isArray(x.w) && x.w.length === 5) o.w = x.w.map((v, i) => num(v, 0, 100, d.w[i]));
@@ -59,6 +59,51 @@
   const imp = (lv) => lv[0] * IMPW[0] + lv[1] * IMPW[1] + lv[2] * IMPW[2] + lv[3] * IMPW[3] + lv[4] * IMPW[4];
   // Valor de color: lo bajo (5x–25x) pesa poco; lo alto (50x–100x) pesa entero
   const heatVal = (lv) => 0.35 * (lv[0] + lv[1] + lv[2]) + lv[3] + lv[4];
+
+
+  // ---------- Verificación contra las velas del gráfico y zonas de swing (lógica pura, con tests) ----------
+  // Extremos "hacia adelante": hi[i] = máximo de los máximos desde la vela i hasta el final; lo[i] = mínimo de los mínimos.
+  function suffixExtremes(bars) {
+    const n = bars.length, hi = new Float64Array(n + 1), lo = new Float64Array(n + 1);
+    hi[n] = -Infinity; lo[n] = Infinity;
+    for (let i = n - 1; i >= 0; i--) { hi[i] = Math.max(hi[i + 1], bars[i].high); lo[i] = Math.min(lo[i + 1], bars[i].low); }
+    return { hi, lo };
+  }
+  // Primera vela que EMPIEZA después de t (la vela que contiene t no cuenta: parte de ella es anterior al nivel)
+  function firstBarAfter(bars, t) {
+    let a = 0, b = bars.length;
+    while (a < b) { const m = (a + b) >> 1; if (bars[m].time > t) b = m; else a = m + 1; }
+    return a;
+  }
+  // ¿El nivel sigue pendiente? Si alguna vela del gráfico posterior a su nacimiento ya tocó su precio, está TOMADO y no se dibuja.
+  // Es una comprobación extra con las velas que ves (no depende de lo que calculó el servidor).
+  function stillValid(r, binSize, bars, sx) {
+    if (!bars.length) return true;
+    const idx = firstBarAfter(bars, r[1]);
+    if (idx >= bars.length) return true;
+    const edge = r[0] * binSize;
+    return r[3] === 1 ? !(sx.hi[idx] >= edge) : !(sx.lo[idx] <= edge);
+  }
+  // Swings (fractales de k velas a cada lado) dentro de [i0, i1] que NO han sido barridos después (ninguna vela posterior los superó).
+  function openSwings(bars, sx, i0, i1, k) {
+    const highs = [], lows = [], n = bars.length;
+    for (let i = Math.max(k, i0); i <= Math.min(n - 1 - k, i1); i++) {
+      let h = true, l = true;
+      for (let j = 1; j <= k && (h || l); j++) {
+        if (!(bars[i - j].high <= bars[i].high && bars[i + j].high < bars[i].high)) h = false;
+        if (!(bars[i - j].low >= bars[i].low && bars[i + j].low > bars[i].low)) l = false;
+      }
+      if (h && !(sx.hi[i + 1] > bars[i].high)) highs.push({ i, t: bars[i].time, p: bars[i].high });
+      if (l && !(sx.lo[i + 1] < bars[i].low)) lows.push({ i, t: bars[i].time, p: bars[i].low });
+    }
+    return { highs, lows };
+  }
+  // Un nivel está en zona de swing si los cortos están justo POR ENCIMA de un máximo sin barrer (hasta zonePct %) o los largos justo POR DEBAJO de un mínimo sin barrer.
+  function inSwingZone(r, binSize, sw, zonePct) {
+    const L = r[0] * binSize, z = zonePct / 100, slack = 0.002;
+    if (r[3] === 1) return sw.highs.some((h) => L >= h.p * (1 - slack) && L <= h.p * (1 + z));
+    return sw.lows.some((q) => L <= q.p * (1 + slack) && L >= q.p * (1 - z));
+  }
 
   // Cubetas de precio: junta varias casillas en filas de al menos ~8 px (como las bandas gruesas de los mapas de referencia).
   // Solo niveles VIVOS (los ya barridos no se dibujan). Cada cubeta guarda sus altas por tiempo para pintar el escalón de color.
@@ -175,10 +220,21 @@
       finally { fetching = false; }
       syncKeyLines(); renderBadge(); if (request) request();
     }
+    // Niveles que siguen pendientes según las velas del gráfico (memoria por datos + últimas velas)
+    let vmemo = { key: '', v: null };
+    function validData() {
+      const bars = env.bars();
+      const last = bars.length ? bars[bars.length - 1] : null;
+      const key = ver + '|' + bars.length + '|' + (last ? last.time + '|' + last.high + '|' + last.low : '');
+      if (vmemo.key === key && vmemo.v) return vmemo.v;
+      const sx = suffixExtremes(bars);
+      const segs = model.segs.filter((r) => stillValid(r, model.binSize, bars, sx));
+      const prof = profile(segs, model.binSize), price = last ? last.close : (model.price || 0);
+      vmemo = { key, v: { segs, prof, sx, cum: cumulative(prof, price), peaks: peaks(prof, cfg().keys, 0.004) } };
+      return vmemo.v;
+    }
     function prepare(m) {
-      const prof = profile(m.segs, m.binSize);
-      const c = cfg();
-      return Object.assign(m, { prof, cum: cumulative(prof, m.price || 0), peaks: peaks(prof, c.keys, 0.004) });
+      return Object.assign(m, { bandPeaks: null, bandKey: '' });
     }
     function syncKeyLines() {
       const s = env.series();
@@ -186,20 +242,24 @@
       lines.forEach((h) => { try { s.removePriceLine(h); } catch (e) { /* ya quitada */ } });
       lines = [];
       if (!active() || !model || !cfg().keys) return;
-      model.peaks = peaks(model.prof, cfg().keys, 0.004);
-      model.peaks.forEach((p) => { try { lines.push(s.createPriceLine({ price: p.price, color: KEY_COLOR, lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' })); } catch (e) { /* ok */ } });
+      const pk = model.bandPeaks || validData().peaks;                // líneas naranjas = las bandas que SE VEN (o, si aún no se pintó, los picos del perfil)
+      pk.forEach((p) => { try { lines.push(s.createPriceLine({ price: p.price, color: KEY_COLOR, lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' })); } catch (e) { /* ok */ } });
     }
 
     // --- dibujo ---
     function xMaker() {
       const bars = env.bars(), sec = env.tfSec(), ts = env.chart().timeScale(), n = bars.length;
       if (!n || !(sec > 0)) return null;
-      return (t) => {
+      // OJO: logicalToCoordinate de la librería devuelve 0 si la posición NO es un número entero de velas; se interpola entre velas enteras.
+      const lc = (lg) => { const f = Math.floor(lg), a = ts.logicalToCoordinate(f), b2 = ts.logicalToCoordinate(f + 1); return a === null || b2 === null ? null : a + (lg - f) * (b2 - a); };
+      const fn = (t) => {
         let lo = 0, hi = n - 1, i = -1;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (bars[m].time <= t) { i = m; lo = m + 1; } else hi = m - 1; }
         const lg = i < 0 ? (t - bars[0].time) / sec : (i === n - 1 ? i + (t - bars[i].time) / sec : i + (t - bars[i].time) / (bars[i + 1].time - bars[i].time));
-        return ts.logicalToCoordinate(lg);
+        return lc(lg);
       };
+      fn.lc = lc;
+      return fn;
     }
     const heatView = {
       zOrder: () => 'bottom',
@@ -214,7 +274,8 @@
             const bs = model.binSize, c = cfg();
             const p0 = model.price || bs * 1000, ya = se.priceToCoordinate(p0), yb = se.priceToCoordinate(p0 + bs * 100);
             if (ya === null || yb === null) return;
-            const key = [lr.from.toFixed(2), lr.to.toFixed(2), ya, yb, W, H, ver, c.scale, c.detail].join('|');
+            const bb0 = env.bars(), lb = bb0.length ? bb0[bb0.length - 1] : null;
+            const key = [lr.from.toFixed(2), lr.to.toFixed(2), ya, yb, W, H, ver, c.scale, c.detail, c.swing, c.zone, c.keys, bb0.length, lb ? lb.high + '|' + lb.low : ''].join('|');
             if (cache.key !== key || !cache.cv) {
               const cv = cache.cv || document.createElement('canvas');
               cv.width = W; cv.height = H;
@@ -222,7 +283,11 @@
               g.clearRect(0, 0, W, H);
               const pxBin = Math.abs(yb - ya) / 100 * vpr;
               const rowBins = Math.max(1, Math.ceil((8 * vpr) / Math.max(pxBin, 0.01)));
-              const all = bucketize(model.segs, rowBins), vis = [];
+              const vd = validData(), bars = env.bars();
+              const kSw = Math.max(3, Math.min(15, Math.round((lr.to - lr.from) / 40)));
+              const sw = openSwings(bars, vd.sx, Math.floor(lr.from), Math.ceil(lr.to), kSw);
+              const segs = c.swing ? vd.segs.filter((r) => inSwingZone(r, bs, sw, c.zone)) : vd.segs;
+              const all = bucketize(segs, rowBins), vis = [];
               all.forEach((bk) => {
                 const yT = se.priceToCoordinate((bk.id + 1) * rowBins * bs), yB = se.priceToCoordinate(bk.id * rowBins * bs);
                 if (yT === null || yB === null) return;
@@ -232,6 +297,9 @@
               });
               const picked = pickBuckets(vis, Math.round((H / vpr / 26) * c.detail), 0.1);
               const refV = Math.max.apply(null, picked.map((bk) => bk.v).concat([1e-9]));
+              const bp = picked.slice().sort((a, b) => b.imp - a.imp).slice(0, c.keys).map((bk) => ({ price: (bk.id + 0.5) * rowBins * bs, bin: bk.id }));
+              const bpKey = bp.map((q) => Math.round(q.price)).join(',');
+              if (bpKey !== model.bandKey) { model.bandKey = bpKey; model.bandPeaks = bp; setTimeout(() => { if (!destroyed) syncKeyLines(); }, 0); }
               const lut = []; for (let i = 0; i <= 40; i++) lut.push(rampColor(i / 40));
               picked.forEach((bk) => {
                 const cum = [0, 0, 0, 0, 0];
@@ -259,7 +327,7 @@
                 g.globalCompositeOperation = 'destination-out';
                 const gw = Math.max(1, Math.round(hpr));
                 for (let i = Math.floor(lr.from); i <= Math.ceil(lr.to) && i - lr.from < 3000; i++) {
-                  const x = ts.logicalToCoordinate(i + 0.5);
+                  const x = X.lc(i + 0.5);
                   if (x !== null) g.fillRect(Math.round(x * hpr), 0, gw, H);
                 }
                 g.globalCompositeOperation = 'source-over';
@@ -296,15 +364,16 @@
                 ctx.restore();
               }
             }
-            if (!c.profile || !model.prof.length) return;
+            const vd = validData();
+            if (!c.profile || !vd.prof.length) return;
             const pw = Math.round(W * c.pw / 100), x0 = W - pw;
             ctx.save();
             ctx.fillStyle = env.dark() ? 'rgba(10,16,42,0.72)' : 'rgba(255,255,255,0.72)';
             ctx.fillRect(x0, 0, pw, H);
-            const mx = Math.max.apply(null, model.prof.map((b) => b.tot)) || 1;
-            const isPeak = new Set(model.peaks.map((p) => p.bin));
+            const mx = Math.max.apply(null, vd.prof.map((b) => b.tot)) || 1;
+            const isPeak = new Set(vd.peaks.map((p) => p.bin));
             // curvas acumuladas
-            const cum = model.cum;
+            const cum = vd.cum;
             if (cum.max > 0) {
               [[cum.up, 'rgba(255,60,60,', 'rgba(160,70,50,'], [cum.dn, 'rgba(0,210,120,', 'rgba(20,120,70,']].forEach(([arr, line, fill]) => {
                 if (!arr.length) return;
@@ -320,7 +389,7 @@
               });
             }
             // barras por precio: se apilan los apalancamientos (de 5x a 100x) desde el borde derecho hacia la izquierda
-            model.prof.forEach((b) => {
+            vd.prof.forEach((b) => {
               const y1 = se.priceToCoordinate((b.bin + 1) * bs), y0 = se.priceToCoordinate(b.bin * bs);
               if (y1 === null || y0 === null) return;
               const top = Math.round(Math.min(y0, y1) * vpr), hgt = Math.max(1, Math.round(Math.abs(y0 - y1) * vpr));
@@ -396,6 +465,8 @@
     mk('Ver', sel([['comb', 'Combinado'], ['binance', 'Solo Binance'], ['bybit', 'Solo Bybit'], ['okx', 'Solo OKX']], c.mode, (v) => { c.mode = v; }));
     Object.keys(EXS).forEach((k) => mk('Suma ' + EXS[k], check(c.src[k], (v) => { c.src[k] = v; })));
     LEVS.forEach((l) => mk('Apalancamiento ' + l + 'x', check(c.levs[l], (v) => { c.levs[l] = v; })));
+    mk('Solo zonas de swing (sobre máximos / bajo mínimos)', check(c.swing, (v) => { c.swing = v; }));
+    mk('Alcance de la zona', sel([[1, '1 %'], [2, '2 %'], [3, '3 %'], [5, '5 %'], [8, '8 %']], c.zone, (v) => { c.zone = Number(v); }));
     mk('Detalle (más = más bandas)', range(0.3, 3, 0.1, c.detail, (v) => { c.detail = v; }));
     mk('Intensidad del color', range(0.2, 4, 0.1, c.scale, (v) => { c.scale = v; }));
     mk('Historial', sel([[3, '3 días'], [7, '7 días'], [14, '14 días'], [30, '30 días']], c.days, (v) => { c.days = Number(v); }));
@@ -416,7 +487,7 @@
     parent.appendChild(box);
   }
 
-  const api = { create, panel, defaults, clean, params, rampColor, bucketize, pickBuckets, heatVal, imp, profile, peaks, cumulative, LEVS, EXS };
+  const api = { create, panel, defaults, clean, params, rampColor, suffixExtremes, firstBarAfter, stillValid, openSwings, inSwingZone, bucketize, pickBuckets, heatVal, imp, profile, peaks, cumulative, LEVS, EXS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVLiqMap = api;
 })(typeof self !== 'undefined' ? self : globalThis);

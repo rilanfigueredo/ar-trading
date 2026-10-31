@@ -1,8 +1,14 @@
-AR_TRADING - VERSION 0.23.1
+AR_TRADING - VERSION 0.23.2
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.2 - LAS LIQUIDACIONES YA TOMADAS NO TAPAN LAS VELAS
+- ARREGLADO: las barras empezaban en el borde izquierdo y cruzaban todas las velas, aunque el nivel se hubiera formado despues. Ahora cada barra empieza EXACTAMENTE en el momento en que se formo y nunca queda detras de las velas.
+- Una liquidacion solo se dibuja si el precio NO la ha tocado desde que se formo (se comprueba con las velas del grafico que ves, en cualquier temporalidad).
+- NUEVO "Solo zonas de swing" (activado): se muestran los cortos por ENCIMA de un swing maximo que el precio aun no ha barrido y los largos por DEBAJO de un swing minimo aun no barrido. Ejemplo: si el precio cayo de 85 a 76, se ven las liquidaciones nuevas sobre los maximos que dejo al caer o en un retroceso, y no las ya tomadas. "Alcance de la zona" (3 % por defecto) controla hasta donde se muestran. Se puede desactivar para ver todo.
+- Probado con datos simulados y pruebas automaticas. NO probado con Binance/Bybit/OKX reales ni en Windows.
 
 NOVEDADES DE LA v0.23.1 - MAPA DE LIQUIDACIONES MAS LIMPIO
 - Solo se muestran las zonas MAS IMPORTANTES. Si alejas el grafico se ocultan las pequenas y quedan pocas bandas; si acercas, aparecen tambien las importantes de esa zona. Nuevo control "Detalle (mas = mas bandas)" en el panel de Indicadores.
