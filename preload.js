@@ -20,5 +20,10 @@ contextBridge.exposeInMainWorld('desktopApi', {
   setActive: (id) => ipcRenderer.invoke('window:setActive', id),
   openWindow: () => ipcRenderer.invoke('window:open'),
   closeWindow: (id) => ipcRenderer.invoke('window:close', id),
+  serviceGet: () => ipcRenderer.invoke('service:get'),
+  serviceSetHw: (on) => ipcRenderer.invoke('service:setHw', on),
+  serviceRelaunch: () => ipcRenderer.invoke('service:relaunch'),
+  serviceClearCache: () => ipcRenderer.invoke('service:clearCache'),
+  serviceFactoryReset: () => ipcRenderer.invoke('service:factoryReset'),
   onShared: (cb) => ipcRenderer.on('shared:update', (_e, patch) => cb(patch)),
 });

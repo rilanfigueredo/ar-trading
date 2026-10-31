@@ -40,6 +40,11 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 200, store.getConfig(w));
     }
+    if (url.pathname === '/api/service/get') return send(res, 200, { desktop: false });
+    if (url.pathname === '/api/service/factoryreset' && req.method === 'POST') {
+      store.reset(); core.resetData({ restart: true });
+      return send(res, 200, { ok: true });
+    }
     if (url.pathname === '/api/tabs') return send(res, 200, store.tabs());
     if (url.pathname === '/api/window/active') {
       if (req.method === 'POST') { store.setActive(url.searchParams.get('w')); return send(res, 200, { ok: true }); }

@@ -187,7 +187,7 @@
     // ---------- Gráfico ----------
     // Colores del gráfico: tema + fondo propio (si lo hay) + rejillas.
     function lookVars() {
-      const dark = cfg().theme === 'dark';
+      const dark = L.resolveTheme(cfg().theme, !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) === 'dark';
       const bg = vcfg.look.bg || (dark ? '#0a102a' : '#ffffff');
       const m = /^#?([0-9a-f]{6})$/i.exec(bg);
       const n = m ? parseInt(m[1], 16) : 0x0a102a;

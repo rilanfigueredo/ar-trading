@@ -1,8 +1,15 @@
-AR_TRADING - VERSION 0.23.2
+AR_TRADING - VERSION 0.23.3
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.3 - AJUSTES POR PESTAÑAS Y SERVICIO
+- La ventana de Ajustes (icono de la rueda) ahora tiene pestanas con contorno: General, Grafico, Plantillas, Paleta, Datos y Servicio. Se puede mover arrastrando el titulo.
+- Tema: tres botones con icono (Claro, Oscuro, Sistema). "Sistema" sigue el tema de tu Windows y cambia solo.
+- Casillas nuevas tipo interruptor, con contorno, y cada opcion en su propia caja.
+- Pestana SERVICIO: (A) Rendimiento: activar o desactivar la aceleracion por hardware (se aplica al reiniciar el programa; hay boton "Reiniciar ahora"). (B) Cache: "Borrar cache" (velas guardadas; no toca tus ajustes) y "Refrescar el programa" (recarga y libera memoria sin borrar nada). (C) Reseteo de fabrica: deja el programa como recien instalado, con todas sus herramientas, pero sin tus pestanas, dibujos, plantillas, scripts ni datos descargados. Pide confirmacion y reinicia solo.
+- Probado en modo navegador con datos simulados. NO probado en Windows/Electron: la aceleracion por hardware y el reinicio automatico solo funcionan en la app instalada (ver que probar al final).
 
 NOVEDADES DE LA v0.23.2 - LAS LIQUIDACIONES YA TOMADAS NO TAPAN LAS VELAS
 - ARREGLADO: las barras empezaban en el borde izquierdo y cruzaban todas las velas, aunque el nivel se hubiera formado despues. Ahora cada barra empieza EXACTAMENTE en el momento en que se formo y nunca queda detras de las velas.

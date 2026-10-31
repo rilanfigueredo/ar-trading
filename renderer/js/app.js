@@ -117,16 +117,22 @@
 
   const A = { cfg: defaultConfig(), views: [], symbolsBy: {}, max: -1, tabId: API.windowId || 'w1', gridEl: null };
   const $ = (id) => document.getElementById(id);
+  const sysLight = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+  const effTheme = () => L.resolveTheme(A.cfg.theme, !!(sysLight && sysLight.matches));   // tema que se ve (si es «sistema», el de Windows)
+  if (sysLight && sysLight.addEventListener) sysLight.addEventListener('change', () => { if (A.cfg.theme === 'system') { applyTheme(); markActive(); } });
   // v0.22.5: pestañas vivas. Cada pestaña (w1…w10) tiene su configuración, sus gráficos y su grid; solo una se ve a la vez.
   const tabsState = new Map();     // id -> { id, cfg, views, gridEl, theme, tz, scriptsSig }
   const saveTimers = new Map();    // id -> { timer, cfg }  (guardado pendiente de cada pestaña)
+  let resetting = false;           // durante el reseteo de fábrica no se guarda nada
   function saveTab(id, cfg) {
+    if (resetting) return;
     const old = saveTimers.get(id); if (old) clearTimeout(old.timer);
     const e = { cfg, timer: setTimeout(() => { saveTimers.delete(id); API.setConfig(cfg, id).catch(() => {}); }, 400) };
     saveTimers.set(id, e);
   }
   const saveCfg = () => { saveTab(A.tabId, A.cfg); try { const tn = document.querySelector('#tabBar .tab.cur .tab-name'); if (tn) { const l = tabLabelOf(A.cfg); if (tn.textContent !== l) { tn.textContent = l; tn.parentNode.title = l; } } } catch (e) { /* ok */ } };
   function flushTab(id, now) {
+    if (resetting) return;
     const e = saveTimers.get(id); if (!e) return;
     clearTimeout(e.timer); saveTimers.delete(id);
     try { if (now) API.setConfigNow(e.cfg, id); else API.setConfig(e.cfg, id).catch(() => {}); } catch (err) { /* ok */ }
@@ -353,8 +359,8 @@
     syncOutlineButtons();
     $('btnSymbol').textContent = c.symbol + ((c.exchange || 'binance') !== 'binance' ? ' · ' + L.exchangeName(c.exchange) : '');
     { const tn = document.querySelector('#tabBar .tab.cur .tab-name'); if (tn) { tn.textContent = curTabLabel(); tn.parentNode.title = tn.textContent; } }
-    document.body.dataset.theme = A.cfg.theme;
-    const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
+    document.body.dataset.theme = effTheme();
+    const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png';
     const multi = A.views.length > 1;
     { const br = $('btnReplay'); if (br) { const st = activeView().replayState; br.classList.toggle('active', st !== 'off'); br.innerHTML = ICONS.replay + (st === 'pick' ? '<span class="tb-note">elige una vela</span>' : ''); br.title = st === 'off' ? 'Replay: reproducción de barras (elige una vela del pasado y mira cómo se formó el mercado vela a vela)' : (st === 'pick' ? 'Replay: haz clic en la vela donde empezar (clic aquí para cancelar)' : 'Replay activo (clic para salir)'); } }
     { const bd = $('btnData'); if (bd) { const on = c.src === 'trades'; bd.textContent = 'Datos: ' + (on ? 'Operaciones' : 'Velas'); bd.classList.toggle('active', on); } }
@@ -390,11 +396,11 @@
   function setScale(sc) { activeView().setScale(sc); saveCfg(); markActive(); }
   function eachView(fn) { A.views.forEach(fn); }
   function applyTheme() {
-    document.body.dataset.theme = A.cfg.theme;
-    const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png';
+    document.body.dataset.theme = effTheme();
+    const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png';
     eachView((v) => v.applyTheme());
     // barra de pestañas = barra de título (Windows): los botones del sistema siguen los colores del tema
-    if (window.desktopApi && window.desktopApi.setOverlayColors) { const l = A.cfg.theme === 'light'; try { window.desktopApi.setOverlayColors(l ? '#ffffff' : '#0a102a', l ? '#131722' : '#d1d4dc'); } catch (e) { /* ok */ } }
+    if (window.desktopApi && window.desktopApi.setOverlayColors) { const l = effTheme() === 'light'; try { window.desktopApi.setOverlayColors(l ? '#ffffff' : '#0a102a', l ? '#131722' : '#d1d4dc'); } catch (e) { /* ok */ } }
   }
   // ---------- Ventanas emergentes ----------
   let floatPos = null; // dónde dejó el usuario la ventana de ajustes
@@ -946,216 +952,320 @@
     });
   }
 
+  // v0.23.3: Ajustes por pestañas (General, Gráfico, Plantillas, Paleta, Datos, Servicio)
+  let settingsTab = 'general';
+  const SET_TABS = [['general', 'General'], ['grafico', 'Gráfico'], ['plantillas', 'Plantillas'], ['paleta', 'Paleta'], ['datos', 'Datos'], ['servicio', 'Servicio']];
+  const THEME_ICONS = {
+    light: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    dark: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
+    system: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+  };
   function openSettings() {
     openModal((box) => {
       box.dataset.kind = 'settings';
-      box.classList.add('wide');
+      box.classList.add('props', 'wide', 'setwin');
       const ac = activeCfg();
       const av = activeView();
-      const h = document.createElement('h3');
-      h.textContent = 'Ajustes';
-      box.appendChild(h);
-      const field = (label, el) => {
-        const d = document.createElement('div');
-        d.className = 'field';
-        const s = document.createElement('span'); s.textContent = label;
-        d.append(s, el);
-        box.appendChild(d);
-      };
-      const title = (text) => {
-        const t = document.createElement('div');
-        t.className = 'sym-title'; t.textContent = text;
-        box.appendChild(t);
-      };
       const mk = (tag, props) => Object.assign(document.createElement(tag), props || {});
-
-      // ----- Generales (todos los gráficos) -----
-      title('Generales (todos los gráficos)');
-      const theme = mk('select');
-      [['dark', 'Oscuro'], ['light', 'Claro']].forEach(([v, t]) => theme.appendChild(mk('option', { value: v, textContent: t })));
-      theme.value = A.cfg.theme;
-      theme.onchange = () => { A.cfg.theme = theme.value; saveCfg(); applyTheme(); };
-      field('Tema', theme);
-      const tz = mk('select');
-      [['local', 'Hora de mi PC'], ['UTC', 'UTC']].forEach(([v, t]) => tz.appendChild(mk('option', { value: v, textContent: t })));
-      tz.value = A.cfg.tz;
-      tz.onchange = () => { A.cfg.tz = tz.value; saveCfg(); eachView((v) => v.applyTz()); };
-      field('Zona horaria', tz);
-      const timer = mk('input', { type: 'checkbox', checked: A.cfg.timer !== false });
-      timer.onchange = () => { A.cfg.timer = timer.checked; saveCfg(); eachView((v) => v.applyTimer()); };
-      field('Temporizador de la vela (en la barra de precios)', timer);
-
-      // ----- Solo el gráfico seleccionado -----
-      title(`Solo el gráfico seleccionado: ${A.cfg.active + 1} · ${ac.symbol}`);
-      const applyLook = () => { saveCfg(); av.applyLook(); };
-      const bgOn = mk('input', { type: 'checkbox', checked: ac.look.bg !== null });
-      const bgCol = mk('input', { type: 'color', value: ac.look.bg || (A.cfg.theme === 'dark' ? '#0a102a' : '#ffffff') });
-      const bgSync = () => { bgCol.disabled = !bgOn.checked; bgCol.style.opacity = bgOn.checked ? 1 : 0.35; };
-      bgOn.onchange = () => { ac.look.bg = bgOn.checked ? bgCol.value : null; bgSync(); applyLook(); };
-      bgCol.oninput = () => { ac.look.bg = bgCol.value; applyLook(); };
-      bgSync();
-      const bgWrap = mk('span', { className: 'candle-ctl' });
-      bgWrap.append(bgOn, bgCol);
-      field('Color de fondo propio (si no, el del tema)', bgWrap);
-
-      const gv = mk('input', { type: 'checkbox', checked: !!ac.look.gridV });
-      gv.onchange = () => { ac.look.gridV = gv.checked; applyLook(); };
-      field('Rejilla vertical', gv);
-      const gh = mk('input', { type: 'checkbox', checked: !!ac.look.gridH });
-      gh.onchange = () => { ac.look.gridH = gh.checked; applyLook(); };
-      field('Rejilla horizontal', gh);
-      const gc = mk('input', { type: 'color', value: ac.look.gridColor || '#363c4e' });
-      gc.oninput = () => { ac.look.gridColor = gc.value; applyLook(); };
-      field('Color de la rejilla', gc);
-
-      // Estilo de velas
-      title('Estilo de velas (solo este gráfico)');
-      const applyCandle = () => { saveCfg(); av.applyCandleStyle(); };
-      [['body', 'Cuerpo'], ['border', 'Contorno'], ['wick', 'Mechas']].forEach(([key, label]) => {
-        const k = ac.candle[key];
-        const wrapRow = mk('span', { className: 'candle-ctl' });
-        const cb = mk('input', { type: 'checkbox', checked: k.on });
-        const up = mk('input', { type: 'color', value: k.up, title: 'Alcista' });
-        const down = mk('input', { type: 'color', value: k.down, title: 'Bajista' });
-        const sync = () => { up.disabled = !k.on; down.disabled = !k.on; up.style.opacity = down.style.opacity = k.on ? 1 : 0.35; };
-        cb.onchange = () => { k.on = cb.checked; sync(); applyCandle(); };
-        up.oninput = () => { k.up = up.value; applyCandle(); };
-        down.oninput = () => { k.down = down.value; applyCandle(); };
-        sync();
-        wrapRow.append(cb, up, down);
-        field(label, wrapRow);
+      const head = mk('div', { className: 'props-head' });
+      head.appendChild(mk('h3', { textContent: 'Ajustes' }));
+      const body = mk('div', { className: 'props-body' });
+      const tabBtns = {};
+      SET_TABS.forEach(([k, label]) => {
+        const b = mk('button', { className: 'props-tab' + (k === settingsTab ? ' active' : ''), textContent: label });
+        b.onclick = () => { settingsTab = k; Object.keys(tabBtns).forEach((x) => tabBtns[x].classList.toggle('active', x === k)); fill(); };
+        tabBtns[k] = b; head.appendChild(b);
       });
-      const note = mk('div', { className: 'hint', textContent: 'Primer color: vela alcista. Segundo color: vela bajista. Quita la casilla de "Cuerpo" para tener el cuerpo transparente.' });
-      box.appendChild(note);
+      box.append(head, body);
 
-      // Marca de agua
-      title('Marca de agua (solo este gráfico)');
-      const wm = ac.wm;
-      const applyWm = () => { saveCfg(); av.applyLook(); };
-      const posSel = mk('select');
-      [['center', 'Centro'], ['tl', 'Arriba izquierda'], ['tr', 'Arriba derecha'], ['bl', 'Abajo izquierda'], ['br', 'Abajo derecha']].forEach(([v, t]) => posSel.appendChild(mk('option', { value: v, textContent: t })));
-      posSel.value = wm.pos;
-      posSel.onchange = () => { wm.pos = posSel.value; applyWm(); };
-      field('Posición', posSel);
-      [['ticker', 'Ticker (ej. BTCUSDT)'], ['interval', 'Intervalo (ej. 1h)'], ['desc', 'Descripción (ej. BTC / USDT)'], ['name', 'Nombre del programa'], ['icon', 'Logo del programa']].forEach(([key, label]) => {
-        const w = wm[key];
-        const row = mk('span', { className: 'candle-ctl' });
-        const cb = mk('input', { type: 'checkbox', checked: w.on });
-        const color = mk('input', { type: 'color', value: w.color, title: 'Color' });
-        const op = mk('input', { type: 'range', min: 0, max: 100, value: w.opacity, title: 'Transparencia: 0 = invisible, 100 = sólido', className: 'wm-range' });
-        const val = mk('span', { className: 'wm-val', textContent: w.opacity + '%' });
-        cb.onchange = () => { w.on = cb.checked; applyWm(); };
-        color.oninput = () => { w.color = color.value; applyWm(); };
-        op.oninput = () => { w.opacity = Number(op.value); val.textContent = op.value + '%'; applyWm(); };
-        if (key === 'icon') color.style.display = 'none'; // el logo conserva sus colores; solo se ajusta la transparencia
-        row.append(cb, color, op, val);
-        field(label, row);
-      });
-      const wmHint = mk('div', { className: 'hint', textContent: 'Opacidad: 100% = se ve sólido, 0% = invisible.' });
-      box.appendChild(wmHint);
+      const fill = () => {
+        body.innerHTML = '';
+        const tab = settingsTab;
+        const field = (label, el) => { const d = mk('div', { className: 'field' }); d.append(mk('span', { textContent: label }), el); body.appendChild(d); return d; };
+        const title = (text) => body.appendChild(mk('h4', { textContent: text }));
+        const hint = (text) => body.appendChild(mk('div', { className: 'hint', textContent: text }));
 
-      // ----- Plantillas de gráfico -----
-      title('Plantillas (guardan colores, velas, indicadores, medias, fondo, rejilla y marca de agua)');
-      const tplName = mk('input', { type: 'text', placeholder: 'Nombre de la plantilla', className: 'tpl-name' });
-      const tplSave = mk('button', { className: 'btn secondary', textContent: 'Guardar este gráfico como plantilla' });
-      tplSave.onclick = () => {
-        const name = tplName.value.trim();
-        if (!name) { tplName.focus(); return; }
-        const data = snapshotTemplate(ac);
-        const ex = A.cfg.templates.find((t) => t.name.toLowerCase() === name.toLowerCase());
-        if (ex) {
-          // mismo nombre: se pregunta antes de reemplazar
-          openModal((mb) => {
-            mb.appendChild(mk('h3', { textContent: 'Ya existe una plantilla con ese nombre' }));
-            mb.appendChild(mk('p', { className: 'hint', textContent: `Ya tienes una plantilla "${ex.name}". ¿Quieres reemplazarla con el estado actual de este gráfico?` }));
-            const rw = mk('div', { className: 'row-actions' });
-            const yes = mk('button', { className: 'btn', textContent: 'Reemplazar' });
-            yes.onclick = () => { ex.data = snapshotTemplate(ac); saveCfg(); openSettings(); };
-            const no = mk('button', { className: 'btn secondary', textContent: 'Cancelar' });
-            no.onclick = () => openSettings();
-            rw.append(yes, no); mb.appendChild(rw);
+        if (tab === 'general') {
+          title('Tema');
+          const themeRow = mk('div', { className: 'theme-opts' });
+          [['light', 'Claro'], ['dark', 'Oscuro'], ['system', 'Sistema']].forEach(([v, t]) => {
+            const b = mk('button', { className: 'theme-opt' + (A.cfg.theme === v ? ' active' : ''), title: v === 'system' ? 'Igual que el de tu Windows (cambia solo)' : 'Tema ' + t.toLowerCase() });
+            b.innerHTML = THEME_ICONS[v] + '<span>' + t + '</span>';
+            b.onclick = () => { A.cfg.theme = v; saveCfg(); applyTheme(); themeRow.querySelectorAll('.theme-opt').forEach((x) => x.classList.toggle('active', x === b)); };
+            themeRow.appendChild(b);
           });
-          return;
+          body.appendChild(themeRow);
+          hint('«Sistema» usa el tema claro u oscuro de tu Windows y cambia solo cuando tú lo cambias.');
+          title('Hora y barra de precios (todos los gráficos)');
+          const tz = mk('select');
+          [['local', 'Hora de mi PC'], ['UTC', 'UTC']].forEach(([v, t]) => tz.appendChild(mk('option', { value: v, textContent: t })));
+          tz.value = A.cfg.tz;
+          tz.onchange = () => { A.cfg.tz = tz.value; saveCfg(); eachView((v) => v.applyTz()); };
+          field('Zona horaria', tz);
+          const timer = mk('input', { type: 'checkbox', checked: A.cfg.timer !== false });
+          timer.onchange = () => { A.cfg.timer = timer.checked; saveCfg(); eachView((v) => v.applyTimer()); };
+          field('Temporizador de la vela (en la barra de precios)', timer);
         }
-        A.cfg.templates.push({ id: 't' + Date.now(), name, data });
-        saveCfg(); openSettings();
-      };
-      const tplRow = mk('div', { className: 'row-actions' });
-      tplRow.append(tplName, tplSave);
-      box.appendChild(tplRow);
-      if (!A.cfg.templates.length) box.appendChild(mk('div', { className: 'hint', textContent: 'Aún no tienes plantillas. Deja el gráfico como te gusta, escribe un nombre y guárdala.' }));
-      A.cfg.templates.forEach((t) => {
-        const r = mk('div', { className: 'tpl-row' });
-        const nm = mk('span', { className: 'tpl-label', textContent: t.name });
-        const b1 = mk('button', { className: 'btn secondary', textContent: 'Aplicar aquí', title: 'Aplicar al gráfico seleccionado' });
-        b1.onclick = () => { applyTemplate(av, ac, t.data); openSettings(); };
-        const b2 = mk('button', { className: 'btn secondary', textContent: 'A todos', title: 'Aplicar a todos los gráficos del diseño' });
-        b2.onclick = () => { A.views.forEach((v) => applyTemplate(v, v.cfg, t.data)); openSettings(); };
-        const b3 = mk('button', { className: 'btn secondary', textContent: 'Actualizar', title: 'Reemplazar la plantilla con el estado actual de este gráfico' });
-        b3.onclick = () => { t.data = snapshotTemplate(ac); saveCfg(); openSettings(); };
-        const b4 = mk('button', { className: 'x', textContent: '×', title: 'Eliminar plantilla' });
-        b4.onclick = () => { A.cfg.templates = A.cfg.templates.filter((x) => x !== t); saveCfg(); openSettings(); };
-        r.append(nm, b1, b2, b3, b4);
-        box.appendChild(r);
-      });
 
-      // ----- Paleta personalizada -----
-      title('Mi paleta de colores (en todo el programa)');
-      const palBox = mk('div', { className: 'pal-grid pal-edit' });
-      const drawPal = () => {
-        palBox.innerHTML = '';
-        A.cfg.palette.forEach((hex) => {
-          const sw = mk('button', { className: 'pal-sw', title: hex + ' (clic: quitar)' });
-          sw.style.background = hex;
-          sw.onclick = () => { A.cfg.palette = A.cfg.palette.filter((c) => c !== hex); saveCfg(); drawPal(); };
-          palBox.appendChild(sw);
-        });
-      };
-      drawPal();
-      box.appendChild(palBox);
-      const palIn = mk('input', { type: 'color', value: '#2962ff' });
-      const palHex = mk('input', { type: 'text', value: '#2962ff', className: 'pal-hex', maxLength: 7 });
-      palIn.oninput = () => { palHex.value = palIn.value; };
-      palHex.oninput = () => { if (/^#[0-9a-f]{6}$/i.test(palHex.value)) palIn.value = palHex.value; };
-      const palAdd = mk('button', { className: 'btn secondary', textContent: '+ Agregar a mi paleta' });
-      palAdd.onclick = () => { if (addToPalette(palHex.value)) drawPal(); };
-      const palRow = mk('div', { className: 'row-actions' });
-      palRow.append(palIn, palHex, palAdd);
-      box.appendChild(palRow);
-      box.appendChild(mk('div', { className: 'hint', textContent: 'Junto a cada selector de color hay un botón ▾ con tu paleta: un clic aplica el color; "+ Guardar" añade el color actual. Clic derecho en un color de la paleta lo quita.' }));
+        if (tab === 'grafico') {
+          title(`Solo el gráfico seleccionado: ${A.cfg.active + 1} · ${ac.symbol}`);
+          const applyLook = () => { saveCfg(); av.applyLook(); };
+          const bgOn = mk('input', { type: 'checkbox', checked: ac.look.bg !== null });
+          const bgCol = mk('input', { type: 'color', value: ac.look.bg || (effTheme() === 'dark' ? '#0a102a' : '#ffffff') });
+          const bgSync = () => { bgCol.disabled = !bgOn.checked; bgCol.style.opacity = bgOn.checked ? 1 : 0.35; };
+          bgOn.onchange = () => { ac.look.bg = bgOn.checked ? bgCol.value : null; bgSync(); applyLook(); };
+          bgCol.oninput = () => { ac.look.bg = bgCol.value; applyLook(); };
+          bgSync();
+          const bgWrap = mk('span', { className: 'candle-ctl' });
+          bgWrap.append(bgOn, bgCol);
+          field('Color de fondo propio (si no, el del tema)', bgWrap);
+          const gv = mk('input', { type: 'checkbox', checked: !!ac.look.gridV });
+          gv.onchange = () => { ac.look.gridV = gv.checked; applyLook(); };
+          field('Rejilla vertical', gv);
+          const gh = mk('input', { type: 'checkbox', checked: !!ac.look.gridH });
+          gh.onchange = () => { ac.look.gridH = gh.checked; applyLook(); };
+          field('Rejilla horizontal', gh);
+          const gc = mk('input', { type: 'color', value: ac.look.gridColor || '#363c4e' });
+          gc.oninput = () => { ac.look.gridColor = gc.value; applyLook(); };
+          field('Color de la rejilla', gc);
 
-      // ----- Conexión con las fuentes de datos -----
-      title('Conexión con las fuentes de datos');
-      box.appendChild(mk('div', { className: 'hint', textContent: 'Comprueba en este equipo qué fuentes responden (Binance, Bybit, Coinbase y los archivos históricos) y a qué velocidad. Sirve para saber qué datos se pueden usar.' }));
-      const connBtn = mk('button', { className: 'btn secondary', textContent: 'Probar conexión' });
-      const connOut = mk('div', { className: 'conn-out' });
-      connBtn.onclick = async () => {
-        connBtn.disabled = true; connBtn.textContent = 'Probando… (puede tardar hasta 1 minuto)'; connOut.innerHTML = '';
-        try {
-          const r = await API.testConnection();
-          r.results.forEach((x) => {
-            const row = mk('div', { className: 'conn-row ' + (x.ok ? 'ok' : 'bad') });
-            row.append(mk('b', { textContent: (x.ok ? '✓ ' : '✗ ') + x.name }), mk('span', { textContent: ` · ${x.ms} ms` }), mk('div', { className: 'hint', textContent: x.detail }));
-            connOut.appendChild(row);
+          title('Estilo de velas (solo este gráfico)');
+          const applyCandle = () => { saveCfg(); av.applyCandleStyle(); };
+          [['body', 'Cuerpo'], ['border', 'Contorno'], ['wick', 'Mechas']].forEach(([key, label]) => {
+            const k = ac.candle[key];
+            const wrapRow = mk('span', { className: 'candle-ctl' });
+            const cb = mk('input', { type: 'checkbox', checked: k.on });
+            const up = mk('input', { type: 'color', value: k.up, title: 'Alcista' });
+            const down = mk('input', { type: 'color', value: k.down, title: 'Bajista' });
+            const sync = () => { up.disabled = !k.on; down.disabled = !k.on; up.style.opacity = down.style.opacity = k.on ? 1 : 0.35; };
+            cb.onchange = () => { k.on = cb.checked; sync(); applyCandle(); };
+            up.oninput = () => { k.up = up.value; applyCandle(); };
+            down.oninput = () => { k.down = down.value; applyCandle(); };
+            sync();
+            wrapRow.append(cb, up, down);
+            field(label, wrapRow);
           });
-        } catch (e) { connOut.appendChild(mk('div', { className: 'conn-row bad', textContent: 'No se pudo hacer la prueba: ' + e.message })); }
-        connBtn.disabled = false; connBtn.textContent = 'Probar conexión otra vez';
-      };
-      box.append(connBtn, connOut);
+          hint('Primer color: vela alcista. Segundo color: vela bajista. Quita la casilla de "Cuerpo" para tener el cuerpo transparente.');
 
-      const reset = mk('button', { className: 'btn secondary', textContent: 'Restaurar estilo de este gráfico' });
-      reset.onclick = () => {
-        ac.candle = defaultCandle(); ac.look = defaultLook(); ac.wm = defaultWm();
-        saveCfg(); av.applyCandleStyle(); av.applyLook(); openSettings();
+          title('Marca de agua (solo este gráfico)');
+          const wm = ac.wm;
+          const applyWm = () => { saveCfg(); av.applyLook(); };
+          const posSel = mk('select');
+          [['center', 'Centro'], ['tl', 'Arriba izquierda'], ['tr', 'Arriba derecha'], ['bl', 'Abajo izquierda'], ['br', 'Abajo derecha']].forEach(([v, t]) => posSel.appendChild(mk('option', { value: v, textContent: t })));
+          posSel.value = wm.pos;
+          posSel.onchange = () => { wm.pos = posSel.value; applyWm(); };
+          field('Posición', posSel);
+          [['ticker', 'Ticker (ej. BTCUSDT)'], ['interval', 'Intervalo (ej. 1h)'], ['desc', 'Descripción (ej. BTC / USDT)'], ['name', 'Nombre del programa'], ['icon', 'Logo del programa']].forEach(([key, label]) => {
+            const w = wm[key];
+            const row = mk('span', { className: 'candle-ctl' });
+            const cb = mk('input', { type: 'checkbox', checked: w.on });
+            const color = mk('input', { type: 'color', value: w.color, title: 'Color' });
+            const op = mk('input', { type: 'range', min: 0, max: 100, value: w.opacity, title: 'Transparencia: 0 = invisible, 100 = sólido', className: 'wm-range' });
+            const val = mk('span', { className: 'wm-val', textContent: w.opacity + '%' });
+            cb.onchange = () => { w.on = cb.checked; applyWm(); };
+            color.oninput = () => { w.color = color.value; applyWm(); };
+            op.oninput = () => { w.opacity = Number(op.value); val.textContent = op.value + '%'; applyWm(); };
+            if (key === 'icon') color.style.display = 'none'; // el logo conserva sus colores; solo se ajusta la transparencia
+            row.append(cb, color, op, val);
+            field(label, row);
+          });
+          hint('Opacidad: 100% = se ve sólido, 0% = invisible.');
+          const reset = mk('button', { className: 'btn secondary', textContent: 'Restaurar estilo de este gráfico' });
+          reset.onclick = () => { ac.candle = defaultCandle(); ac.look = defaultLook(); ac.wm = defaultWm(); saveCfg(); av.applyCandleStyle(); av.applyLook(); openSettings(); };
+          body.appendChild(mk('div', { className: 'row-actions' })).appendChild(reset);
+        }
+
+        if (tab === 'plantillas') {
+          title('Plantillas (guardan colores, velas, indicadores, medias, fondo, rejilla y marca de agua)');
+          const tplName = mk('input', { type: 'text', placeholder: 'Nombre de la plantilla', className: 'tpl-name' });
+          const tplSave = mk('button', { className: 'btn secondary', textContent: 'Guardar este gráfico como plantilla' });
+          tplSave.onclick = () => {
+            const name = tplName.value.trim();
+            if (!name) { tplName.focus(); return; }
+            const data = snapshotTemplate(ac);
+            const ex = A.cfg.templates.find((t) => t.name.toLowerCase() === name.toLowerCase());
+            if (ex) {
+              // mismo nombre: se pregunta antes de reemplazar
+              openModal((mb) => {
+                mb.appendChild(mk('h3', { textContent: 'Ya existe una plantilla con ese nombre' }));
+                mb.appendChild(mk('p', { className: 'hint', textContent: `Ya tienes una plantilla "${ex.name}". ¿Quieres reemplazarla con el estado actual de este gráfico?` }));
+                const rw = mk('div', { className: 'row-actions' });
+                const yes = mk('button', { className: 'btn', textContent: 'Reemplazar' });
+                yes.onclick = () => { ex.data = snapshotTemplate(ac); saveCfg(); openSettings(); };
+                const no = mk('button', { className: 'btn secondary', textContent: 'Cancelar' });
+                no.onclick = () => openSettings();
+                rw.append(yes, no); mb.appendChild(rw);
+              });
+              return;
+            }
+            A.cfg.templates.push({ id: 't' + Date.now(), name, data });
+            saveCfg(); openSettings();
+          };
+          const tplRow = mk('div', { className: 'row-actions' });
+          tplRow.append(tplName, tplSave);
+          body.appendChild(tplRow);
+          if (!A.cfg.templates.length) hint('Aún no tienes plantillas. Deja el gráfico como te gusta, escribe un nombre y guárdala.');
+          A.cfg.templates.forEach((t) => {
+            const r = mk('div', { className: 'tpl-row' });
+            const nm = mk('span', { className: 'tpl-label', textContent: t.name });
+            const b1 = mk('button', { className: 'btn secondary', textContent: 'Aplicar aquí', title: 'Aplicar al gráfico seleccionado' });
+            b1.onclick = () => { applyTemplate(av, ac, t.data); openSettings(); };
+            const b2 = mk('button', { className: 'btn secondary', textContent: 'A todos', title: 'Aplicar a todos los gráficos del diseño' });
+            b2.onclick = () => { A.views.forEach((v) => applyTemplate(v, v.cfg, t.data)); openSettings(); };
+            const b3 = mk('button', { className: 'btn secondary', textContent: 'Actualizar', title: 'Reemplazar la plantilla con el estado actual de este gráfico' });
+            b3.onclick = () => { t.data = snapshotTemplate(ac); saveCfg(); openSettings(); };
+            const b4 = mk('button', { className: 'x', textContent: '×', title: 'Eliminar plantilla' });
+            b4.onclick = () => { A.cfg.templates = A.cfg.templates.filter((x) => x !== t); saveCfg(); openSettings(); };
+            r.append(nm, b1, b2, b3, b4);
+            body.appendChild(r);
+          });
+        }
+
+        if (tab === 'paleta') {
+          title('Mi paleta de colores (en todo el programa)');
+          const palBox = mk('div', { className: 'pal-grid pal-edit' });
+          const drawPal = () => {
+            palBox.innerHTML = '';
+            A.cfg.palette.forEach((hex) => {
+              const sw = mk('button', { className: 'pal-sw', title: hex + ' (clic: quitar)' });
+              sw.style.background = hex;
+              sw.onclick = () => { A.cfg.palette = A.cfg.palette.filter((c) => c !== hex); saveCfg(); drawPal(); };
+              palBox.appendChild(sw);
+            });
+          };
+          drawPal();
+          body.appendChild(palBox);
+          const palIn = mk('input', { type: 'color', value: '#2962ff' });
+          const palHex = mk('input', { type: 'text', value: '#2962ff', className: 'pal-hex', maxLength: 7 });
+          palIn.oninput = () => { palHex.value = palIn.value; };
+          palHex.oninput = () => { if (/^#[0-9a-f]{6}$/i.test(palHex.value)) palIn.value = palHex.value; };
+          const palAdd = mk('button', { className: 'btn secondary', textContent: '+ Agregar a mi paleta' });
+          palAdd.onclick = () => { if (addToPalette(palHex.value)) drawPal(); };
+          const palRow = mk('div', { className: 'row-actions' });
+          palRow.append(palIn, palHex, palAdd);
+          body.appendChild(palRow);
+          hint('Junto a cada selector de color hay un botón ▾ con tu paleta: un clic aplica el color; "+ Guardar" añade el color actual. Clic derecho en un color de la paleta lo quita.');
+        }
+
+        if (tab === 'datos') {
+          title('Conexión con las fuentes de datos');
+          hint('Comprueba en este equipo qué fuentes responden (Binance, Bybit, Coinbase y los archivos históricos) y a qué velocidad. Sirve para saber qué datos se pueden usar.');
+          const connBtn = mk('button', { className: 'btn secondary', textContent: 'Probar conexión' });
+          const connOut = mk('div', { className: 'conn-out' });
+          connBtn.onclick = async () => {
+            connBtn.disabled = true; connBtn.textContent = 'Probando… (puede tardar hasta 1 minuto)'; connOut.innerHTML = '';
+            try {
+              const r = await API.testConnection();
+              r.results.forEach((x) => {
+                const row = mk('div', { className: 'conn-row ' + (x.ok ? 'ok' : 'bad') });
+                row.append(mk('b', { textContent: (x.ok ? '✓ ' : '✗ ') + x.name }), mk('span', { textContent: ` · ${x.ms} ms` }), mk('div', { className: 'hint', textContent: x.detail }));
+                connOut.appendChild(row);
+              });
+            } catch (e) { connOut.appendChild(mk('div', { className: 'conn-row bad', textContent: 'No se pudo hacer la prueba: ' + e.message })); }
+            connBtn.disabled = false; connBtn.textContent = 'Probar conexión otra vez';
+          };
+          body.append(connBtn, connOut);
+          hint('Datos: Binance, Bybit, KuCoin y Bitstamp (API públicas y gratuitas). Tus cambios se guardan automáticamente.');
+        }
+
+        if (tab === 'servicio') fillService(body, mk, field, title, hint);
+        decoratePalette(body);
       };
-      const close = mk('button', { className: 'btn', textContent: 'Cerrar' });
-      close.onclick = closeModal;
-      const row = mk('div', { className: 'row-actions' });
-      row.append(reset, close);
-      box.appendChild(row);
-      box.appendChild(mk('div', { className: 'hint', textContent: 'Datos: Binance, Bybit, KuCoin y Bitstamp (API públicas y gratuitas). Tus cambios se guardan automáticamente.' }));
-      decoratePalette(box);
+      fill();
+      const act = mk('div', { className: 'row-actions props-actions' });
+      const close = mk('button', { className: 'btn', textContent: 'Cerrar', onclick: closeModal });
+      act.append(mk('span', { className: 'spacer' }), close);
+      box.appendChild(act);
     }, { floating: true });
+  }
+
+  // Pestaña «Servicio»: rendimiento, caché y reseteo de fábrica
+  function fillService(body, mk, field, title, hint) {
+    const svc = API.service;
+    const msg = (parent) => { const m = mk('div', { className: 'svc-msg' }); parent.appendChild(m); return (t, bad) => { m.textContent = t; m.className = 'svc-msg' + (bad ? ' bad' : ''); }; };
+
+    title('Rendimiento');
+    const hwBox = mk('div', {}); body.appendChild(hwBox);
+    const hw = mk('input', { type: 'checkbox', checked: true, disabled: true });
+    field('Aceleración por hardware (usa la tarjeta gráfica)', hw);
+    hint('Normalmente conviene dejarla activada. Si el programa va lento, parpadea o se ve raro, prueba desactivarla. El cambio se aplica al reiniciar el programa.');
+    const hwSay = msg(body);
+    const restartRow = mk('div', { className: 'row-actions hidden' });
+    const restartBtn = mk('button', { className: 'btn', textContent: 'Reiniciar ahora' });
+    restartBtn.onclick = () => svc.relaunch();
+    restartRow.appendChild(restartBtn); body.appendChild(restartRow);
+    svc.get().then((r) => {
+      if (!r || !r.desktop) { hwSay('Solo disponible en la app de escritorio. En el navegador la controla el propio navegador (Configuración › Sistema).'); return; }
+      hw.disabled = false; hw.checked = r.hwAccel;
+      if (r.needsRestart) { hwSay('Cambio guardado: reinicia el programa para aplicarlo.'); restartRow.classList.remove('hidden'); }
+      hw.onchange = async () => {
+        const x = await svc.setHw(hw.checked);
+        if (!x || !x.ok) { hwSay('No se pudo guardar: ' + ((x && x.error) || 'error'), true); return; }
+        hwSay(x.needsRestart ? 'Cambio guardado: reinicia el programa para aplicarlo.' : 'Sin cambios pendientes.');
+        restartRow.classList.toggle('hidden', !x.needsRestart);
+      };
+    }).catch((e) => hwSay('No se pudo leer el estado: ' + e.message, true));
+
+    title('Caché de la app');
+    hint('La caché guarda velas ya descargadas para que el gráfico abra más rápido. Borrarla no toca tus ajustes, dibujos, plantillas ni scripts: solo se vuelven a descargar las velas cuando las necesites.');
+    const cSay = msg(body);
+    const size = mk('div', { className: 'hint' }); body.appendChild(size);
+    const showSize = async () => {
+      try {
+        const n = window.TVHistory ? await window.TVHistory.stats() : 0;
+        const mb = Math.round(n * 1000 * 6 * 8 / 1048576 * 10) / 10;
+        size.textContent = `Guardado ahora: ${n} bloques de velas (unos ${mb} MB).`;
+      } catch (e) { size.textContent = ''; }
+    };
+    showSize();
+    const cRow = mk('div', { className: 'row-actions' });
+    const clr = mk('button', { className: 'btn secondary', textContent: 'Borrar caché' });
+    clr.onclick = async () => {
+      clr.disabled = true; cSay('Borrando…');
+      try { if (window.TVHistory) await window.TVHistory.clear(); const x = await svc.clearCache(); if (x && x.ok === false) throw new Error(x.error); cSay('Caché borrada. Recargando el programa…'); setTimeout(() => { flushAllSaves(); location.reload(); }, 600); }
+      catch (e) { cSay('No se pudo borrar: ' + e.message, true); clr.disabled = false; }
+    };
+    const rf = mk('button', { className: 'btn secondary', textContent: 'Refrescar el programa', title: 'Recarga la ventana y libera memoria; no borra nada' });
+    rf.onclick = () => { cSay('Recargando…'); flushAllSaves(); setTimeout(() => location.reload(), 200); };
+    cRow.append(clr, rf); body.appendChild(cRow);
+    hint('«Refrescar el programa» recarga todo y libera memoria sin borrar nada: úsalo si se siente pesado tras horas abierto.');
+
+    title('Reseteo de fábrica');
+    hint('Deja el programa como recién instalado, con todas sus herramientas y funciones, pero sin nada tuyo.');
+    const rRow = mk('div', { className: 'row-actions' });
+    const rs = mk('button', { className: 'btn danger', textContent: 'Restablecer valores de fábrica…' });
+    rs.onclick = () => confirmFactoryReset();
+    rRow.appendChild(rs); body.appendChild(rRow);
+  }
+  function flushAllSaves() { [...saveTimers.keys()].forEach((id) => flushTab(id, true)); }
+  function confirmFactoryReset() {
+    const mk = (tag, props) => Object.assign(document.createElement(tag), props || {});
+    openModal((mb) => {
+      mb.appendChild(mk('h3', { textContent: '¿Restablecer valores de fábrica?' }));
+      mb.appendChild(mk('p', { className: 'hint', textContent: 'Se borrará TODO lo tuyo y no se puede deshacer:' }));
+      const ul = mk('ul', { className: 'reset-list' });
+      ['Todas las pestañas y sus gráficos, símbolos y temporalidades', 'Dibujos, plantillas, paleta de colores, listas de seguimiento', 'Tus scripts, estrategias y resultados', 'Tema y demás ajustes', 'Lo descargado: velas guardadas, operaciones y memoria del mapa de liquidaciones'].forEach((t) => ul.appendChild(mk('li', { textContent: t })));
+      mb.appendChild(ul);
+      mb.appendChild(mk('p', { className: 'hint', textContent: 'El programa conserva todas sus herramientas y funciones. Se reiniciará solo.' }));
+      const say = mk('div', { className: 'svc-msg' }); mb.appendChild(say);
+      const rw = mk('div', { className: 'row-actions' });
+      const yes = mk('button', { className: 'btn danger', textContent: 'Sí, borrar todo' });
+      const no = mk('button', { className: 'btn secondary', textContent: 'Cancelar', onclick: () => openSettings() });
+      yes.onclick = async () => {
+        yes.disabled = no.disabled = true; say.textContent = 'Restableciendo…';
+        resetting = true;                      // desde aquí nada se vuelve a guardar
+        saveTimers.forEach((e) => clearTimeout(e.timer)); saveTimers.clear();
+        try {
+          if (window.TVHistory) await window.TVHistory.clear();
+          const x = await API.service.factoryReset();
+          if (x && x.ok === false) throw new Error(x.error || 'error');
+          try { localStorage.clear(); sessionStorage.clear(); } catch (e) { /* ok */ }
+          say.textContent = 'Listo. Reiniciando…';
+          if (!(window.desktopApi)) setTimeout(() => { location.href = location.pathname; }, 500);
+        } catch (e) { resetting = false; say.textContent = 'No se pudo restablecer: ' + e.message; say.className = 'svc-msg bad'; yes.disabled = no.disabled = false; }
+      };
+      rw.append(yes, no); mb.appendChild(rw);
+    });
   }
 
   // ---------- Ventanas y diseños (v0.22) ----------
@@ -1685,6 +1795,7 @@
     const def = defaultConfig();
     if (!saved || typeof saved !== 'object') return def;
     const cfg = Object.assign(def, saved);
+    if (!['dark', 'light', 'system'].includes(cfg.theme)) cfg.theme = 'dark';
     // lo que antes era global (versión 3 o menor) pasa a cada gráfico
     let legacyCandle = saved.candle && saved.candle.body ? saved.candle : defaultCandle();
     if (!(saved.candle && saved.candle.body) && saved.up && saved.down) {
@@ -1867,7 +1978,7 @@
     G.drawStore = window.TVDraw.createStore(() => A.cfg.drawings, () => A.cfg.draw, saveCfg, () => A.cfg.folders);
     A.drawStore = G.drawStore; // para depuración (F12)
     bindUi();
-    { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + (A.cfg.theme === 'light' ? 'light' : 'dark') + '.png'; }
+    { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png'; }
     applyLayout();
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });

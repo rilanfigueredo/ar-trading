@@ -42,6 +42,10 @@
         openWindow: () => desktop.openWindow(),
         closeWindow: (id) => desktop.closeWindow(id),
         onShared: (cb) => desktop.onShared(cb),
+        service: {
+          get: () => desktop.serviceGet(), setHw: (on) => desktop.serviceSetHw(on), relaunch: () => desktop.serviceRelaunch(),
+          clearCache: () => desktop.serviceClearCache(), factoryReset: () => desktop.serviceFactoryReset(),
+        },
       }
     : {
         klines: (p) => http('/api/klines?' + new URLSearchParams(p).toString()),
@@ -62,6 +66,10 @@
         setActive: (id) => http('/api/window/active?w=' + id, { method: 'POST' }),
         openWindow: () => http('/api/window/new', { method: 'POST' }),
         closeWindow: (id) => http('/api/window/remove?w=' + id, { method: 'POST' }),
+        service: {
+          get: () => http('/api/service/get'), setHw: async () => ({ ok: false }), relaunch: async () => { location.reload(); return { ok: true }; },
+          clearCache: async () => ({ ok: true }), factoryReset: () => http('/api/service/factoryreset', { method: 'POST' }),
+        },
         onShared: (cb) => { if (bc) bc.onmessage = (ev) => { if (ev.data && ev.data.from !== WIN) cb(ev.data.patch); }; },
       };
 })();

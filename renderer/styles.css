@@ -560,3 +560,30 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .liq-badge .liq-note { opacity: .75; } .liq-badge .liq-err { color: #ff8a80; font-weight: 600; }
 .liq-badge .liq-btn { cursor: pointer; border: 1px solid rgba(255,255,255,.3); border-radius: 4px; padding: 0 6px; background: transparent; color: inherit; font-size: 11px; }
 .liq-badge .liq-btn:hover { background: rgba(255,255,255,.12); }
+
+/* v0.23.3: Ajustes por pestañas, selector de tema con iconos, pestaña Servicio y casillas más claras */
+.modal-box.setwin { width: min(760px, 92vw); max-width: 92vw; }
+.setwin .props-head.drag-grip { gap: 6px; }
+.setwin .props-tab { border-color: rgba(254,153,0,.45); background: rgba(128,128,128,.08); margin-bottom: 0; }
+.setwin .props-tab:hover { background: rgba(128,128,128,.18); }
+.setwin .props-tab.active { border-color: #13dbf3; border-bottom-color: transparent; background: var(--panel); }
+.setwin .props-body { min-height: 340px; max-height: 58vh; overflow: auto; padding-right: 4px; }
+.setwin .props-body input[type=text], .setwin .props-body input[type=number], .setwin .props-body select { border: 1.5px solid #fe990066; border-radius: 6px; }
+.setwin .props-body input[type=text]:focus, .setwin .props-body select:focus { outline: none; border-color: #13dbf3; }
+.setwin .props-body input[type=checkbox] { border: 2px solid #fe9900; box-sizing: border-box; }
+.setwin .props-body input[type=checkbox]:checked { border-color: #13dbf3; }
+.setwin .props-body input[type=checkbox]::after { left: 2px; top: 2px; }
+.setwin .props-body input[type=checkbox]:checked::after { left: 18px; }
+.setwin .props-body input[type=color] { border: 2px solid #fe9900; }
+.setwin .props-body .field { border: 1px solid rgba(128,128,128,.22); border-radius: 8px; padding: 8px 12px; margin: 6px 0; }
+.setwin .props-body .tpl-row { border: 1px solid rgba(128,128,128,.22); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+.setwin .props-actions { border-top: 1px solid rgba(128,128,128,.25); margin-top: 10px; padding-top: 10px; }
+.theme-opts { display: flex; gap: 10px; margin: 8px 0; }
+.theme-opt { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; font: inherit; font-size: 14px; font-weight: 600; color: var(--text); background: rgba(128,128,128,.08); border: 2px solid rgba(254,153,0,.45); border-radius: 10px; cursor: pointer; }
+.theme-opt:hover { background: rgba(128,128,128,.2); }
+.theme-opt.active { border-color: #13dbf3; background: rgba(19,219,243,.12); }
+.btn.danger { background: #d32f2f; color: #fff; }
+.btn.danger:disabled { opacity: .5; cursor: default; }
+.svc-msg { min-height: 18px; font-size: 13px; margin: 4px 0; color: var(--muted); }
+.svc-msg.bad { color: #ff5252; }
+.reset-list { margin: 4px 0 8px 18px; padding: 0; font-size: 14px; line-height: 1.5; }

@@ -157,7 +157,14 @@ function create(dir) {
   const getMainBounds = () => readShared().mainBounds || null;
   function setMainBounds(b) { const s = readShared(); s.mainBounds = b; writeJson(sharedFile(), s); }
 
-  return { tabs, getActive, setActive, getMainBounds, setMainBounds, tfLabel, getConfig, setConfig, markShared, listWindows, addWindow, removeWindow, newWindowId, setBounds, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };
+  // Reseteo de fábrica: borra la configuración compartida y la de cada ventana (vuelve a los valores iniciales).
+  function reset() {
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch (e) { files = []; }
+    files.forEach((f) => { if (f === 'config.json' || /^win-w(10|[1-9])\.json(\.tmp)?$/.test(f) || f === 'config.json.tmp') { try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* ya no estaba */ } } });
+    snaps.clear();
+  }
+  return { reset, tabs, getActive, setActive, getMainBounds, setMainBounds, tfLabel, getConfig, setConfig, markShared, listWindows, addWindow, removeWindow, newWindowId, setBounds, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };
 }
 
 module.exports = { create, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };

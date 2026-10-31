@@ -640,7 +640,9 @@
     return Object.assign({}, tf, { base: b.id, ratio, kind: ratio === 1 ? 'native' : 'fixed', adapted: true });
   }
 
-  const lib = { deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  // v0.23.3: tema 'system' = el del sistema (claro u oscuro); cualquier otro valor raro cae a oscuro
+  const resolveTheme = (t, systemLight) => (t === 'light' ? 'light' : t === 'system' ? (systemLight ? 'light' : 'dark') : 'dark');
+  const lib = { resolveTheme, deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

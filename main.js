@@ -1,8 +1,13 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session } = require('electron');
 const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
+const Service = require('./src/service');
+
+// v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
+const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
+if (!hwAtStart) app.disableHardwareAcceleration();
 
 // v0.22: UNA sola ventana con pestañas (como un navegador). Cada pestaña (w1…w10) guarda su propia configuración;
 // lo compartido (tema, plantillas, scripts…) vive aparte. Cambiar de pestaña recarga la página con la otra configuración.
@@ -38,6 +43,33 @@ ipcMain.handle('window:close', async (_e, id) => {
   if (store.listWindows().length <= 1) return { ok: false, error: 'No se puede cerrar la última pestaña.' };
   store.removeWindow(id);
   return { ok: true };
+});
+
+// ----- Servicio (v0.23.3): aceleración, caché y reseteo de fábrica -----
+const relaunch = () => setTimeout(() => { app.relaunch(); app.exit(0); }, 300);
+ipcMain.handle('service:get', async () => {
+  const hw = Service.read(app.getPath('userData')).hwAccel;
+  return { desktop: true, hwAccel: hw, needsRestart: hw !== hwAtStart, version: app.getVersion() };
+});
+ipcMain.handle('service:setHw', async (_e, on) => {
+  try { Service.write(app.getPath('userData'), { hwAccel: !!on }); return { ok: true, needsRestart: !!on !== hwAtStart }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('service:relaunch', async () => { relaunch(); return { ok: true }; });
+ipcMain.handle('service:clearCache', async () => {
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearStorageData({ storages: ['indexdb', 'cachestorage', 'shadercache', 'serviceworkers'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('service:factoryReset', async () => {
+  try {
+    Service.factoryReset({ dir: app.getPath('userData'), store, core, restart: false });
+    await session.defaultSession.clearStorageData();
+    await session.defaultSession.clearCache();
+    relaunch();
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 function createWindow() {
