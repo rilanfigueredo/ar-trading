@@ -159,6 +159,21 @@
   const bucketStart = (unit, n, t, gran) => { const r = bucketRange(unit, n, t, gran); return r ? r[0] : null; };
   const bucketEnd = (unit, n, t, gran) => { const r = bucketRange(unit, n, t, gran); return r ? r[1] : null; };
 
+  // Períodos hebreos para los pivotes y el VWAP: número de día / semana / mes hebreo (consecutivos) al que pertenece t, y su inicio.
+  // unit: 'd' | 'w' | 'M'. periodKey devuelve -1 si t cae fuera de la tabla.
+  function periodKey(unit, t, gran) {
+    const i = dayAt(t, gran);
+    if (i < 0) return -1;
+    const tb = table(gran);
+    return unit === 'd' ? i : unit === 'w' ? tb.WI[i] : tb.MI[i];
+  }
+  function periodStart(unit, key, gran) {
+    const tb = table(gran);
+    if (unit === 'd') return tb.S[Math.min(key, tb.n)];
+    if (unit === 'w') return key < tb.wStart.length ? tb.S[tb.wStart[key]] : tb.S[tb.n];
+    return key < tb.mStart.length ? tb.S[tb.mStart[key]] : tb.S[tb.n];
+  }
+
   // Fecha hebrea del día que contiene a t. { day, month (nombre), year, weekday (0 = Domingo), start, end }
   const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   function info(t, gran) {
@@ -181,7 +196,7 @@
     return { year: d.y, month: tb.mName[d.mi], ordinal: d.o, day: d.d, weekday: abs % 7 };
   }
 
-  const lib = { JERUSALEM, FIRST_YEAR, LAST_YEAR, newYearAbs, daysInYear, isLeap, monthsOfYear, sunsetSec, sunsetMinutes, table, dayAt, bucketRange, bucketStart, bucketEnd, info, label, fromUnixDay, WEEKDAYS, NAMES };
+  const lib = { JERUSALEM, FIRST_YEAR, LAST_YEAR, newYearAbs, daysInYear, isLeap, monthsOfYear, sunsetSec, sunsetMinutes, table, dayAt, bucketRange, bucketStart, bucketEnd, periodKey, periodStart, info, label, fromUnixDay, WEEKDAYS, NAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVHebrew = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

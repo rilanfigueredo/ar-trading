@@ -168,7 +168,16 @@
       if (isSub()) return dateFmt('dts', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
       return dateFmt('dt', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
     }
+    // Eje con fechas hebreas: «19 Tamuz»; el día 1 muestra solo el nombre del mes (y el año en Tishrei).
+    function hebrewTick(t) {
+      const tfh = tfNow();
+      if (tfh.kind !== 'hebrew' || !window.TVHebrew) return null;
+      const x = TVHebrew.info(t, tfh.gran);
+      if (!x) return null;
+      return x.day === 1 ? (x.month === 'Tishrei' ? String(x.year) : x.month) : `${x.day} ${x.month}`;
+    }
     function tickFormatter(t, type) {
+      if (isHebrew()) { const h = hebrewTick(t); if (h !== null) return h; }
       const d = new Date(t * 1000);
       const utc = isDaily();
       if (type === 0) return dateFmt('y', { year: 'numeric' }, utc).format(d);

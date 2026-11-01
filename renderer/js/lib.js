@@ -220,7 +220,7 @@
   function withCalendar(tf, calendar, prec) {
     if (calendar !== 'hebrew' || !tf || tf.kind === 'vol') return tf;
     const m = /^([dwM]):(\d+)$/.exec(tf.id);
-    if (!m) return tf;
+    if (!m) return Object.assign({}, tf, { cal: 'hebrew', gran: prec === 'fast' ? 3600 : 60 });   // minutos y horas: misma vela, pero los pivotes y el VWAP usan días/semanas/meses hebreos
     const u = m[1], n = Number(m[2]);
     const fast = prec === 'fast';
     const perUnit = (u === 'd' ? 1 : u === 'w' ? 7 : 29.53) * (fast ? 24 : 1440);   // velas base por barra (el mes hebreo dura 29,53 días de media)
@@ -453,13 +453,17 @@
 
   // Período (día / semana / mes, en UTC) al que pertenece un instante.
   const PERIOD_SEC = { day: DAY, week: WEEK, month: 28 * DAY };
-  function periodKey(time, period) {
+  // tf (opcional): si es de un gráfico con calendario hebreo (tf.cal === 'hebrew'), el día, la semana y el mes son los hebreos.
+  const PUNIT = { day: 'd', week: 'w', month: 'M' };
+  function periodKey(time, period, tf) {
+    if (tf && tf.cal === 'hebrew') { const k = HB().periodKey(PUNIT[period], time, tf.gran); if (k >= 0) return k; }
     if (period === 'day') return Math.floor(time / DAY);
     if (period === 'week') return Math.floor((time - 4 * DAY) / WEEK); // las semanas empiezan el lunes
     const d = new Date(time * 1000);
     return d.getUTCFullYear() * 12 + d.getUTCMonth();
   }
-  function periodStart(key, period) {
+  function periodStart(key, period, tf) {
+    if (tf && tf.cal === 'hebrew') return HB().periodStart(PUNIT[period], key, tf.gran);
     if (period === 'day') return key * DAY;
     if (period === 'week') return key * WEEK + 4 * DAY;
     return Date.UTC(Math.floor(key / 12), key % 12, 1) / 1000;
@@ -478,7 +482,7 @@
     let key = null, pv = 0, vol = 0;
     for (let i = 0; i < bars.length; i++) {
       const b = bars[i];
-      const k = periodKey(b.time, anchor);
+      const k = periodKey(b.time, anchor, tf);
       if (k !== key) { key = k; pv = 0; vol = 0; }
       const tp = (b.high + b.low + b.close) / 3;
       pv += tp * b.volume;
@@ -517,7 +521,7 @@
     // agrupar velas por período
     const groups = [];
     for (let i = 0; i < bars.length; i++) {
-      const k = periodKey(bars[i].time, period);
+      const k = periodKey(bars[i].time, period, tf);
       const g = groups[groups.length - 1];
       if (g && g.key === k) {
         g.endIdx = i + 1;
@@ -531,12 +535,12 @@
     for (let gi = 1; gi < groups.length; gi++) {
       const prev = groups[gi - 1];
       // el primer período cargado puede estar incompleto: no se usa salvo que ya se tenga todo el historial
-      if (gi === 1 && !reachedStart && prev.firstTime > periodStart(prev.key, period)) continue;
+      if (gi === 1 && !reachedStart && prev.firstTime > periodStart(prev.key, period, tf)) continue;
       const g = groups[gi];
       const isLast = gi === groups.length - 1;
       let extra = 0;
       if (isLast) {
-        const perBars = Math.round((periodStart(g.key + 1, period) - periodStart(g.key, period)) / tf.sec);
+        const perBars = Math.round((periodStart(g.key + 1, period, tf) - periodStart(g.key, period, tf)) / tf.sec);
         extra = Math.max(0, Math.min(400, perBars - (g.endIdx - g.startIdx)));
       }
       res.segments.push({ startIdx: g.startIdx, endIdx: g.endIdx, extra, levels: pivotLevels(prev, type) });

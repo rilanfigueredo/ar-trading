@@ -228,3 +228,38 @@ console.log('Pruebas del calendario hebreo: ok');
   assert.ok((v % DAY) - (w % DAY) > 90 * 60, 'la diferencia invierno-verano debe pasar de 1,5 h');
 }
 console.log('Pruebas del calendario hebreo (rápido): ok');
+
+// ---------- Pivotes y VWAP con calendario hebreo ----------
+{
+  const HBt = HB;
+  // velas de 1 hora de 40 días; con pivotes diarios, cada tramo debe empezar al atardecer (hebreo) y no a las 00:00 UTC
+  const s0 = utc(2026, 9, 20);
+  const bars = [];
+  let px = 100;
+  for (let i = 0; i < 40 * 24; i++) { const o = px; px += Math.sin(i / 7) * 2 + Math.cos(i / 31); bars.push({ time: s0 + i * 3600, open: o, high: Math.max(o, px) + 1, low: Math.min(o, px) - 1, close: px, volume: 1 }); }
+  const tfH = L.withCalendar(L.tfById('m:60'), 'hebrew', 'fast');
+  eq(tfH.cal, 'hebrew'); eq(tfH.gran, 3600);
+  const rg = L.pivots(bars, L.tfById('m:60'), 'classic', 'day', true);
+  const rh = L.pivots(bars, tfH, 'classic', 'day', true);
+  assert.ok(rg.ok && rh.ok);
+  // gregoriano: cada tramo empieza a las 00:00 UTC; hebreo: cada tramo empieza a la hora del atardecer (15:00–17:00 UTC)
+  rg.segments.forEach((g) => eq(bars[g.startIdx].time % DAY, 0));
+  rh.segments.slice(0, -1).forEach((g) => { const h = (bars[g.startIdx].time % DAY) / 3600; assert.ok(h >= 14 && h <= 17, 'hora ' + h); });
+  // los niveles salen del máximo/mínimo/cierre del día hebreo anterior (no del civil)
+  const seg = rh.segments[3], a = HBt.bucketRange('d', 1, bars[seg.startIdx].time - 3600, 3600);
+  const prev = bars.filter((b) => b.time >= a[0] && b.time < a[1]);
+  const H = Math.max(...prev.map((b) => b.high)), Lo = Math.min(...prev.map((b) => b.low)), C = prev[prev.length - 1].close;
+  assert.ok(Math.abs(seg.levels.P - (H + Lo + C) / 3) < 1e-9);
+  // semana y mes hebreos
+  const rw = L.pivots(bars, tfH, 'classic', 'week', true), rm = L.pivots(bars, tfH, 'classic', 'month', true);
+  rw.segments.forEach((g) => { const t = bars[g.startIdx].time; assert.ok(t === HBt.bucketStart('w', 1, t, 3600) || g === rw.segments[0]); });
+  rm.segments.forEach((g) => { const t = bars[g.startIdx].time; assert.ok(t === HBt.bucketStart('M', 1, t, 3600) || g === rm.segments[0]); });
+  // el modo gregoriano no cambia
+  eq(L.periodKey(utc(2026, 11, 4, 5), 'day'), Math.floor(utc(2026, 11, 4, 5) / DAY));
+  // VWAP anclado al día hebreo
+  const v = L.vwap(bars, tfH, 'day'), vg = L.vwap(bars, L.tfById('m:60'), 'day');
+  assert.ok(v.length === bars.length && vg.length === bars.length);
+  let diff = 0; for (let i = 0; i < v.length; i++) if (Math.abs(v[i] - vg[i]) > 1e-9) diff++;
+  assert.ok(diff > 100, 'el VWAP hebreo debe diferir del civil');
+}
+console.log('Pruebas de pivotes y VWAP hebreos: ok');

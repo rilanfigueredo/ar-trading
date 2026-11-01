@@ -1,8 +1,14 @@
-AR_TRADING - VERSION 0.23.7
+AR_TRADING - VERSION 0.23.8
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.8 - EL CALENDARIO HEBREO TAMBIEN EN PIVOTES, VWAP Y EJE
+- Los PIVOTES (y el VWAP anclado) de un grafico en calendario hebreo ahora usan el dia, la semana y el mes HEBREOS (antes seguian los civiles). Vale tambien para graficos de 1h, 4h, etc. (en esos, una vela que cruza el atardecer cuenta para el dia en que empieza).
+- El EJE horizontal muestra fechas hebreas ("19 Av", "21 Tishrei", y el nombre del mes en el dia 1) en las velas de dia, semana y mes. Antes mostraba la fecha civil y por eso las velas de los dos calendarios parecian iguales. Las posiciones de las marcas del eje las decide el grafico (no se pueden mover), pero el rotulo ya es hebreo.
+- Medido con la volatilidad tipica de BTC (~2,5 % diario, 1 ano simulado): en velas DIARIAS el cierre cambia ~1,2 % de media, el rango ~22 % y 1 de cada 3 velas cambia de color (sube/baja); en semanas ~12 % cambian de color. Las velas se ven parecidas (el corte se mueve unas 9 horas), pero los precios de cierre, maximos y minimos son distintos.
+- El historial inicial en modo Exacta es corto (unos 120 dias): si lo comparas con el gregoriano, que carga ~5 anos, veras menos velas a la derecha hasta que muevas el grafico hacia atras.
 
 NOVEDADES DE LA v0.23.7 - CALENDARIO HEBREO PARA LAS VELAS DE DIA, SEMANA Y MES
 - NUEVO: boton "Datos" > "Calendario de las velas (dia, semana y mes)": Gregoriano (normal) u Hebreo. Es POR GRAFICO: puedes ver uno gregoriano y otro hebreo lado a lado. Se aplica al instante.
