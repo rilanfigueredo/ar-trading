@@ -800,6 +800,8 @@
         s.pivot.width = Math.max(1, Math.min(6, Math.round(pc.width) || 1));
         s.pivot.setSegments(r.ok ? r.segments : [], s.bars.length - 1, s.bars.length ? s.bars[s.bars.length - 1].time : undefined);
         s.pivotNote = r.ok ? '' : 'Pivotes no disponibles: ' + r.reason.toLowerCase();
+        // Con calendario hebreo, las velas más largas que la base pueden cruzar el atardecer: el día se reparte por el inicio de cada vela, no es exacto.
+        if (r.ok && tf.cal === 'hebrew' && tf.kind !== 'hebrew' && tf.sec > (tf.gran || 60)) s.pivotNote = `Pivotes hebreos aproximados: las velas de ${tf.label} pueden cruzar el atardecer (cada vela cuenta para el día en que empieza)`;
       }
       renderLegend(null);
       if (s.scr) s.scr.update();
@@ -935,7 +937,7 @@
       }
       legendEl.appendChild(masDiv);
       const hiddenNote = s.subsHidden && SUB_ORDER.some((n) => vcfg.ind[n].on) ? 'Indicadores ocultos (doble clic para mostrarlos)' : '';
-      const notes = [hiddenNote, s.pivotNote, tf.kind === 'vol' ? volNote() : ''].filter(Boolean);
+      const notes = [hiddenNote, s.pivotNote, tf.kind === 'vol' ? volNote() : '', s.partialFirst ? 'Primera vela incompleta: aún falta historial por descargar' : ''].filter(Boolean);
       if (notes.length) legendEl.appendChild(el('div', 'lg-note', notes.join(' · ')));
       renderSubLegends(hovering ? param : null);
       if (s.scr) s.scr.legend(hovering ? param : null, legendEl);
@@ -1063,7 +1065,7 @@
       const m = /^(.+?)(USDT|USDC|FDUSD|BUSD|TUSD|USD|EUR|BTC|ETH|BNB)$/.exec(vcfg.symbol);
       return m ? m[1] : vcfg.symbol;
     }
-    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.kind === 'hebrew' ? `${tf.label} hebreo${tf.fast ? ' (rápido)' : ''}` : tf.label; }
+    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.kind === 'hebrew' ? `${tf.label} hebreo${tf.fast ? ' (aproximado: atardecer a la hora)' : ''}` : tf.label; }
     function volNote() {
       const bits = [];
       if (s.vol && s.vol.market === 'spot') bits.push('Futuros no disponible: usando Spot');
@@ -1203,6 +1205,17 @@
     }
 
     // ---------- Carga de datos ----------
+    // Agrupa las velas base. Una barra HEBREA cuyo inicio cae antes de la primera vela descargada está INCOMPLETA (le falta el principio:
+    // máximos, mínimos y apertura serían falsos): no se muestra como si fuera real. Se quita mientras haya otra barra; si es la única, se
+    // deja y se avisa en la leyenda. Cuando se llega al inicio real del historial, la primera barra parcial sí es verdadera y se muestra.
+    function aggBars(tf) {
+      const bars = L.aggregate(s.base, tf, s.anchor);
+      s.partialFirst = false;
+      if (tf.kind === 'hebrew' && !s.reachedStart && bars.length && s.base.length && bars[0].time < s.base[0].time) {
+        if (bars.length > 1) bars.shift(); else s.partialFirst = true;
+      }
+      return bars;
+    }
     async function fetchBack(endMs, pages, token) {
       const tf = tfNow();
       const sec = L.baseSec(tf);
@@ -1313,7 +1326,7 @@
         if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en ${exName()}.`);
         s.base = res.candles;
         s.reachedStart = res.reached;
-        s.bars = L.aggregate(s.base, tf, s.anchor);
+        s.bars = aggBars(tf);
         s.precision = L.detectPrecision(s.bars);
         buildMainSeries();
         mainScale().applyOptions({ autoScale: true });
@@ -1364,7 +1377,7 @@
           const oldFirst = s.bars[0].time;
           const range = s.chart.timeScale().getVisibleLogicalRange();
           s.base = res.candles.concat(s.base);
-          s.bars = L.aggregate(s.base, tf, s.anchor);
+          s.bars = aggBars(tf);
           const added = s.bars.findIndex((b) => b.time >= oldFirst);
           s.series.setData(s.bars.map(toPoint));
           syncMas();
@@ -1421,7 +1434,7 @@
         if (token !== s.token || s.destroyed) return;
         const prevLast = s.bars[s.bars.length - 1].time;
         L.mergeCandles(s.base, rows.map(L.parseKline));
-        s.bars = L.aggregate(s.base, tf, s.anchor);
+        s.bars = aggBars(tf);
         let start = s.bars.length - 1;
         while (start > 0 && s.bars[start].time > prevLast) start--;
         for (let i = start; i < s.bars.length; i++) s.series.update(toPoint(s.bars[i]));

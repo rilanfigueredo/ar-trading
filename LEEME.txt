@@ -1,8 +1,15 @@
-AR_TRADING - VERSION 0.23.8
+AR_TRADING - VERSION 0.23.9
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.9 - SIN VELAS FALSAS NI ELECCIONES ESCONDIDAS (calendario hebreo)
+- CORREGIDO: la primera vela hebrea (el principio del historial descargado) se dibujaba como real aunque le faltara el comienzo (apertura, maximo y minimo falsos). Ahora no se muestra mientras falte historial; si es la unica, se deja con el aviso "Primera vela incompleta". Al llegar al inicio real del historial, la primera vela parcial SI es verdadera y se muestra.
+- Pivotes hebreos en graficos de 1h, 4h...: la leyenda avisa "Pivotes hebreos aproximados" (una vela que cruza el atardecer cuenta para el dia en que empieza). En 1D, 1W y 1 Mes hebreos son exactos.
+- La precision Rapida se rotula "aproximado" en la leyenda.
+- QUE DICTA EL CALENDARIO (no es elegible): las fechas, la duracion de los meses (29 o 30 dias), los anos de 12 o 13 meses, el dia que empieza al atardecer, la semana domingo-sabado, el mes que cambia en el dia 1.
+- QUE ELEGI YO (y puedes cambiar si me lo pides): (1) el atardecer de JERUSALEN para todos los graficos (no hay un "atardecer" unico para un mercado global; con otro lugar los cortes se mueven minutos u horas); (2) atardecer = el sol toca el horizonte; otras opiniones usan la salida de las estrellas (20-72 min despues); (3) el mes es el del CALENDARIO hebreo (aritmetico), que puede diferir hasta ~1-2 dias de la luna nueva astronomica real; (4) cuando Rosh Jodesh dura 2 dias, el dia 30 del mes viejo sigue siendo del mes viejo y el mes nuevo empieza en el dia 1; (5) bloques de varios dias/semanas (4D, 2W...) se cuentan desde el inicio de mi tabla (sept. 2008) y los de varios meses (4 Meses) se reinician cada Tishrei: son una convencion mia, como los 4D de siempre se cuentan desde el primer dato.
 
 NOVEDADES DE LA v0.23.8 - EL CALENDARIO HEBREO TAMBIEN EN PIVOTES, VWAP Y EJE
 - Los PIVOTES (y el VWAP anclado) de un grafico en calendario hebreo ahora usan el dia, la semana y el mes HEBREOS (antes seguian los civiles). Vale tambien para graficos de 1h, 4h, etc. (en esos, una vela que cruza el atardecer cuenta para el dia en que empieza).
