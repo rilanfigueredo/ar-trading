@@ -1,8 +1,19 @@
-AR_TRADING - VERSION 0.23.5
+AR_TRADING - VERSION 0.23.6
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.6 - SOLO GUARDAR LO QUE NO SE PUEDE VOLVER A BAJAR
+- Se quito lo que se puede bajar de internet en cualquier momento (velas de 1 min, funding, grabar operaciones, archivo de velas de 5 min): menos codigo y menos trabajo en segundo plano. TUS ARCHIVOS YA GUARDADOS NO SE BORRAN (la carpeta "hist" ya no se usa; si quieres espacio, la puedes borrar tu).
+- Se sigue guardando para siempre lo irrecuperable: liquidaciones reales (Binance, Bybit, OKX) e interes abierto.
+- SERVICIO 24/7: guarda esas liquidaciones aunque el programa este cerrado. Ajustes > Datos > "Servicio 24/7" lo activa o desactiva (arranca solo al iniciar sesion en Windows, sin ventana). Si usas el modo navegador: activar_servicio.bat / desactivar_servicio.bat.
+- Usa la MISMA carpeta de datos que la app. Nunca guardan los dos a la vez: el que llega primero guarda; la app abierta le pide los datos al servicio; si uno se cierra, el otro toma el relevo en menos de un minuto.
+- Ajustes > Datos muestra quien guarda ahora, desde cuando y los HUECOS (ratos sin guardar). Las liquidaciones de un hueco no se pueden recuperar.
+- Los meses cerrados de liquidaciones se comprimen solos (gzip) sin perder nada: cada copia se compara con el original antes de quitarlo. El programa lee igual los archivos comprimidos.
+- Otros activos: casilla para guardar tambien las liquidaciones de ETHUSDT; su peso aparece en la lista (el mapa estimado sigue siendo solo de BTC).
+- NO se hizo: bajar el historial de operaciones hacia atras (es publico en data.binance.vision).
+- Sin probar: Binance/Bybit/OKX reales, y Windows/Electron (arranque automatico, servicio con el motor de la app).
 
 NOVEDADES DE LA v0.23.5 - TUS PROPIOS DATOS HISTORICOS (sin depender de terceros)
 - Nada se borra: las liquidaciones reales, el interes abierto y el precio de 5 min del mapa de liquidaciones ahora se guardan PARA SIEMPRE (antes se recortaban a 35 dias). Lo que ya tenias guardado pasa al archivo permanente. El programa no se hace mas lento con los anos (en memoria solo usa los ultimos 40 dias).
