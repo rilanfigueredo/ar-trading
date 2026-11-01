@@ -41,6 +41,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, store.getConfig(w));
     }
     if (url.pathname === '/api/data/status') return send(res, 200, Object.assign(await core.dataStatus(), { desktop: false }));
+    if (url.pathname === '/api/data/assets' && req.method === 'POST') {
+      let data = ''; for await (const chunk of req) data += chunk;
+      const Service = require('./src/service'), d = path.join(__dirname, 'data');
+      Service.write(d, { assets: JSON.parse(data) }); core.setAssets(Service.read(d).assets); core.restartLiq();
+      return send(res, 200, { ok: true });
+    }
     if (url.pathname === '/api/service/get') return send(res, 200, { desktop: false });
     if (url.pathname === '/api/service/factoryreset' && req.method === 'POST') {
       store.reset(); core.resetData({ restart: true });
@@ -78,7 +84,7 @@ const server = http.createServer(async (req, res) => {
 
 process.on('SIGINT', () => { core.shutdown(); process.exit(0); });
 process.on('SIGTERM', () => { core.shutdown(); process.exit(0); });
-core.liqStart();
+core.setRole('app'); core.setAssets(require('./src/service').read(path.join(__dirname, 'data')).assets); core.liqStart();
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Ar_Trading en modo navegador: http://localhost:${PORT}`);
 });

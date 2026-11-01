@@ -37,7 +37,8 @@ function gaps(dir, opt) {
 function create(opt) {
   const dir = opt.dir, kind = opt.kind || 'app', lockF = path.join(dir, 'writer.lock'), sessF = path.join(dir, 'session.json'), covF = path.join(dir, 'cobertura.jsonl');
   let beatT = null, started = 0, held = false;
-  const lockBody = () => JSON.stringify({ kind, pid: process.pid, port: opt.port || 0, started, beat: nowSec() });
+  const id = require('crypto').randomBytes(6).toString('hex');            // identifica ESTA instancia (también si hay dos en el mismo proceso)
+  const lockBody = () => JSON.stringify({ id, kind, pid: process.pid, port: opt.port || 0, started, beat: nowSec() });
   const closeOldSession = () => {                                   // sesión anterior que no cerró bien (apagón, proceso muerto): se anota hasta su último latido
     const prev = readJson(sessF);
     if (prev && prev.s) { try { fs.appendFileSync(covF, JSON.stringify({ s: prev.s, e: prev.beat || prev.s, who: prev.who, crash: 1 }) + '\n'); } catch (e) { /* ok */ } }
@@ -50,8 +51,8 @@ function create(opt) {
       catch (e) {
         if (e.code !== 'EEXIST') return { ok: false, error: 'No puedo crear el candado de la carpeta de datos: ' + e.message };
         const o = owner(dir);
-        if (o && o.pid !== process.pid) return { ok: false, owner: o };
-        try { fs.unlinkSync(lockF); } catch (er) { /* otro lo quitó */ }   // candado muerto: se retira y se reintenta con "wx"
+        if (o && o.id !== id) return { ok: false, owner: o };
+        try { const raw = fs.readFileSync(lockF, 'utf8'); if (!owner(dir)) { if (fs.readFileSync(lockF, 'utf8') === raw) fs.unlinkSync(lockF); } } catch (er) { /* otro lo quitó */ }   // candado muerto: se retira (solo si sigue igual) y se reintenta con "wx"
       }
     }
     if (!held) return { ok: false, error: 'No se pudo tomar el candado de la carpeta de datos.' };
@@ -63,7 +64,7 @@ function create(opt) {
   function beat() {
     if (!held) return;
     const o = readJson(lockF);
-    if (o && o.pid !== process.pid) { held = false; clearInterval(beatT); if (opt.onLost) opt.onLost(); return; }   // alguien nos lo quitó: se avisa para dejar de guardar
+    if (o && o.id !== id) { held = false; clearInterval(beatT); if (opt.onLost) opt.onLost(); return; }   // alguien nos lo quitó: se avisa para dejar de guardar
     try { fs.writeFileSync(lockF, lockBody()); fs.writeFileSync(sessF, JSON.stringify({ s: started, beat: nowSec(), who: kind })); } catch (e) { /* ok */ }
   }
   function release() {
@@ -71,7 +72,7 @@ function create(opt) {
     if (!held) return;
     held = false;
     try { fs.appendFileSync(covF, JSON.stringify({ s: started, e: nowSec(), who: kind }) + '\n'); fs.unlinkSync(sessF); } catch (e) { /* ok */ }
-    try { const o = readJson(lockF); if (o && o.pid === process.pid) fs.unlinkSync(lockF); } catch (e) { /* ok */ }
+    try { const o = readJson(lockF); if (o && o.id === id) fs.unlinkSync(lockF); } catch (e) { /* ok */ }
   }
   return { acquire, release, beat, isHeld: () => held, info: () => ({ kind, started }) };
 }

@@ -340,34 +340,79 @@ function getTradeStore() {
   return tradeStore;
 }
 function tradeStatus() { return getTradeStore().status(); }
-// Mapa de liquidaciones (v0.23): servicio en src/liq/. Arranca con el programa para ir guardando memoria.
-let liqSvc = null;
-function getLiq() {
-  const path = require('path');
-  if (!liqSvc) {
-    liqSvc = require('./liq').create({ dir: path.join(tradeDir || path.join(__dirname, '..', 'data'), 'liq' + (MOCK() ? '-simulado' : '')), mock: MOCK() });
-    liqSvc.start().catch(() => {});
+// Mapa de liquidaciones (v0.23) y datos propios (v0.23.6): servicio en src/liq/.
+// Solo UN programa guarda a la vez por carpeta (src/writer.js): la app o el servicio 24/7 (servicio.js). Si el otro ya está guardando,
+// este se queda en modo "lectura": pide el mapa y el estado al que guarda por una conexión local; si ese deja de responder, se avisa (nunca se
+// sustituye en silencio) y, cuando su candado caduque, este toma el relevo.
+const path = require('path');
+let liqSvc = null, liqWriter = null, liqRemote = null, liqErr = '', liqTimer = null, liqRole = 'app', liqPort = 0, liqAssets = [];
+function setRole(role, port) { liqRole = role === 'servicio' ? 'servicio' : 'app'; liqPort = Number(port) || 0; }
+function setAssets(list) { liqAssets = Array.isArray(list) ? list.filter((a) => typeof a === 'string') : []; }
+const liqDir = () => path.join(tradeDir || path.join(__dirname, '..', 'data'), 'liq' + (MOCK() ? '-simulado' : ''));
+function stopLiq() { if (liqSvc) { try { liqSvc.stop(); } catch (e) { /* ok */ } liqSvc = null; } if (liqWriter) { liqWriter.release(); liqWriter = null; } }
+function tryLiq() {
+  if (liqSvc) return;
+  try {
+    const dir = liqDir();
+    const w = require('./writer').create({ dir, kind: liqRole, port: liqPort, onLost: stopLiq });
+    const r = w.acquire();
+    if (r.ok) { liqWriter = w; liqRemote = null; liqErr = ''; liqSvc = require('./liq').create({ dir, mock: MOCK(), assets: liqAssets }); liqSvc.start().catch(() => {}); }
+    else { liqRemote = r.owner || null; liqErr = r.error || ''; }
+  } catch (e) { liqErr = 'No se pudo arrancar el guardado de liquidaciones: ' + e.message; }
+}
+async function remoteGet(port, url) {
+  const res = await fetch('http://127.0.0.1:' + port + url, { signal: AbortSignal.timeout(8000) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || 'el servicio respondió ' + res.status);
+  return j;
+}
+const whoText = (o) => (o.kind === 'servicio' ? 'el servicio 24/7' : 'otra copia del programa');
+function liqStart() { tryLiq(); if (!liqTimer) { liqTimer = setInterval(tryLiq, 20000); if (liqTimer.unref) liqTimer.unref(); } }
+function restartLiq() { stopLiq(); tryLiq(); }
+async function liqMap(p) {
+  if (!liqSvc) tryLiq();
+  if (liqSvc) return liqSvc.getMap(p);
+  if (liqRemote && liqRemote.port) {
+    try { return await remoteGet(liqRemote.port, '/api/liqmap?' + new URLSearchParams(p || {}).toString()); }
+    catch (e) { throw new Error('El servicio 24/7 está guardando pero no responde (' + e.message + '). Si lo apagaste, en menos de un minuto la app toma el relevo.'); }
   }
-  return liqSvc;
+  throw new Error(liqErr || (liqRemote ? 'Está guardando ' + whoText(liqRemote) + ' y no se puede leer desde aquí.' : 'No se está guardando ahora.'));
+}
+// Pide al servicio 24/7 que se detenga (al desactivarlo). false = no había servicio activo o no respondió.
+async function stopService() {
+  const o = require('./writer').owner(liqDir());
+  if (!o || o.kind !== 'servicio' || !o.port) return false;
+  try { await fetch('http://127.0.0.1:' + o.port + '/api/service/stop', { method: 'POST', signal: AbortSignal.timeout(5000) }); return true; } catch (e) { return false; }
 }
 function flushData() { try { if (liqSvc) liqSvc.dataInfo(); } catch (e) { /* ok */ } }
 let dataNote = { dir: '', error: '' };
 function setDataNote(n) { dataNote = n || { dir: '', error: '' }; }
-// Qué datos propios hay guardados (para Ajustes > Datos)
+// Qué datos propios hay guardados y quién los guarda (para Ajustes > Datos)
 async function dataStatus() {
-  const sets = [];
-  try { getLiq().dataInfo().forEach((x) => sets.push(Object.assign({ group: 'Liquidaciones y mercado', state: 'ok' }, x))); } catch (e) { sets.push({ id: 'liq', group: 'Liquidaciones y mercado', name: 'Liquidaciones', state: 'error', err: e.message, bytes: 0 }); }
-  return { dir: tradeDir || require('path').join(__dirname, '..', 'data'), note: dataNote, mock: MOCK(), sets, totalBytes: sets.reduce((a, x) => a + (x.bytes || 0), 0) };
+  if (!liqSvc) tryLiq();
+  const Writer = require('./writer');
+  const out = { dir: tradeDir || path.join(__dirname, '..', 'data'), note: dataNote, mock: MOCK(), sets: [], totalBytes: 0, assets: liqAssets.slice(), compress: null, writer: null, gaps: Writer.gaps(liqDir()), self: liqRole, error: liqErr };
+  if (liqSvc) {
+    try { liqSvc.dataInfo().forEach((x) => out.sets.push(Object.assign({ group: 'Liquidaciones y mercado', state: x.err ? 'aviso' : 'ok' }, x))); out.compress = liqSvc.compressInfo(); }
+    catch (e) { out.sets.push({ id: 'liq', group: 'Liquidaciones y mercado', name: 'Liquidaciones', state: 'error', err: e.message, bytes: 0 }); }
+    out.writer = { kind: liqRole, started: liqWriter ? liqWriter.info().started : null, here: true };
+  } else if (liqRemote) {
+    out.writer = { kind: liqRemote.kind, started: liqRemote.started, here: false };
+    if (liqRemote.port) {
+      try { const r = await remoteGet(liqRemote.port, '/api/data/status'); out.sets = r.sets || []; out.compress = r.compress || null; out.assets = r.assets || out.assets; }
+      catch (e) { out.sets.push({ id: 'liq', group: 'Liquidaciones y mercado', name: 'Liquidaciones', state: 'error', err: 'El servicio no responde: ' + e.message, bytes: 0 }); }
+    }
+  }
+  out.totalBytes = out.sets.reduce((a, x) => a + (x.bytes || 0), 0);
+  return out;
 }
-function liqStart() { try { getLiq(); } catch (e) { /* el aviso lo da liqMap */ } }
-async function liqMap(p) { return getLiq().getMap(p); }
 // Reseteo de fábrica: NO borra datos históricos propios (memoria de liquidaciones de data/liq): no se pueden volver a bajar. Solo detiene los servicios.
 function resetData(opts) {
   shutdown();
-  tradeStore = null; liqSvc = null;
+  tradeStore = null;
   if (opts && opts.restart) liqStart();
 }
-function shutdown() { if (tradeStore) tradeStore.shutdown(); if (liqSvc) liqSvc.stop(); }
+function shutdown() { if (tradeStore) tradeStore.shutdown(); stopLiq(); clearInterval(liqTimer); liqTimer = null; }
 
 async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days, probe }) {
   if (exchange === 'bnftrades') return getTradeStore().bars({ symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days });
@@ -560,4 +605,4 @@ async function testConnection() {
   return { mock: false, results: out };
 }
 
-module.exports = { flushData, dataStatus, setDataNote, resetData, mockPrice, setDataDir, tradeStatus, shutdown, liqStart, liqMap, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { flushData, dataStatus, setRole, setAssets, restartLiq, stopService, setDataNote, resetData, mockPrice, setDataDir, tradeStatus, shutdown, liqStart, liqMap, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

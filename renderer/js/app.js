@@ -1185,13 +1185,37 @@
   const fmtDay = (sec) => (sec ? new Date(sec * 1000).toISOString().slice(0, 10) : '—');
   function fillData(body, mk, title, hint) {
     title('Mis datos guardados');
-    hint('Se guardan en tu equipo SIN límite de tiempo, mientras el programa está abierto. Lo que no se guarda ahora no se puede recuperar después (los exchanges solo dan unos días de liquidaciones).');
+    hint('Solo se guarda lo que NO se puede volver a bajar de internet: las liquidaciones reales y el interés abierto. Las velas, el funding y las operaciones son públicos y no se guardan. Con el programa y el servicio apagados, las liquidaciones de ese rato se pierden para siempre.');
     const box = mk('div', {}); body.appendChild(box);
     const say = mk('div', { className: 'svc-msg' });
     const render = (r) => {
       box.innerHTML = '';
       if (r.note && r.note.error) box.appendChild(mk('div', { className: 'svc-msg bad', textContent: r.note.error }));
       if (r.mock) box.appendChild(mk('div', { className: 'hint', textContent: 'MODO SIMULADO: estos datos son de prueba.' }));
+      // v0.23.6: quién guarda ahora, servicio 24/7, huecos, activos y compresión
+      const fmtDT = (sec) => (sec ? new Date(sec * 1000).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+      const fmtDur = (sec) => { const m = Math.round(sec / 60); return m < 60 ? m + ' min' : m < 1440 ? (m / 60).toFixed(1) + ' h' : (m / 1440).toFixed(1) + ' días'; };
+      const w = r.writer;
+      const wRow = mk('div', { className: 'data-row ' + (w ? 'ok' : 'bad') });
+      wRow.appendChild(mk('b', { textContent: w ? (w.kind === 'servicio' ? 'Guarda ahora: el servicio 24/7 (desde ' + fmtDT(w.started) + ')' : 'Guarda ahora: esta app (desde ' + fmtDT(w.started) + ')' + (r.auto && r.auto.enabled ? ' · el servicio está activado y tomará el relevo al cerrar' : ' · el servicio 24/7 no está activo')) : 'Ahora NO se está guardando nada' }));
+      if (r.error) wRow.appendChild(mk('div', { className: 'svc-msg bad', textContent: r.error }));
+      const g = r.gaps || { count: 0, list: [] };
+      wRow.appendChild(mk('div', { className: 'hint', textContent: g.first ? 'Guardado desde ' + fmtDT(g.first) + ' · ' + (g.count ? g.count + ' hueco(s) sin liquidaciones, ' + fmtDur(g.seconds) + ' en total (no se pueden recuperar)' : 'sin huecos') : 'Aún sin historial de sesiones.' }));
+      (g.list || []).slice(-5).forEach((x) => wRow.appendChild(mk('div', { className: 'hint', textContent: '  · ' + fmtDT(x.from) + ' → ' + (x.to ? fmtDT(x.to) + ' (' + fmtDur(x.to - x.from) + ')' : 'sin guardar todavía') })));
+      box.appendChild(wRow);
+      if (r.compress && r.compress.at) box.appendChild(mk('div', { className: 'hint', textContent: 'Meses cerrados comprimidos: ' + r.compress.files + ' archivo(s) esta vez, ' + fmtBytes(r.compress.saved) + ' ahorrados' + (r.compress.errors.length ? '' : ' (sin pérdida: cada copia se compara con el original)') }));
+      (r.compress && r.compress.errors || []).forEach((e) => box.appendChild(mk('div', { className: 'svc-msg bad', textContent: 'No se pudo comprimir (el original queda intacto): ' + e })));
+      if (r.desktop) {
+        const sv = mk('input', { type: 'checkbox', checked: !!(r.auto && r.auto.enabled), disabled: !(r.auto && r.auto.can) });
+        const fs = mk('div', { className: 'field' }); fs.append(mk('span', { textContent: 'Servicio 24/7: guardar aunque el programa esté cerrado (arranca con Windows)' }), sv); box.appendChild(fs);
+        sv.onchange = async () => { sv.disabled = true; const x = await (sv.checked ? API.data.svcEnable() : API.data.svcDisable()); sv.disabled = false; if (!x || !x.ok) { sv.checked = !sv.checked; say.textContent = 'No se pudo cambiar el servicio: ' + ((x && x.error) || 'error'); say.className = 'svc-msg bad'; return; } say.className = 'svc-msg'; say.textContent = sv.checked ? 'Servicio activado: ya está arrancando y arrancará solo al iniciar Windows. Puede tardar unos segundos en aparecer arriba.' : 'Servicio desactivado y detenido.'; setTimeout(() => API.data.status().then(render), 4000); };
+      }
+      const AST = ['ETHUSDT'];
+      AST.forEach((a) => {
+        const on = mk('input', { type: 'checkbox', checked: (r.assets || []).includes(a) });
+        const f = mk('div', { className: 'field' }); f.append(mk('span', { textContent: 'Guardar también las liquidaciones de ' + a + ' (el mapa estimado sigue siendo solo de BTC)' }), on); box.appendChild(f);
+        on.onchange = async () => { const list = on.checked ? Array.from(new Set((r.assets || []).concat(a))) : (r.assets || []).filter((x) => x !== a); const x = await API.data.setAssets(list); say.className = x && x.ok ? 'svc-msg' : 'svc-msg bad'; say.textContent = x && x.ok ? 'Guardado. El peso de cada activo aparece en la lista de abajo.' : 'No se pudo cambiar: ' + ((x && x.error) || 'error'); if (x && x.ok) { r.assets = list; setTimeout(() => API.data.status().then(render), 1500); } };
+      });
       let grp = null;
       r.sets.forEach((x) => {
         if (x.group !== grp) { grp = x.group; box.appendChild(mk('div', { className: 'data-grp', textContent: grp })); }
@@ -1200,7 +1224,7 @@
         top.append(mk('b', { textContent: x.name }), mk('span', { className: 'data-size', textContent: fmtBytes(x.bytes || 0) }));
         row.appendChild(top);
         const range = x.from ? `Desde ${fmtDay(x.from)} hasta ${fmtDay(x.to)}` + (x.rows ? ` · ${x.rows.toLocaleString('es')} filas` : '') : 'Aún sin datos';
-        row.appendChild(mk('div', { className: 'hint', textContent: range + (x.backfilling ? ' · completando hacia atrás…' : '') }));
+        row.appendChild(mk('div', { className: 'hint', textContent: range }));
         if (x.err) row.appendChild(mk('div', { className: 'svc-msg bad', textContent: x.err }));
         box.appendChild(row);
       });

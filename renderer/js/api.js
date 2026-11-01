@@ -43,7 +43,7 @@
         closeWindow: (id) => desktop.closeWindow(id),
         onShared: (cb) => desktop.onShared(cb),
         data: {
-          status: () => desktop.dataStatus(), openFolder: () => desktop.dataOpenFolder(),
+          status: () => desktop.dataStatus(), setAssets: (l) => desktop.dataSetAssets(l), svcEnable: () => desktop.dataSvcEnable(), svcDisable: () => desktop.dataSvcDisable(), openFolder: () => desktop.dataOpenFolder(),
           backup: () => desktop.dataBackup(), setDir: () => desktop.dataSetDir(), resetDir: () => desktop.dataResetDir(),
         },
         service: {
@@ -71,7 +71,8 @@
         openWindow: () => http('/api/window/new', { method: 'POST' }),
         closeWindow: (id) => http('/api/window/remove?w=' + id, { method: 'POST' }),
         data: {
-          status: () => http('/api/data/status'), openFolder: async () => ({ ok: false }),
+          status: () => http('/api/data/status'), setAssets: (l) => http('/api/data/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(l) }),
+          svcEnable: async () => ({ ok: false, error: 'En el navegador usa activar_servicio.bat (carpeta del programa).' }), svcDisable: async () => ({ ok: false, error: 'En el navegador usa desactivar_servicio.bat (carpeta del programa).' }), openFolder: async () => ({ ok: false }),
           backup: async () => ({ ok: false, error: 'Solo en la app de escritorio. En el navegador copia la carpeta data a mano.' }),
           setDir: async () => ({ ok: false, error: 'Solo en la app de escritorio.' }), resetDir: async () => ({ ok: false }),
         },

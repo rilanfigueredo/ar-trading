@@ -4,6 +4,7 @@ const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
 const Service = require('./src/service');
+const Autostart = require('./src/autostart');
 
 // v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
@@ -77,7 +78,18 @@ const dataBase = () => Service.resolveDataDir(app.getPath('userData')).dir;
 ipcMain.handle('data:status', async () => {
   const st = await core.dataStatus();
   const sv = Service.read(app.getPath('userData'));
-  return Object.assign(st, { desktop: true, dataDir: sv.dataDir, defaultDir: app.getPath('userData') });
+  return Object.assign(st, { desktop: true, dataDir: sv.dataDir, defaultDir: app.getPath('userData'), auto: { can: process.platform === 'win32', enabled: Autostart.isEnabled() } });
+});
+// v0.23.6: otros activos y servicio 24/7. El servicio es servicio.js ejecutado con el propio motor de la app (ELECTRON_RUN_AS_NODE).
+ipcMain.handle('data:setAssets', async (_e, list) => {
+  try { Service.write(app.getPath('userData'), { assets: Array.isArray(list) ? list : [] }); core.setAssets(Service.read(app.getPath('userData')).assets); core.restartLiq(); return { ok: true }; } catch (err) { return { ok: false, error: err.message }; }
+});
+const svcOpt = () => ({ exe: process.execPath, servicio: path.join(__dirname, 'servicio.js'), userData: app.getPath('userData'), electronAsNode: true });
+ipcMain.handle('data:svcEnable', async () => {
+  try { Autostart.enable(svcOpt()); Autostart.launchNow(svcOpt()); return { ok: true }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('data:svcDisable', async () => {
+  try { const stopped = await core.stopService(); Autostart.disable(); return { ok: true, stopped }; } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('data:openFolder', async () => { const e = await shell.openPath(dataBase()); return { ok: !e, error: e }; });
 ipcMain.handle('data:backup', async () => {
@@ -143,6 +155,7 @@ app.whenReady().then(() => {
   // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
   const dd = Service.resolveDataDir(app.getPath('userData'));
   core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
+  core.setRole('app'); core.setAssets(Service.read(app.getPath('userData')).assets);
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
   core.liqStart();
