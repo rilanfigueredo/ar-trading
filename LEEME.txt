@@ -1,33 +1,8 @@
-AR_TRADING - VERSION 0.23.9
+AR_TRADING - VERSION 0.23.6
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
-
-NOVEDADES DE LA v0.23.9 - SIN VELAS FALSAS NI ELECCIONES ESCONDIDAS (calendario hebreo)
-- CORREGIDO: la primera vela hebrea (el principio del historial descargado) se dibujaba como real aunque le faltara el comienzo (apertura, maximo y minimo falsos). Ahora no se muestra mientras falte historial; si es la unica, se deja con el aviso "Primera vela incompleta". Al llegar al inicio real del historial, la primera vela parcial SI es verdadera y se muestra.
-- Pivotes hebreos en graficos de 1h, 4h...: la leyenda avisa "Pivotes hebreos aproximados" (una vela que cruza el atardecer cuenta para el dia en que empieza). En 1D, 1W y 1 Mes hebreos son exactos.
-- La precision Rapida se rotula "aproximado" en la leyenda.
-- QUE DICTA EL CALENDARIO (no es elegible): las fechas, la duracion de los meses (29 o 30 dias), los anos de 12 o 13 meses, el dia que empieza al atardecer, la semana domingo-sabado, el mes que cambia en el dia 1.
-- QUE ELEGI YO (y puedes cambiar si me lo pides): (1) el atardecer de JERUSALEN para todos los graficos (no hay un "atardecer" unico para un mercado global; con otro lugar los cortes se mueven minutos u horas); (2) atardecer = el sol toca el horizonte; otras opiniones usan la salida de las estrellas (20-72 min despues); (3) el mes es el del CALENDARIO hebreo (aritmetico), que puede diferir hasta ~1-2 dias de la luna nueva astronomica real; (4) cuando Rosh Jodesh dura 2 dias, el dia 30 del mes viejo sigue siendo del mes viejo y el mes nuevo empieza en el dia 1; (5) bloques de varios dias/semanas (4D, 2W...) se cuentan desde el inicio de mi tabla (sept. 2008) y los de varios meses (4 Meses) se reinician cada Tishrei: son una convencion mia, como los 4D de siempre se cuentan desde el primer dato.
-
-NOVEDADES DE LA v0.23.8 - EL CALENDARIO HEBREO TAMBIEN EN PIVOTES, VWAP Y EJE
-- Los PIVOTES (y el VWAP anclado) de un grafico en calendario hebreo ahora usan el dia, la semana y el mes HEBREOS (antes seguian los civiles). Vale tambien para graficos de 1h, 4h, etc. (en esos, una vela que cruza el atardecer cuenta para el dia en que empieza).
-- El EJE horizontal muestra fechas hebreas ("19 Av", "21 Tishrei", y el nombre del mes en el dia 1) en las velas de dia, semana y mes. Antes mostraba la fecha civil y por eso las velas de los dos calendarios parecian iguales. Las posiciones de las marcas del eje las decide el grafico (no se pueden mover), pero el rotulo ya es hebreo.
-- Medido con la volatilidad tipica de BTC (~2,5 % diario, 1 ano simulado): en velas DIARIAS el cierre cambia ~1,2 % de media, el rango ~22 % y 1 de cada 3 velas cambia de color (sube/baja); en semanas ~12 % cambian de color. Las velas se ven parecidas (el corte se mueve unas 9 horas), pero los precios de cierre, maximos y minimos son distintos.
-- El historial inicial en modo Exacta es corto (unos 120 dias): si lo comparas con el gregoriano, que carga ~5 anos, veras menos velas a la derecha hasta que muevas el grafico hacia atras.
-
-NOVEDADES DE LA v0.23.7 - CALENDARIO HEBREO PARA LAS VELAS DE DIA, SEMANA Y MES
-- NUEVO: boton "Datos" > "Calendario de las velas (dia, semana y mes)": Gregoriano (normal) u Hebreo. Es POR GRAFICO: puedes ver uno gregoriano y otro hebreo lado a lado. Se aplica al instante.
-- En el calendario hebreo: el DIA cierra al atardecer (no a las 00:00), la SEMANA cierra el sabado al atardecer (el domingo hebreo empieza el sabado por la tarde) y el MES cierra con el mes hebreo (29 o 30 dias, empieza con Rosh Jodesh). Ejemplo de hoy: octubre ya cerro, pero el mes hebreo (Jeshvan) cierra el 10 de noviembre.
-- Solo cambian las velas de 1D, 4D, 1W, 1 Mes, 4 Meses...; las de minutos y horas son iguales en los dos calendarios. Las semanas y meses hebreos siempre cierran en un cierre de dia hebreo.
-- El atardecer es siempre el de JERUSALEN (fijo para todos los graficos, asi todos coinciden). Se calcula dia a dia (cambia hasta 2 horas entre invierno y verano), no es un horario fijo.
-- Dos precisiones (en el mismo cuadro): EXACTA = atardecer al minuto con velas de 1 minuto (por defecto); RAPIDA = atardecer redondeado a la hora con velas de 1 hora (cierre hasta 30 min distinto del real, pero carga MUCHO mas ligero; recomendada para semanas y meses de varios anos).
-- El temporizador de la vela cuenta hasta el cierre real (atardecer, sabado o fin del mes hebreo). Al pasar el raton sobre una vela se ve su fecha hebrea y la hora en que empieza. La leyenda dice "1D hebreo".
-- Verificado: las fechas hebreas coinciden con el calendario hebreo del sistema (Intl) y con la libreria Hebcal en 18.993 dias (2009-2060); el atardecer coincide con Hebcal (diferencia maxima 30 s, solo por el redondeo al minuto).
-- LIMITE (modo Exacta): un dia hebreo son ~1.440 velas de 1 minuto y un mes ~43.000. Al principio se cargan ~120 dias, ~1 ano de semanas y ~14 meses; se amplia al mover el grafico hacia atras y todo queda guardado en tu equipo. Para meses de varios anos usa "Rapida".
-- No cambian con el calendario: pivotes (siguen por periodo gregoriano), plantillas, ni los datos de operaciones reales/liquidaciones.
-- Probado con datos simulados (pruebas automaticas y Chromium). NO probado con Binance real ni en Windows/Electron.
 
 NOVEDADES DE LA v0.23.6 - SOLO GUARDAR LO QUE NO SE PUEDE VOLVER A BAJAR
 - Se quito lo que se puede bajar de internet en cualquier momento (velas de 1 min, funding, grabar operaciones, archivo de velas de 5 min): menos codigo y menos trabajo en segundo plano. TUS ARCHIVOS YA GUARDADOS NO SE BORRAN (la carpeta "hist" ya no se usa; si quieres espacio, la puedes borrar tu).
