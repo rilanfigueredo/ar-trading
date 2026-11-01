@@ -62,7 +62,7 @@
   // Cada gráfico lleva su propia configuración (indicadores, medias, velas, fondo, rejillas y marca de agua).
   function newChart(symbol, tf) {
     return {
-      symbol: symbol || 'BTCUSDT', exchange: 'binance', tf, chartType: 'candles', scale: 'normal', invert: false,
+      symbol: symbol || 'BTCUSDT', exchange: 'binance', calendar: 'gregorian', calPrec: 'exact', tf, chartType: 'candles', scale: 'normal', invert: false,
       ind: defaultInd(), mas: defaultMas(), maOn: defaultMaOn(), order: ['main', 'rsi', 'stoch', 'delta', 'cvd'], paneH: {}, scripts: [], candle: defaultCandle(), look: defaultLook(), wm: defaultWm(), liq: window.TVLiqMap ? window.TVLiqMap.defaults() : undefined,
     };
   }
@@ -636,6 +636,35 @@
       box.appendChild(mk('h3', { textContent: `Datos del gráfico ${A.cfg.active + 1} · ${ac.symbol}` }));
       const tr = Object.assign({ min: 0, max: 0, mode: 'only', days: 7 }, ac.tr || {});
       const field = (label, el) => { const d = mk('div', { className: 'field' }); d.append(mk('span', { textContent: label }), el); box.appendChild(d); return d; };
+      // v0.23.7: calendario de las velas de día, semana y mes (se aplica al instante, solo a este gráfico)
+      const cal = mk('select');
+      [['gregorian', 'Gregoriano (normal)'], ['hebrew', 'Hebreo']].forEach(([v, t]) => cal.appendChild(mk('option', { value: v, textContent: t })));
+      cal.value = ac.calendar === 'hebrew' ? 'hebrew' : 'gregorian';
+      field('Calendario de las velas (día, semana y mes)', cal);
+      const calBox = mk('div'); box.appendChild(calBox);
+      const prec = mk('select');
+      [['exact', 'Exacta (atardecer al minuto, velas de 1 minuto)'], ['fast', 'Rápida (atardecer a la hora, velas de 1 hora)']].forEach(([v, t]) => prec.appendChild(mk('option', { value: v, textContent: t })));
+      prec.value = ac.calPrec === 'fast' ? 'fast' : 'exact';
+      { const d = mk('div', { className: 'field' }); d.append(mk('span', { textContent: 'Precisión del atardecer' }), prec); calBox.appendChild(d); }
+      const calHint = mk('div', { className: 'hint' });
+      calBox.appendChild(calHint);
+      const calNow = mk('div', { className: 'hint' });
+      calBox.appendChild(calNow);
+      const showCal = () => {
+        calBox.style.display = cal.value === 'hebrew' ? '' : 'none';
+        calHint.textContent = 'El día hebreo cambia al atardecer de Jerusalén (no a las 00:00), la semana cierra el sábado al atardecer y el mes cambia con la luna nueva (Rosh Jodesh). Solo afecta a las velas de 1D, 4D, 1W, 1 Mes, 4 Meses…; las de minutos y horas no cambian. '
+          + (prec.value === 'fast' ? 'Rápida: el cierre puede diferir hasta 30 minutos del real, pero carga mucho más ligero (recomendada para semanas y meses de varios años).' : 'Exacta: se arma con velas de 1 minuto; el historial se descarga poco a poco (un mes hebreo son unas 43.000 velas) y se guarda en tu equipo. Para semanas y meses de varios años usa «Rápida».');
+        const H = window.TVHebrew;
+        if (cal.value === 'hebrew' && H) {
+          const g = prec.value === 'fast' ? 3600 : 60, now = Math.floor(Date.now() / 1000);
+          const i = H.info(now, g), m = H.bucketRange('M', 1, now, g), w = H.bucketRange('w', 1, now, g), d = H.bucketRange('d', 1, now, g);
+          const fmt = (t) => new Date(t * 1000).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short', timeZone: A.cfg.tz === 'UTC' ? 'UTC' : undefined });
+          if (i && m && w && d) calNow.textContent = `Ahora: ${i.weekdayName} ${i.day} de ${i.month} ${i.year}. Cierra el día: ${fmt(d[1])} · la semana: ${fmt(w[1])} · el mes: ${fmt(m[1])}${A.cfg.tz === 'UTC' ? ' (UTC)' : ''}.`;
+        } else calNow.textContent = '';
+      };
+      // OJO: ac es el mismo objeto que usa el gráfico; es setCalendar quien lo cambia (si se cambiara antes, el gráfico no vería diferencia y no recargaría).
+      const applyCal = () => { showCal(); activeView().setCalendar(cal.value, prec.value); saveCfg(); markActive(); };
+      cal.onchange = applyCal; prec.onchange = applyCal; showCal();
       const src = mk('select');
       [['candles', 'Velas del exchange'], ['trades', 'Operaciones reales (Binance Futuros · BTCUSDT)']].forEach(([v, t]) => src.appendChild(mk('option', { value: v, textContent: t })));
       src.value = ac.src === 'trades' ? 'trades' : 'candles';
@@ -1890,6 +1919,8 @@
       out.id = 'c' + (i + 1);
       if (!L.EXCHANGES[out.exchange]) out.exchange = 'binance';
       out.src = out.src === 'trades' ? 'trades' : 'candles';   // v0.18: fuente de las velas
+      out.calendar = out.calendar === 'hebrew' ? 'hebrew' : 'gregorian';   // v0.23.7: calendario de las velas de día, semana y mes
+      out.calPrec = out.calPrec === 'fast' ? 'fast' : 'exact';
       { const t = out.tr || {}; out.tr = { min: Math.max(0, Number(t.min) || 0), max: Math.max(0, Number(t.max) || 0), mode: t.mode === 'hl' ? 'hl' : 'only', days: [3, 7, 14, 30].includes(Number(t.days)) ? Number(t.days) : 7 }; }
       if (!['candles', 'line', 'area'].includes(out.chartType)) out.chartType = 'candles';
       if (!['normal', 'log', 'percent'].includes(out.scale)) out.scale = 'normal';

@@ -5,6 +5,8 @@
 
   const DAY = 86400; // segundos
   const WEEK = 7 * DAY;
+  // Calendario hebreo (v0.23.7): módulo aparte, cargado cuando se necesita.
+  const HB = () => (typeof module !== 'undefined' && module.exports ? require('./hebrew.js') : root.TVHebrew);
 
   // Intervalos que ofrece Binance para armar temporalidades (de mayor a menor).
   const BASES = [
@@ -164,6 +166,10 @@
     return tf.kind === 'anchor' || (tf.kind === 'months' && 12 % tf.n !== 0);
   }
   function describe(tf) {
+    if (tf.kind === 'hebrew') {
+      const u = tf.hu === 'd' ? 'día' : tf.hu === 'w' ? 'semana' : 'mes';
+      return `Calendario hebreo: ${tf.n === 1 ? `cada ${u} hebreo` : `bloques de ${tf.n} ${u === 'mes' ? 'meses' : u === 'día' ? 'días' : 'semanas'} hebreos`}. Se arma con velas de ${tf.fast ? '1 hora (atardecer redondeado a la hora)' : '1 minuto (atardecer al minuto)'}; el día cambia al atardecer de Jerusalén.`;
+    }
     if (tf.kind === 'vol') return `Velas por volumen: cierran cada ${String(tf.vol).replace('.', ',')} (operaciones de futuros en tiempo real).`;
     if (tf.kind === 'native') return `Binance la ofrece directamente (velas de ${tf.base === '1M' ? '1 mes' : tf.base}).`;
     const b = tf.base === '1M' ? 'mes' : tf.base === '1w' ? 'semana' : tf.base;
@@ -172,6 +178,10 @@
 
   // Inicio (en segundos) del bloque al que pertenece la vela base con tiempo t.
   function bucketStart(tf, t, anchor) {
+    if (tf.kind === 'hebrew') {
+      const b = HB().bucketStart(tf.hu, tf.n, t, tf.gran);
+      return b === null ? Math.floor(t / DAY) * DAY : b;   // fuera de la tabla (antes de 2008 o después de 2061): cae al día civil
+    }
     if (tf.kind === 'fixed') return Math.floor(t / tf.sec) * tf.sec;
     if (tf.kind === 'anchor') {
       const a = anchor || 0;
@@ -193,15 +203,53 @@
     return t;
   }
 
+  // Fin (segundos) de la barra que empieza en t: el cierre de la vela. Exacto para meses y para el calendario hebreo.
+  function barEnd(tf, t) {
+    if (tf.kind === 'hebrew') { const e = HB().bucketEnd(tf.hu, tf.n, t, tf.gran); return e === null ? t + tf.sec : e; }
+    if (tf.kind === 'months' || tf.base === '1M') {
+      const d = new Date(t * 1000);
+      const n = tf.kind === 'months' ? tf.n : 1;
+      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1) / 1000;
+    }
+    return t + tf.sec;
+  }
+  // Calendario (v0.23.7): 'gregorian' (por defecto) o 'hebrew'. Solo cambian las barras de días, semanas y meses
+  // (1D, 4D, 1W, 1 Mes, 4 Meses…); las de minutos y horas son iguales en los dos calendarios.
+  // prec: 'exact' (por defecto) = el atardecer se redondea al minuto y las barras se arman con velas de 1 minuto;
+  //       'fast' = el atardecer se redondea a la hora y se usan velas de 1 hora (mucho más ligero para semanas y meses de varios años).
+  function withCalendar(tf, calendar, prec) {
+    if (calendar !== 'hebrew' || !tf || tf.kind === 'vol') return tf;
+    const m = /^([dwM]):(\d+)$/.exec(tf.id);
+    if (!m) return tf;
+    const u = m[1], n = Number(m[2]);
+    const fast = prec === 'fast';
+    const perUnit = (u === 'd' ? 1 : u === 'w' ? 7 : 29.53) * (fast ? 24 : 1440);   // velas base por barra (el mes hebreo dura 29,53 días de media)
+    return {
+      id: tf.id, label: tf.label, base: fast ? '1h' : '1m', kind: 'hebrew', hu: u, n, cal: 'hebrew', gran: fast ? 3600 : 60, fast,
+      sec: n * (u === 'd' ? DAY : u === 'w' ? WEEK : 30 * DAY), ratio: Math.round(n * perUnit),
+      note: fast
+        ? 'Calendario hebreo (rápido): el atardecer de Jerusalén se redondea a la hora y se usan velas de 1 hora. Ligero, pero el cierre puede diferir hasta 30 minutos del real.'
+        : 'Calendario hebreo (exacto): el día cambia al atardecer de Jerusalén, al minuto. Se arma con velas de 1 minuto, así que el historial se descarga poco a poco y se guarda en tu equipo.',
+    };
+  }
+
   // Convierte velas base en velas de la temporalidad pedida.
   // Cada vela: { time (segundos), open, high, low, close, volume }
   function aggregate(base, tf, anchor) {
     if (tf.kind === 'native') return base;
     const out = [];
     let cur = null;
+    let hEnd = -1, hStart = 0;   // calendario hebreo: tramo [inicio, fin) de la barra actual
     for (let i = 0; i < base.length; i++) {
       const c = base[i];
-      const b = bucketStart(tf, c.time, anchor);
+      let b;
+      if (tf.kind === 'hebrew') {
+        if (!(c.time >= hStart && c.time < hEnd)) {
+          const r = HB().bucketRange(tf.hu, tf.n, c.time, tf.gran);
+          if (r) { hStart = r[0]; hEnd = r[1]; } else { hStart = Math.floor(c.time / DAY) * DAY; hEnd = hStart + DAY; }
+        }
+        b = hStart;
+      } else b = bucketStart(tf, c.time, anchor);
       if (!cur || cur.time !== b) {
         cur = { time: b, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
         if (c.buy !== undefined) cur.buy = c.buy;
@@ -642,7 +690,7 @@
 
   // v0.23.3: tema 'system' = el del sistema (claro u oscuro); cualquier otro valor raro cae a oscuro
   const resolveTheme = (t, systemLight) => (t === 'light' ? 'light' : t === 'system' ? (systemLight ? 'light' : 'dark') : 'dark');
-  const lib = { resolveTheme, deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  const lib = { barEnd, withCalendar, resolveTheme, deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

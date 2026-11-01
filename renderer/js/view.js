@@ -119,7 +119,9 @@
     const hlBar = (b) => (trHl() && b.fv !== undefined ? { volume: b.fv, buy: b.fb } : b);
     const exName = () => L.exchangeName(dataEx());
     // La temporalidad ya adaptada al exchange de este gráfico (Bybit y KuCoin no tienen todas las velas base de Binance).
-    const tfNow = () => L.tfFor(L.tfById(vcfg.tf), dataEx());
+    // v0.23.7: vcfg.calendar = 'gregorian' | 'hebrew' (días, semanas y meses según el calendario hebreo); vcfg.calPrec = 'exact' | 'fast'.
+    const isHebrew = () => vcfg.calendar === 'hebrew';
+    const tfNow = () => L.tfFor(L.withCalendar(L.tfById(vcfg.tf), vcfg.calendar, vcfg.calPrec), dataEx());
 
     function setStatus(text, kind) {
       s.status = { text: text || '', kind: kind || '' };
@@ -154,6 +156,13 @@
     function timeFormatter(t) {
       if (typeof t !== 'number') return '';
       const d = new Date(t * 1000);
+      if (isHebrew() && window.TVHebrew) {   // barras hebreas: fecha hebrea del día que empieza + hora exacta de inicio (el atardecer)
+        const tfh = tfNow();
+        if (tfh.kind === 'hebrew') {
+          const hl = TVHebrew.label(t, tfh.gran);
+          if (hl) return `${hl} · ${dateFmt('t', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d)}`;
+        }
+      }
       if (isDaily()) return dateFmt('d', { day: '2-digit', month: 'short', year: 'numeric' }, true).format(d);
       if (isVol()) return dateFmt('dts', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
       if (isSub()) return dateFmt('dts', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
@@ -934,12 +943,7 @@
     function lastSpan() {
       const tf = tfNow();
       const last = s.bars[s.bars.length - 1];
-      if (tf.kind === 'months' || tf.base === '1M') {
-        const d = new Date(last.time * 1000);
-        const n = tf.kind === 'months' ? tf.n : 1;
-        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1) / 1000 - last.time;
-      }
-      return tf.sec;
+      return L.barEnd(tf, last.time) - last.time;   // meses y calendario hebreo: duración exacta de la barra
     }
     const spanAt = (i) => (i < s.bars.length - 1 ? s.bars[i + 1].time - s.bars[i].time : lastSpan());
     function timeAtLogical(lg) {
@@ -1014,12 +1018,7 @@
     // ---------- Temporizador de la vela en la barra de precios ----------
     function nextClose(tf, bar) {
       if (tf.kind === 'vol') return null;
-      if (tf.kind === 'months' || tf.base === '1M') {
-        const d = new Date(bar.time * 1000);
-        const n = tf.kind === 'months' ? tf.n : 1;
-        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1) / 1000;
-      }
-      return bar.time + tf.sec;
+      return L.barEnd(tf, bar.time);
     }
     function fmtCountdown(sec) {
       sec = Math.max(0, Math.floor(sec));
@@ -1055,7 +1054,7 @@
       const m = /^(.+?)(USDT|USDC|FDUSD|BUSD|TUSD|USD|EUR|BTC|ETH|BNB)$/.exec(vcfg.symbol);
       return m ? m[1] : vcfg.symbol;
     }
-    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.label; }
+    function tfLabel(tf) { return tf.kind === 'vol' ? `${String(tf.vol).replace('.', ',')} ${baseAsset()}` : tf.kind === 'hebrew' ? `${tf.label} hebreo${tf.fast ? ' (rápido)' : ''}` : tf.label; }
     function volNote() {
       const bits = [];
       if (s.vol && s.vol.market === 'spot') bits.push('Futuros no disponible: usando Spot');
@@ -1404,7 +1403,11 @@
       const token = s.token;
       try {
         const tf = tfNow();
-        const limit = Math.min(1000, Math.max(5, L.ratioOf(tf) * 2 + 2));
+        let limit = Math.min(1000, Math.max(5, L.ratioOf(tf) * 2 + 2));
+        if (tf.kind === 'hebrew') {   // la barra se arma con miles de velas base que ya están cargadas: solo hacen falta las velas nuevas desde la última que tenemos
+          const lastB = s.base[s.base.length - 1], bs = L.baseSec(tf) || 60;
+          limit = Math.min(1000, Math.max(5, Math.ceil((Date.now() / 1000 - (lastB ? lastB.time : 0)) / bs) + 3));
+        }
         const rows = await API.klines(Object.assign({ exchange: dataEx(), symbol: vcfg.symbol, interval: tf.base, limit }, trParams()));
         if (token !== s.token || s.destroyed) return;
         const prevLast = s.bars[s.bars.length - 1].time;
@@ -1832,6 +1835,15 @@
         if (sym === vcfg.symbol && nx === exId()) return;
         vcfg.symbol = sym; vcfg.exchange = nx; renderWatermark(); load();
         if (s.liq) s.liq.refresh(false);
+      },
+      // v0.23.7: calendario de las velas de día, semana y mes. cal: 'gregorian' | 'hebrew'; prec: 'exact' | 'fast'.
+      setCalendar(cal, prec) {
+        const c = cal === 'hebrew' ? 'hebrew' : 'gregorian', p = prec === 'fast' ? 'fast' : 'exact';
+        if (c === (vcfg.calendar || 'gregorian') && p === (vcfg.calPrec || 'exact')) return;
+        vcfg.calendar = c; vcfg.calPrec = p;
+        refreshFormatters();
+        renderWatermark();
+        load();
       },
       setTf(id) {
         if (id === vcfg.tf) return;

@@ -1,8 +1,20 @@
-AR_TRADING - VERSION 0.23.6
+AR_TRADING - VERSION 0.23.7
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.23.7 - CALENDARIO HEBREO PARA LAS VELAS DE DIA, SEMANA Y MES
+- NUEVO: boton "Datos" > "Calendario de las velas (dia, semana y mes)": Gregoriano (normal) u Hebreo. Es POR GRAFICO: puedes ver uno gregoriano y otro hebreo lado a lado. Se aplica al instante.
+- En el calendario hebreo: el DIA cierra al atardecer (no a las 00:00), la SEMANA cierra el sabado al atardecer (el domingo hebreo empieza el sabado por la tarde) y el MES cierra con el mes hebreo (29 o 30 dias, empieza con Rosh Jodesh). Ejemplo de hoy: octubre ya cerro, pero el mes hebreo (Jeshvan) cierra el 10 de noviembre.
+- Solo cambian las velas de 1D, 4D, 1W, 1 Mes, 4 Meses...; las de minutos y horas son iguales en los dos calendarios. Las semanas y meses hebreos siempre cierran en un cierre de dia hebreo.
+- El atardecer es siempre el de JERUSALEN (fijo para todos los graficos, asi todos coinciden). Se calcula dia a dia (cambia hasta 2 horas entre invierno y verano), no es un horario fijo.
+- Dos precisiones (en el mismo cuadro): EXACTA = atardecer al minuto con velas de 1 minuto (por defecto); RAPIDA = atardecer redondeado a la hora con velas de 1 hora (cierre hasta 30 min distinto del real, pero carga MUCHO mas ligero; recomendada para semanas y meses de varios anos).
+- El temporizador de la vela cuenta hasta el cierre real (atardecer, sabado o fin del mes hebreo). Al pasar el raton sobre una vela se ve su fecha hebrea y la hora en que empieza. La leyenda dice "1D hebreo".
+- Verificado: las fechas hebreas coinciden con el calendario hebreo del sistema (Intl) y con la libreria Hebcal en 18.993 dias (2009-2060); el atardecer coincide con Hebcal (diferencia maxima 30 s, solo por el redondeo al minuto).
+- LIMITE (modo Exacta): un dia hebreo son ~1.440 velas de 1 minuto y un mes ~43.000. Al principio se cargan ~120 dias, ~1 ano de semanas y ~14 meses; se amplia al mover el grafico hacia atras y todo queda guardado en tu equipo. Para meses de varios anos usa "Rapida".
+- No cambian con el calendario: pivotes (siguen por periodo gregoriano), plantillas, ni los datos de operaciones reales/liquidaciones.
+- Probado con datos simulados (pruebas automaticas y Chromium). NO probado con Binance real ni en Windows/Electron.
 
 NOVEDADES DE LA v0.23.6 - SOLO GUARDAR LO QUE NO SE PUEDE VOLVER A BAJAR
 - Se quito lo que se puede bajar de internet en cualquier momento (velas de 1 min, funding, grabar operaciones, archivo de velas de 5 min): menos codigo y menos trabajo en segundo plano. TUS ARCHIVOS YA GUARDADOS NO SE BORRAN (la carpeta "hist" ya no se usa; si quieres espacio, la puedes borrar tu).
