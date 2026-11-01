@@ -26,7 +26,7 @@ assert.strictEqual(L.resolveTheme('raro', true), 'dark');
 const store = Store.create(dir);
 store.setConfig('w1', { theme: 'light', charts: [], scripts: [{ id: 'x' }] });
 store.addWindow('w2'); store.setConfig('w2', { layout: '2h' });
-svc.write(dir, { hwAccel: false, dataDir: '/mnt/externo', recordTrades: true });
+svc.write(dir, { hwAccel: false, dataDir: '/mnt/externo' });
 fs.mkdirSync(path.join(dir, 'liq', 'x'), { recursive: true }); fs.writeFileSync(path.join(dir, 'liq', 'x', 'a.json'), '{}');
 fs.mkdirSync(path.join(dir, 'trades', 'BTCUSDT'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'otra-cosa.txt'), 'no tocar');
@@ -35,7 +35,7 @@ core.setDataDir(dir);
 svc.factoryReset({ dir, store, core, restart: false });
 const left = fs.readdirSync(dir).sort();
 assert.deepStrictEqual(left, ['liq', 'otra-cosa.txt', 'service.json', 'trades'], 'los datos históricos se conservan: ' + left);
-const kept = svc.read(dir); assert.ok(kept.hwAccel === true && kept.dataDir === '/mnt/externo' && kept.recordTrades === true, 'el reseteo conserva carpeta de datos y grabación');
+const kept = svc.read(dir); assert.ok(kept.hwAccel === true && kept.dataDir === '/mnt/externo', 'el reseteo conserva la carpeta de datos');
 assert.ok(fs.existsSync(path.join(dir, 'liq', 'x', 'a.json')) && fs.existsSync(path.join(dir, 'trades', 'BTCUSDT')));
 assert.strictEqual(store.listWindows().length, 1, 'vuelve a una sola pestaña');
 const fresh = store.getConfig('w1');
@@ -46,30 +46,6 @@ console.log('service.test.js OK');
 
 // ---------- v0.23.5: datos propios ----------
 (async () => {
-  const Hist = require('../src/hist');
-  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'arhist-'));
-  const NOW = Date.now();
-  let calls = 0;
-  const deps = {
-    sleep: async () => {},
-    klines: async (startMs, endMs) => { calls++; const out = []; const stop = Math.min(endMs || Infinity, NOW); for (let t = Math.ceil(startMs / 60000) * 60000; t < stop && out.length < 1000; t += 60000) out.push([t, 100, 101, 99, 100.5, 3, 0]); return out; },
-    funding: async (s) => { const out = []; for (let t = Math.ceil(s / 28800000) * 28800000; t < NOW && out.length < 1000; t += 28800000) out.push({ fundingTime: t, fundingRate: '0.0001', markPrice: '100' }); return out; },
-  };
-  const h = Hist.create({ dir: d2, deps, backfillDays: 3 });
-  await h.cycle();
-  let st = h.status();
-  assert.ok(st.klines.rows >= 3 * 1440 - 5, 'velas 1m: ~3 días hacia atrás, hay ' + st.klines.rows);
-  assert.ok(st.klines.to * 1000 > NOW - 120000, 'velas hasta casi ahora');
-  assert.ok(st.funding.rows > 1000 && st.funding.from * 1000 <= Date.UTC(2019, 8, 11), 'funding desde 2019, hay ' + st.funding.rows);
-  assert.ok(st.klines.bytes > 0 && st.klines.state === 'ok' && st.funding.state === 'ok');
-  // no se duplica y no se pierde nada al repetir
-  const before = st.klines.rows; await h.cycle(); assert.ok(h.status().klines.rows >= before && h.status().klines.rows <= before + 6);
-  // reanuda tras cerrar: un objeto nuevo lee lo guardado
-  const h2 = Hist.create({ dir: d2, deps, backfillDays: 3 }); h2.scan(); assert.strictEqual(h2.status().klines.rows, h.status().klines.rows);
-  // si la fuente falla, el error se muestra y lo guardado se conserva
-  const bad = Hist.create({ dir: d2, deps: Object.assign({}, deps, { klines: async () => { throw new Error('sin red'); } }), backfillDays: 10 }); bad.scan(); await bad.cycle();
-  assert.ok(/sin red/.test(bad.status().klines.err) && bad.status().klines.state === 'aviso' && bad.status().klines.rows > 0);
-
   // almacén de liquidaciones: archivo permanente y sin recorte
   const LS = require('../src/liq/store');
   const d3 = fs.mkdtempSync(path.join(os.tmpdir(), 'arliq-'));
@@ -80,14 +56,14 @@ console.log('service.test.js OK');
   s1.addEvent({ t: old, ex: 'binance', side: 0, price: 1, usd: 10 });
   s1.addEvent({ t: Math.floor(Date.now() / 1000), ex: 'okx', side: 1, price: 2, usd: 20 });
   s1.flush();
-  assert.ok(fs.readFileSync(path.join(d3, 'arch-candles5m.jsonl'), 'utf8').trim().split('\n').length === 2, 'el archivo guarda velas de hace 400 días');
+  assert.ok(!fs.existsSync(path.join(d3, 'arch-candles5m.jsonl')), 'las velas de 5 min (públicas) ya no se archivan');
   assert.ok(fs.existsSync(path.join(d3, 'arch-oi-binance.jsonl')));
   assert.strictEqual(s1.state.candles.length, 0, 'en memoria solo los últimos 40 días');
   const s2 = LS.create(d3);                              // reabrir: eventos viejos siguen en disco; los recientes se cargan
   assert.strictEqual(s2.state.events.length, 1);
-  s2.addCandles([{ t: old + 600, o: 1, h: 1, l: 1, c: 1 }]); s2.flush();
-  assert.strictEqual(fs.readFileSync(path.join(d3, 'arch-candles5m.jsonl'), 'utf8').trim().split('\n').length, 3, 'solo se añade, sin duplicar');
-  fs.rmSync(d2, { recursive: true, force: true }); fs.rmSync(d3, { recursive: true, force: true });
+  s2.addOi('binance', [{ t: old, usd: 5 }, { t: old + 300, usd: 6 }]); s2.flush();
+  assert.strictEqual(fs.readFileSync(path.join(d3, 'arch-oi-binance.jsonl'), 'utf8').trim().split('\n').length, 2, 'el interés abierto solo se añade, sin duplicar');
+  fs.rmSync(d3, { recursive: true, force: true });
   console.log('datos propios OK');
 })().catch((e) => { console.error(e); process.exit(1); });
 

@@ -77,10 +77,7 @@ const dataBase = () => Service.resolveDataDir(app.getPath('userData')).dir;
 ipcMain.handle('data:status', async () => {
   const st = await core.dataStatus();
   const sv = Service.read(app.getPath('userData'));
-  return Object.assign(st, { desktop: true, dataDir: sv.dataDir, recordTrades: sv.recordTrades, tradeDays: sv.tradeDays, defaultDir: app.getPath('userData') });
-});
-ipcMain.handle('data:setRecord', async (_e, on, days) => {
-  try { Service.write(app.getPath('userData'), { recordTrades: !!on, tradeDays: Number(days) || 30 }); if (on) core.tradesStart(Number(days) || 30); return { ok: true, needsRestart: !on }; } catch (err) { return { ok: false, error: err.message }; }
+  return Object.assign(st, { desktop: true, dataDir: sv.dataDir, defaultDir: app.getPath('userData') });
 });
 ipcMain.handle('data:openFolder', async () => { const e = await shell.openPath(dataBase()); return { ok: !e, error: e }; });
 ipcMain.handle('data:backup', async () => {
@@ -148,8 +145,7 @@ app.whenReady().then(() => {
   core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
-  core.liqStart(); core.histStart();
-  { const sv = Service.read(app.getPath('userData')); if (sv.recordTrades) core.tradesStart(sv.tradeDays); }
+  core.liqStart();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

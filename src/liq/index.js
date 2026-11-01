@@ -5,6 +5,7 @@ const path = require('path');
 const S = require('./sources');
 const E = require('./estimate');
 const Store = require('./store');
+const Events = require('./events');
 
 const HIST_DAYS = { binance: 30, bybit: 7, okx: 5 };            // lo que se pide al arrancar (Binance da 30 días, OKX guarda 1440 entradas = 5 días)
 const POLL_MS = 5 * 60 * 1000;
@@ -20,10 +21,10 @@ function mockDeps() {
     candles: async (fromMs, toMs) => candlesAt(fromMs / 1000, Math.min(toMs, Date.now()) / 1000),
     oi: async (ex, fromMs, toMs) => { const out = []; for (let t = Math.floor(fromMs / 300000) * 300; t * 1000 < Math.min(toMs, Date.now()); t += 300) out.push({ t, usd: oiAt(ex, t) }); return out; },
     mmr: async (ex) => ({ value: S.MMR_DEFAULT[ex], source: 'default' }),
-    openSocket(ex, onEvent, onState) {
+    openSocket(ex, onEvent, onState, syms) {
       onState('ok', 'simulado');
       let n = 0;
-      const timer = setInterval(() => { n++; const t = Math.floor(Date.now() / 1000); const p = mockPrice(t); const side = hash(n + ex.length) < 0.5 ? 0 : 1; onEvent({ t, ex, side, price: Math.round((p + (side ? 1 : -1) * 0.003 * p * hash(n)) * 10) / 10, usd: Math.exp(9 + 6 * hash(n + 3)) }); }, 2500);
+      const timer = setInterval(() => { n++; const t = Math.floor(Date.now() / 1000); const p = mockPrice(t); const side = hash(n + ex.length) < 0.5 ? 0 : 1; onEvent({ t, ex, sym: 'BTCUSDT', side, price: Math.round((p + (side ? 1 : -1) * 0.003 * p * hash(n)) * 10) / 10, usd: Math.exp(9 + 6 * hash(n + 3)) }); (syms || []).filter((x) => x !== 'BTCUSDT').forEach((sym) => onEvent({ t, ex, sym, side, price: Math.round(p / 20 * 10) / 10, usd: Math.exp(8 + 5 * hash(n + 7)) })); }, 2500);
       if (timer.unref) timer.unref();
       return { close() { clearInterval(timer); } };
     },
@@ -45,7 +46,7 @@ function realDeps() {
       try { return { value: await (ex === 'bybit' ? S.bybitMmr : S.okxMmr)(getJson), source: 'live' }; }
       catch (e) { return { value: S.MMR_DEFAULT[ex], source: 'default', note: 'No se pudo leer el margen de ' + ex + ' (' + e.message + '): se usa un valor por defecto (no verificado).' }; }
     },
-    openSocket: (ex, onEvent, onState) => S.openLiqSocket(ex, onEvent, onState),
+    openSocket: (ex, onEvent, onState, syms) => S.openLiqSocket(ex, onEvent, onState, undefined, syms),
   };
 }
 
@@ -55,6 +56,20 @@ function create(opt) {
   const status = {};
   Store.EX.forEach((ex) => { status[ex] = { state: 'cargando', msg: 'Descargando el historial…', ws: 'sin conectar', wsMsg: '', mmr: S.MMR_DEFAULT[ex], mmrSource: 'default', mmrNote: '', rows: store.state.oi[ex].length }; });
   const socks = [];
+  // Otros activos (v0.23.6): solo se guardan sus liquidaciones reales, en liq/<ACTIVO>/events-AAAA-MM.jsonl[.gz]
+  const extra = (opt.assets || []).filter((a, i, l) => a !== S.SYMBOL && S.ASSETS[a] && l.indexOf(a) === i);
+  const syms = [S.SYMBOL].concat(extra), exStores = {};
+  extra.forEach((a) => { exStores[a] = Events.create(path.join(opt.dir, a)); });
+  const onLiq = (ex, ev) => {
+    const sym = ev.sym; const e = { t: ev.t, ex: ev.ex, side: ev.side, price: ev.price, usd: ev.usd };
+    if (!sym || sym === S.SYMBOL) { store.addEvent(e); status[ex].lastEvent = e.t; } else if (exStores[sym]) exStores[sym].add(e);
+  };
+  let compressInfo = { at: null, files: 0, saved: 0, errors: [] }, compressT = null;
+  const compressAll = () => {
+    const r = { at: Math.floor(Date.now() / 1000), files: 0, saved: 0, errors: [] };
+    [store.compress].concat(extra.map((a) => () => exStores[a].compress())).forEach((fn) => { try { const x = fn(); r.files += x.files; r.saved += x.saved; r.errors.push.apply(r.errors, x.errors); } catch (e) { r.errors.push(e.message); } });
+    compressInfo = r; return r;
+  };
   let pollT = null, stopped = false, cache = null;
   const priceAtFn = () => { const m = new Map(store.state.candles.map((c) => [c.t, c.c])); return (t) => m.get(Math.floor(t / 300) * 300) || null; };
 
@@ -88,13 +103,14 @@ function create(opt) {
   async function start() {
     Store.EX.forEach((ex) => {
       deps.mmr(ex).then((m) => { Object.assign(status[ex], { mmr: m.value, mmrSource: m.source, mmrNote: m.note || '' }); cache = null; }).catch(() => {});
-      const sock = deps.openSocket(ex, (ev) => { store.addEvent(ev); status[ex].lastEvent = ev.t; }, (state, txt) => { status[ex].ws = state === 'ok' ? 'ok' : 'error'; status[ex].wsMsg = txt || ''; });
+      const sock = deps.openSocket(ex, (ev) => onLiq(ex, ev), (state, txt) => { status[ex].ws = state === 'ok' ? 'ok' : 'error'; status[ex].wsMsg = txt || ''; }, syms);
       socks.push(sock);
     });
+    compressAll(); compressT = setInterval(compressAll, 6 * 3600 * 1000); if (compressT.unref) compressT.unref();
     await cycle(true);
     if (!stopped) { pollT = setInterval(() => { cycle(false); }, POLL_MS); if (pollT.unref) pollT.unref(); }
   }
-  function stop() { stopped = true; clearInterval(pollT); socks.forEach((s) => { try { s.close(); } catch (e) { /* ok */ } }); store.flush(); }
+  function stop() { stopped = true; clearInterval(pollT); clearInterval(compressT); extra.forEach((a) => exStores[a].flush()); socks.forEach((s) => { try { s.close(); } catch (e) { /* ok */ } }); store.flush(); }
 
   // Mapa estimado. p: { ex: 'binance,bybit,okx', levs: '5,10,25,50,100', w: '10,25,30,20,15', colSec, halfLife, binSize, sinceDays }
   function getMap(p) {
@@ -135,6 +151,11 @@ function create(opt) {
     };
     return out;
   }
-  return { dataInfo: () => { store.flush(); return store.info(); }, start, stop, getMap, status: () => JSON.parse(JSON.stringify(status)), store, deps };
+  const dataInfo = () => {
+    store.flush(); const rows = store.info();
+    extra.forEach((a) => { exStores[a].flush(); const e = exStores[a].info(); rows.push({ id: 'liq-events-' + a, name: 'Liquidaciones reales ' + a + ' (Binance, Bybit, OKX)', from: e.from, to: e.to, bytes: e.bytes, err: e.error }); });
+    return rows;
+  };
+  return { dataInfo, assets: () => syms.slice(), compressInfo: () => compressInfo, start, stop, getMap, status: () => JSON.parse(JSON.stringify(status)), store, deps };
 }
 module.exports = { create, mockDeps, mockPrice };

@@ -1200,15 +1200,12 @@
         top.append(mk('b', { textContent: x.name }), mk('span', { className: 'data-size', textContent: fmtBytes(x.bytes || 0) }));
         row.appendChild(top);
         const range = x.from ? `Desde ${fmtDay(x.from)} hasta ${fmtDay(x.to)}` + (x.rows ? ` · ${x.rows.toLocaleString('es')} filas` : '') : 'Aún sin datos';
-        row.appendChild(mk('div', { className: 'hint', textContent: range + (x.backfilling ? ' · completando hacia atrás…' : '') + (x.id === 'trades' ? (x.recording ? ' · grabando' : ' · no se graba ahora') : '') }));
+        row.appendChild(mk('div', { className: 'hint', textContent: range + (x.backfilling ? ' · completando hacia atrás…' : '') }));
         if (x.err) row.appendChild(mk('div', { className: 'svc-msg bad', textContent: x.err }));
         box.appendChild(row);
       });
       box.appendChild(mk('div', { className: 'hint', textContent: 'Total: ' + fmtBytes(r.totalBytes) + ' · Carpeta: ' + r.dir }));
       if (r.desktop) {
-        const tr = mk('input', { type: 'checkbox', checked: !!r.recordTrades });
-        const f = mk('div', { className: 'field' }); f.append(mk('span', { textContent: 'Grabar siempre las operaciones de BTCUSDT (4 a 9 GB por año)' }), tr); box.appendChild(f);
-        tr.onchange = async () => { const x = await API.data.setRecord(tr.checked, r.tradeDays); say.textContent = x && x.ok ? (tr.checked ? 'Grabación activada: empieza ahora y se retoma cada vez que abras el programa.' : 'Grabación desactivada: se aplica al reiniciar el programa. Lo ya guardado se conserva.') : 'No se pudo cambiar: ' + ((x && x.error) || ''); say.className = 'svc-msg' + (x && x.ok ? '' : ' bad'); };
         const acts = mk('div', { className: 'row-actions' });
         const bOpen = mk('button', { className: 'btn secondary', textContent: 'Abrir carpeta de datos' }); bOpen.onclick = () => API.data.openFolder();
         const bBack = mk('button', { className: 'btn secondary', textContent: 'Copia de seguridad…' });

@@ -350,46 +350,24 @@ function getLiq() {
   }
   return liqSvc;
 }
-// Datos históricos propios (v0.23.5): velas 1 min y funding
-let histSvc = null;
-function getHist() {
-  const path = require('path');
-  if (!histSvc) {
-    histSvc = require('./hist').create({ dir: path.join(tradeDir || path.join(__dirname, '..', 'data'), 'hist' + (MOCK() ? '-simulado' : '')), mock: MOCK() });
-    histSvc.start().catch(() => {});
-  }
-  return histSvc;
-}
 function flushData() { try { if (liqSvc) liqSvc.dataInfo(); } catch (e) { /* ok */ } }
-function histStart() { try { getHist(); } catch (e) { /* el aviso sale en Ajustes > Datos */ } }
-function tradesStart(days) { try { getTradeStore().start(days); } catch (e) { /* el aviso sale en Ajustes > Datos */ } }
 let dataNote = { dir: '', error: '' };
 function setDataNote(n) { dataNote = n || { dir: '', error: '' }; }
 // Qué datos propios hay guardados (para Ajustes > Datos)
 async function dataStatus() {
   const sets = [];
-  const sec = (ms) => (ms ? Math.floor(ms / 1000) : null);
   try { getLiq().dataInfo().forEach((x) => sets.push(Object.assign({ group: 'Liquidaciones y mercado', state: 'ok' }, x))); } catch (e) { sets.push({ id: 'liq', group: 'Liquidaciones y mercado', name: 'Liquidaciones', state: 'error', err: e.message, bytes: 0 }); }
-  try {
-    const h = getHist().status();
-    sets.push(Object.assign({ id: 'hist-klines', group: 'Precio y funding' }, h.klines));
-    sets.push(Object.assign({ id: 'hist-funding', group: 'Precio y funding' }, h.funding));
-  } catch (e) { sets.push({ id: 'hist', group: 'Precio y funding', name: 'Velas 1 min y funding', state: 'error', err: e.message, bytes: 0 }); }
-  try {
-    const t = getTradeStore().status();
-    sets.push({ id: 'trades', group: 'Operaciones', name: 'Operaciones reales (Binance Futuros BTCUSDT)', from: sec(t.first), to: sec(t.last), bytes: (t.diskMB || 0) * 1048576, state: t.errors && t.errors.length ? 'aviso' : 'ok', err: t.errors && t.errors.length ? String(t.errors[t.errors.length - 1]) : '', recording: !!(t.live && t.live.mode && t.live.mode !== 'off'), liveMode: t.live ? t.live.mode : 'off' });
-  } catch (e) { sets.push({ id: 'trades', group: 'Operaciones', name: 'Operaciones reales', state: 'error', err: e.message, bytes: 0 }); }
   return { dir: tradeDir || require('path').join(__dirname, '..', 'data'), note: dataNote, mock: MOCK(), sets, totalBytes: sets.reduce((a, x) => a + (x.bytes || 0), 0) };
 }
 function liqStart() { try { getLiq(); } catch (e) { /* el aviso lo da liqMap */ } }
 async function liqMap(p) { return getLiq().getMap(p); }
-// Reseteo de fábrica: NO borra datos históricos propios (operaciones de data/trades ni memoria de liquidaciones de data/liq): no se pueden volver a bajar. Solo detiene los servicios.
+// Reseteo de fábrica: NO borra datos históricos propios (memoria de liquidaciones de data/liq): no se pueden volver a bajar. Solo detiene los servicios.
 function resetData(opts) {
   shutdown();
-  tradeStore = null; liqSvc = null; histSvc = null;
-  if (opts && opts.restart) { liqStart(); histStart(); }
+  tradeStore = null; liqSvc = null;
+  if (opts && opts.restart) liqStart();
 }
-function shutdown() { if (tradeStore) tradeStore.shutdown(); if (liqSvc) liqSvc.stop(); if (histSvc) histSvc.stop(); }
+function shutdown() { if (tradeStore) tradeStore.shutdown(); if (liqSvc) liqSvc.stop(); }
 
 async function klines({ exchange, symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days, probe }) {
   if (exchange === 'bnftrades') return getTradeStore().bars({ symbol, interval, startTime, endTime, limit, minQty, maxQty, mode, days });
@@ -582,4 +560,4 @@ async function testConnection() {
   return { mock: false, results: out };
 }
 
-module.exports = { flushData, dataStatus, histStart, tradesStart, setDataNote, resetData, mockPrice, setDataDir, tradeStatus, shutdown, liqStart, liqMap, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };
+module.exports = { flushData, dataStatus, setDataNote, resetData, mockPrice, setDataDir, tradeStatus, shutdown, liqStart, liqMap, testConnection, klines, symbols, aggTrades, tickers, parseBybitKlines, parseKucoinKlines, parseBitstampKlines, EXCHANGE_IDS };

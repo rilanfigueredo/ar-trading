@@ -5,12 +5,12 @@ const fs = require('fs');
 const path = require('path');
 
 const file = (dir) => path.join(dir, 'service.json');
-// hwAccel: aceleración por hardware · dataDir: carpeta de los datos históricos propios ('' = la de siempre) · recordTrades/tradeDays: guardar operaciones siempre
+// hwAccel: aceleración por hardware · dataDir: carpeta de los datos históricos propios ('' = la de siempre)
 function read(dir) {
-  const def = { hwAccel: true, dataDir: '', recordTrades: false, tradeDays: 30 };
+  const def = { hwAccel: true, dataDir: '' };
   try {
     const o = JSON.parse(fs.readFileSync(file(dir), 'utf8'));
-    return { hwAccel: o.hwAccel !== false, dataDir: typeof o.dataDir === 'string' ? o.dataDir : '', recordTrades: o.recordTrades === true, tradeDays: Math.max(1, Math.min(60, Number(o.tradeDays) || 30)) };
+    return { hwAccel: o.hwAccel !== false, dataDir: typeof o.dataDir === 'string' ? o.dataDir : '' };
   } catch (e) { return def; }
 }
 function write(dir, patch) {                // une con lo ya guardado: cambiar una opción no borra las demás
@@ -53,9 +53,9 @@ function resolveDataDir(userData) {
 function factoryReset({ dir, store, core, restart }) {
   store.reset();
   core.resetData({ restart: !!restart });
-  // vuelve la aceleración al valor inicial, pero la carpeta de datos y la grabación de operaciones se CONSERVAN (los datos están ahí)
+  // vuelve la aceleración al valor inicial, pero se CONSERVA la carpeta de datos elegida (los datos están ahí)
   const keep = read(dir);
   try { fs.unlinkSync(file(dir)); } catch (e) { /* ok */ }
-  if (keep.dataDir || keep.recordTrades) write(dir, { dataDir: keep.dataDir, recordTrades: keep.recordTrades, tradeDays: keep.tradeDays });
+  if (keep.dataDir) write(dir, { dataDir: keep.dataDir });
 }
 module.exports = { read, write, factoryReset, backup, copyData, resolveDataDir, DATA_DIRS };

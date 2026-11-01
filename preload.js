@@ -26,7 +26,6 @@ contextBridge.exposeInMainWorld('desktopApi', {
   serviceClearCache: () => ipcRenderer.invoke('service:clearCache'),
   serviceFactoryReset: () => ipcRenderer.invoke('service:factoryReset'),
   dataStatus: () => ipcRenderer.invoke('data:status'),
-  dataSetRecord: (on, days) => ipcRenderer.invoke('data:setRecord', on, days),
   dataOpenFolder: () => ipcRenderer.invoke('data:openFolder'),
   dataBackup: () => ipcRenderer.invoke('data:backup'),
   dataSetDir: () => ipcRenderer.invoke('data:setDir'),

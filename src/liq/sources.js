@@ -7,6 +7,8 @@
 const SYMBOL = 'BTCUSDT';
 const OKX_INST = 'BTC-USDT-SWAP';
 const OKX_CTVAL = 0.01;                               // BTC por contrato en BTC-USDT-SWAP (NO verificado en vivo)
+// Activos cuyas liquidaciones reales se pueden guardar (v0.23.6). okx = instrumento SWAP, ctVal = monedas por contrato (ETH 0,1: NO verificado en vivo).
+const ASSETS = { BTCUSDT: { okx: OKX_INST, ctVal: OKX_CTVAL }, ETHUSDT: { okx: 'ETH-USDT-SWAP', ctVal: 0.1 } };
 const STEP = 300;
 
 // ---------- Velas de 5 min (precio común para todos los exchanges) ----------
@@ -101,37 +103,40 @@ const liveOiJobs = {
 
 // ---------- Liquidaciones reales (WebSocket) ----------
 // Evento común: { t (s), ex, side: 0 largo liquidado | 1 corto liquidado, price, usd }
-function parseBinanceForce(m) {
+function parseBinanceForce(m, syms) {
   const o = m && m.o;
-  if (!o || o.s !== SYMBOL) return null;
+  if (!o || !(syms || [SYMBOL]).includes(o.s)) return null;
   const price = +o.ap > 0 ? +o.ap : +o.p;
-  return { t: Math.floor((+o.T || +m.E) / 1000), ex: 'binance', side: o.S === 'SELL' ? 0 : 1, price, usd: +o.q * price };   // SELL forzada = largo liquidado
+  return { t: Math.floor((+o.T || +m.E) / 1000), ex: 'binance', sym: o.s, side: o.S === 'SELL' ? 0 : 1, price, usd: +o.q * price };   // SELL forzada = largo liquidado
 }
-function parseBybitLiq(m) {
+function parseBybitLiq(m, syms) {
   if (!m || typeof m.topic !== 'string' || m.topic.indexOf('allLiquidation.') !== 0 || !Array.isArray(m.data)) return [];
-  return m.data.filter((d) => d.s === SYMBOL).map((d) => ({ t: Math.floor(+d.T / 1000), ex: 'bybit', side: d.S === 'Buy' ? 0 : 1, price: +d.p, usd: +d.v * +d.p }));   // Buy = largo liquidado (documentación)
+  const want = syms || [SYMBOL];
+  return m.data.filter((d) => want.includes(d.s)).map((d) => ({ t: Math.floor(+d.T / 1000), ex: 'bybit', sym: d.s, side: d.S === 'Buy' ? 0 : 1, price: +d.p, usd: +d.v * +d.p }));   // Buy = largo liquidado (documentación)
 }
-function parseOkxLiq(m) {
+function parseOkxLiq(m, syms) {
   if (!m || !m.arg || m.arg.channel !== 'liquidation-orders' || !Array.isArray(m.data)) return [];
-  const out = [];
+  const want = syms || [SYMBOL], out = [];
   m.data.forEach((d) => {
-    if (d.instId !== OKX_INST) return;
+    const sym = want.find((x) => ASSETS[x] && ASSETS[x].okx === d.instId);
+    if (!sym) return;
     (d.details || []).forEach((x) => {
       const long = x.posSide === 'long' || (x.posSide !== 'short' && x.side === 'sell');
       const price = +x.bkPx;
-      out.push({ t: Math.floor(+x.ts / 1000), ex: 'okx', side: long ? 0 : 1, price, usd: +x.sz * OKX_CTVAL * price });
+      out.push({ t: Math.floor(+x.ts / 1000), ex: 'okx', sym, side: long ? 0 : 1, price, usd: +x.sz * ASSETS[sym].ctVal * price });
     });
   });
   return out.filter((e) => e.price > 0);
 }
 
 // Conexión WebSocket con reconexión. onEvent(evento), onState(estado, texto)
-function openLiqSocket(ex, onEvent, onState, WS) {
+function openLiqSocket(ex, onEvent, onState, WS, syms) {
+  syms = syms && syms.length ? syms : [SYMBOL];
   const Sock = WS || (typeof WebSocket !== 'undefined' ? WebSocket : null);
   if (!Sock) { onState('error', 'este Node no trae WebSocket'); return { close() {} }; }
   const cfg = {
     binance: { url: 'wss://fstream.binance.com/market/ws/!forceOrder@arr', sub: null, ping: null },
-    bybit: { url: 'wss://stream.bybit.com/v5/public/linear', sub: { op: 'subscribe', args: ['allLiquidation.' + SYMBOL] }, ping: '{"op":"ping"}' },
+    bybit: { url: 'wss://stream.bybit.com/v5/public/linear', sub: { op: 'subscribe', args: syms.map((x) => 'allLiquidation.' + x) }, ping: '{"op":"ping"}' },
     okx: { url: 'wss://ws.okx.com:8443/ws/v5/public', sub: { op: 'subscribe', args: [{ channel: 'liquidation-orders', instType: 'SWAP' }] }, ping: 'ping' },
   }[ex];
   let ws = null, closed = false, timer = null, pingT = null, tries = 0;
@@ -149,8 +154,8 @@ function openLiqSocket(ex, onEvent, onState, WS) {
         const txt = typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString();
         if (txt === 'pong') return;
         const m = JSON.parse(txt);
-        if (ex === 'binance') { const e = parseBinanceForce(m); if (e) onEvent(e); }
-        else (ex === 'bybit' ? parseBybitLiq(m) : parseOkxLiq(m)).forEach(onEvent);
+        if (ex === 'binance') { const e = parseBinanceForce(m, syms); if (e) onEvent(e); }
+        else (ex === 'bybit' ? parseBybitLiq(m, syms) : parseOkxLiq(m, syms)).forEach(onEvent);
       } catch (e) { /* mensaje ajeno */ }
     });
     ws.addEventListener('close', (ev) => { clearInterval(pingT); if (!closed) { onState('error', 'conexión cerrada' + (ev && ev.code ? ' (código ' + ev.code + ')' : '') + ', reintentando'); schedule(); } });
@@ -161,4 +166,4 @@ function openLiqSocket(ex, onEvent, onState, WS) {
   return { close() { closed = true; clearTimeout(timer); clearInterval(pingT); try { ws && ws.close(); } catch (e) { /* nada */ } } };
 }
 
-module.exports = { binanceCandles, binanceOiHist, bybitOiHist, okxOiHist, bybitMmr, okxMmr, MMR_DEFAULT, liveOiJobs, parseBinanceForce, parseBybitLiq, parseOkxLiq, openLiqSocket, SYMBOL, STEP };
+module.exports = { binanceCandles, binanceOiHist, bybitOiHist, okxOiHist, bybitMmr, okxMmr, MMR_DEFAULT, liveOiJobs, parseBinanceForce, parseBybitLiq, parseOkxLiq, openLiqSocket, SYMBOL, STEP, ASSETS };

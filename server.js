@@ -78,7 +78,7 @@ const server = http.createServer(async (req, res) => {
 
 process.on('SIGINT', () => { core.shutdown(); process.exit(0); });
 process.on('SIGTERM', () => { core.shutdown(); process.exit(0); });
-core.liqStart(); core.histStart();
+core.liqStart();
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Ar_Trading en modo navegador: http://localhost:${PORT}`);
 });

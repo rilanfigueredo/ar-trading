@@ -1,14 +1,15 @@
 // Almacén local del mapa de liquidaciones: guarda en data/liq/ lo que se va recibiendo mientras el programa está encendido.
-// v0.23.5: ARCHIVO PERMANENTE (nada se borra): arch-candles5m.jsonl, arch-oi-<exchange>.jsonl (solo se AÑADE al final) y
-// events-AAAA-MM.jsonl (liquidaciones reales, un archivo por mes). En memoria (y en candles.json / oi-<ex>.json) solo quedan los últimos
-// 40 días, que es lo que usa el mapa estimado, así que el programa no se hace más lento con los años.
+// v0.23.5: ARCHIVO PERMANENTE (nada se borra): arch-oi-<exchange>.jsonl (solo se AÑADE al final) y events-AAAA-MM.jsonl (liquidaciones
+// reales, un archivo por mes; v0.23.6: los meses cerrados se comprimen, ver events.js). En memoria (y en candles.json / oi-<ex>.json) solo
+// quedan los últimos 40 días, que es lo que usa el mapa estimado. v0.23.6: las velas de 5 min YA NO se archivan (son públicas en Binance);
+// el archivo arch-candles5m.jsonl de versiones anteriores se deja como está.
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const Events = require('./events');
 
 const MEM_SEC = 40 * 86400;           // ventana en memoria
 const EX = ['binance', 'bybit', 'okx'];
-const monthOf = (t) => new Date(t * 1000).toISOString().slice(0, 7);
 
 function create(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -20,37 +21,33 @@ function create(dir) {
   const readLines = (f, fn) => { try { fs.readFileSync(path.join(dir, f), 'utf8').split('\n').forEach((ln) => { if (!ln) return; try { fn(JSON.parse(ln)); } catch (er) { /* línea dañada: se salta */ } }); } catch (e) { /* aún no hay */ } };
   // eventos: el archivo viejo (events.jsonl) + los meses recientes (los anteriores se quedan en disco sin cargarse)
   readLines('events.jsonl', (e) => { if (e && e.t) st.events.push(e); });
-  try {
-    const lim = monthOf(Date.now() / 1000 - MEM_SEC);
-    fs.readdirSync(dir).filter((f) => /^events-\d{4}-\d{2}\.jsonl$/.test(f) && f.slice(7, 14) >= lim).sort().forEach((f) => readLines(f, (e) => { if (e && e.t) st.events.push(e); }));
-  } catch (e) { /* aún no hay */ }
+  const ev = Events.create(dir);
+  st.events = st.events.concat(ev.load(Date.now() / 1000 - MEM_SEC));
   st.events.sort((a, b) => a.t - b.t);
   const dedup = []; st.events.forEach((e) => { const q = dedup[dedup.length - 1]; if (!q || q.t !== e.t || q.ex !== e.ex || q.price !== e.price || q.usd !== e.usd) dedup.push(e); }); st.events = dedup.slice(-200000);
   const firstRun = !st.candles.length && !st.oi.binance.length && !st.oi.bybit.length && !st.oi.okx.length;
 
   // Archivo permanente de series (velas 5 min e interés abierto): solo se añaden filas con tiempo MAYOR al último ya archivado.
   const lastOf = (f) => { let last = 0; try { const fd = fs.openSync(path.join(dir, f), 'r'); const size = fs.fstatSync(fd).size; const len = Math.min(size, 4096); const b = Buffer.alloc(len); fs.readSync(fd, b, 0, len, size - len); fs.closeSync(fd); const ln = b.toString('utf8').split('\n').filter(Boolean); for (let i = ln.length - 1; i >= 0 && !last; i--) { try { const j = JSON.parse(ln[i]); last = (Array.isArray(j) ? j[0] : j.t) || 0; } catch (e) { /* línea cortada */ } } } catch (e) { last = 0; } return last; };
-  const archLast = { candles: lastOf('arch-candles5m.jsonl') }; EX.forEach((ex) => { archLast[ex] = lastOf('arch-oi-' + ex + '.jsonl'); });
+  const archLast = {}; EX.forEach((ex) => { archLast[ex] = lastOf('arch-oi-' + ex + '.jsonl'); });
   const archive = (key, file, rows, toLine) => {
     const fresh = rows.filter((r) => r.t > archLast[key]);
     if (!fresh.length) return;
     try { fs.appendFileSync(path.join(dir, file), fresh.map((r) => JSON.stringify(toLine(r))).join('\n') + '\n'); archLast[key] = fresh[fresh.length - 1].t; } catch (e) { st.writeError = e.message; }
   };
-  const archiveAll = () => { archive('candles', 'arch-candles5m.jsonl', st.candles, (r) => [r.t, r.o, r.h, r.l, r.c]); EX.forEach((ex) => archive(ex, 'arch-oi-' + ex + '.jsonl', st.oi[ex], (r) => [r.t, r.usd])); };
+  const archiveAll = () => { EX.forEach((ex) => archive(ex, 'arch-oi-' + ex + '.jsonl', st.oi[ex], (r) => [r.t, r.usd])); };
   archiveAll();   // lo que ya estaba guardado de versiones anteriores pasa al archivo permanente
 
   const firstOf = (f) => { try { const fd = fs.openSync(path.join(dir, f), 'r'); const b = Buffer.alloc(512); const n = fs.readSync(fd, b, 0, 512, 0); fs.closeSync(fd); const j = JSON.parse(b.toString('utf8', 0, n).split('\n')[0]); return (Array.isArray(j) ? j[0] : j.t) || null; } catch (e) { return null; } };
   const fsize = (f) => { try { return fs.statSync(path.join(dir, f)).size; } catch (e) { return 0; } };
   const info = () => {
-    const out = [{ id: 'liq-candles', name: 'Precio de 5 min (mapa de liquidaciones)', from: firstOf('arch-candles5m.jsonl'), to: archLast.candles || null, bytes: fsize('arch-candles5m.jsonl') }];
+    const out = [];
     EX.forEach((ex) => out.push({ id: 'liq-oi-' + ex, name: 'Interés abierto ' + ({ binance: 'Binance', bybit: 'Bybit', okx: 'OKX' })[ex] + ' (cada 5 min)', from: firstOf('arch-oi-' + ex + '.jsonl'), to: archLast[ex] || null, bytes: fsize('arch-oi-' + ex + '.jsonl') }));
-    let evFiles = []; try { evFiles = fs.readdirSync(dir).filter((f) => /^events-\d{4}-\d{2}\.jsonl$/.test(f)).sort(); } catch (e) { evFiles = []; }
-    let evFrom = null, evTo = null, evBytes = 0;
-    evFiles.forEach((f, i) => { evBytes += fsize(f); if (i === 0) evFrom = firstOf(f); if (i === evFiles.length - 1) evTo = lastOf(f) || (st.events.length ? st.events[st.events.length - 1].t : null); });
-    out.push({ id: 'liq-events', name: 'Liquidaciones reales (Binance, Bybit, OKX)', from: evFrom, to: evTo, bytes: evBytes });
+    const e = ev.info();
+    out.push({ id: 'liq-events', name: 'Liquidaciones reales BTCUSDT (Binance, Bybit, OKX)', from: e.from, to: e.to, bytes: e.bytes, err: e.error });
     return out;
   };
-  let dirtySeries = false, pendingEv = [], timer = null;
+  let dirtySeries = false, timer = null;
   const merge = (arr, rows) => {                      // une por tiempo (las filas nuevas pisan a las viejas) y ordena
     const m = new Map(arr.map((r) => [r.t, r]));
     rows.forEach((r) => m.set(r.t, r));
@@ -61,11 +58,7 @@ function create(dir) {
     clearTimeout(timer); timer = null;
     try {
       fs.mkdirSync(dir, { recursive: true });
-      if (pendingEv.length) {
-        const by = {}; pendingEv.forEach((e) => { (by[monthOf(e.t)] = by[monthOf(e.t)] || []).push(JSON.stringify(e)); });
-        pendingEv = [];
-        Object.keys(by).forEach((m) => fs.appendFileSync(path.join(dir, 'events-' + m + '.jsonl'), by[m].join('\n') + '\n'));
-      }
+      ev.flush();
       if (dirtySeries) {
         dirtySeries = false;
         archiveAll();                                // primero al archivo permanente (nunca se recorta)
@@ -77,10 +70,10 @@ function create(dir) {
   };
   const touch = () => { st.ver++; if (!timer) { timer = setTimeout(flush, 5000); if (timer.unref) timer.unref(); } };
   return {
-    state: st, firstRun, flush, info,
+    state: st, firstRun, flush, info, compress: () => ev.compress(),
     addCandles(rows) { if (rows.length) { st.candles = merge(st.candles, rows); dirtySeries = true; touch(); } },
     addOi(ex, rows) { if (rows.length) { st.oi[ex] = merge(st.oi[ex], rows); dirtySeries = true; touch(); } },
-    addEvent(e) { st.events.push(e); pendingEv.push(e); if (st.events.length > 200000) st.events.shift(); touch(); },
+    addEvent(e) { st.events.push(e); ev.add(e); if (st.events.length > 200000) st.events.shift(); touch(); },
   };
 }
 module.exports = { create, EX };
