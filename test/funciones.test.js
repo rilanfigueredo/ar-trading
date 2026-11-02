@@ -18,7 +18,8 @@ const cif = { disponible: () => true, cifrar: (s) => Buffer.from(Buffer.from(s).
   ok(Registro.LISTA.every((f) => f.titulo && f.desc && f.icono && f.desc.length < 70), 'cada tarjeta con nombre, descripción corta e icono');
   ok(Registro.LISTA.filter((f) => f.tipo === 'modulo').every((f) => /^[a-z]+$/.test(f.prefijo) && !Registro.PRESERVADOS.includes(f.prefijo)), 'prefijos propios y no reservados');
   ok(Registro.limpiar('inicio') === 'inicio' && Registro.limpiar('noticias') === 'noticias', 'limpiar acepta inicio y funciones listas');
-  ok(Registro.limpiar('simulador') === '' && Registro.limpiar('xyz') === '' && Registro.limpiar(undefined) === '' && Registro.limpiar('grafico') === '', 'limpiar descarta lo desconocido, lo no disponible y los gráficos');
+  ok(Registro.limpiar('simulador') === 'simulador' && Registro.limpiar('blockchain') === 'blockchain', 'v0.25: Simulador y Monitor de blockchain ya están disponibles');
+  ok(Registro.limpiar('xyz') === '' && Registro.limpiar(undefined) === '' && Registro.limpiar('grafico') === '', 'limpiar descarta lo desconocido y lo que no es módulo');
   ok(Registro.titulo('inicio') === 'Nueva pestaña' && Registro.titulo('noticias') === 'Noticias macro' && Registro.titulo('') === '', 'títulos');
 
   // puente: canales con prefijo, solo los del módulo
@@ -78,6 +79,37 @@ const cif = { disponible: () => true, cifrar: (s) => Buffer.from(Buffer.from(s).
   st.setConfig(id, { fn: 'basura', charts: [] });
   ok(st.tabs().find((t) => t.id === id).label !== 'basura', 'modo desconocido no se usa de etiqueta');
   ok(Store.WINDOW_KEYS.includes('fn'), 'fn es clave propia de cada pestaña');
+
+  // v0.25: Simulador de posiciones (guarda lo del usuario en su carpeta) y Monitor de blockchain (red simulada de mempool.space y Bitstamp)
+  ok(Registro.LISTA.filter((f) => f.tipo === 'modulo').every((f) => f.listo), 'las 3 funciones con módulo están listas');
+  ok(['simulador:cargar', 'simulador:guardar', 'blockchain:estado', 'blockchain:actualizar'].every((c) => puente.canales().includes(c)), 'canales de las funciones nuevas registrados');
+  const c0 = await puente.invocar('simulador:cargar', [], 'w1'); ok(c0.ok && JSON.stringify(c0.datos) === '{}', 'simulador: sin nada guardado devuelve vacío');
+  const g1 = await puente.invocar('simulador:guardar', [{ ar_scen: [{ nombre: 'E1' }], ar_pairs: { BTCUSDT: [1, 2] } }], 'w2'); ok(g1.ok, 'simulador: guarda');
+  const c1 = await puente.invocar('simulador:cargar', [], 'w1'); ok(c1.ok && c1.datos.ar_scen[0].nombre === 'E1' && c1.datos.ar_pairs.BTCUSDT.length === 2, 'simulador: lo guardado vuelve igual y se comparte entre pestañas');
+  ok(fs.existsSync(path.join(datos, 'funciones', 'simulador', 'estado.json')), 'simulador: archivo en <programa>/funciones/simulador');
+  for (const malo of [null, 5, 'texto', [1, 2]]) { const r = await puente.invocar('simulador:guardar', [malo], 'w1'); ok(r.ok === false, 'simulador: rechaza datos no válidos ' + JSON.stringify(malo)); }
+  fs.writeFileSync(path.join(datos, 'funciones', 'simulador', 'estado.json'), '{roto');
+  const c2 = await puente.invocar('simulador:cargar', [], 'w1'); ok(c2.ok === false && /dañado/.test(c2.error), 'simulador: archivo dañado se avisa');
+  ok(fs.readdirSync(path.join(datos, 'funciones', 'simulador')).some((f) => f.includes('.danado-')), 'simulador: el dañado se aparta, no se borra');
+  const c3 = await puente.invocar('simulador:cargar', [], 'w1'); ok(c3.ok && JSON.stringify(c3.datos) === '{}', 'simulador: después de apartarlo empieza limpio');
+
+  const b1 = await puente.invocar('blockchain:actualizar', [], 'w1');
+  ok(b1.ok && b1.datos.ok === true && b1.datos.tip.height === 985000, 'blockchain: último bloque desde la fuente simulada');
+  ok(b1.datos.epoch && b1.datos.epoch.blocksRemaining === 2016 - (985000 % 2016) && b1.datos.halving && b1.datos.eras.length >= 5, 'blockchain: período, halving y eras calculados');
+  ok(b1.datos.prices && b1.datos.prices.now && b1.datos.prices.now.price === 95000.5, 'blockchain: precio actual de Bitstamp');
+  const b2 = await puente.invocar('blockchain:estado', [], 'w1'); ok(b2.ok && b2.datos.tip.height === 985000, 'blockchain: estado devuelve lo último sin volver a consultar');
+  const rg = await puente.invocar('blockchain:rango', ['2026-10-01', '2026-10-20'], 'w1'); ok(rg.ok && rg.datos.ok && rg.datos.range.avgSeconds > 570 && rg.datos.range.avgSeconds < 590, 'blockchain: promedio de un rango ≈ 580 s (' + (rg.datos.range && rg.datos.range.avgSeconds) + ')');
+  const rg2 = await puente.invocar('blockchain:rango', ['', ''], 'w1'); ok(rg2.ok && rg2.datos.ok === false && /fechas/.test(rg2.datos.error), 'blockchain: rango sin fechas se explica');
+  const aj = await puente.invocar('blockchain:ajustar', [{ pollSeconds: 5, nearBlocks: 99999 }], 'w1'); ok(aj.ok && aj.datos.pollSeconds === 15 && aj.datos.nearBlocks === 2016, 'blockchain: ajustes con límites (mínimo 15 s, máximo 2016 bloques)');
+  const av = []; const modB = require('../src/funciones/blockchain/modulo').crear({ carpeta: tmp('ar-bc-'), fetch: crearFetch(), ahora: () => AHORA, notificar: (l) => av.push(...l) });
+  await modB.llamar('probar', []); ok(av.length === 1 && /prueba/.test(av[0].body), 'blockchain: aviso de prueba llega al notificador');
+  modB.cerrar();
+  // una fuente caída se avisa (no se inventan datos ni se cambia de fuente)
+  const fuenteCaida = require('./blockchain.datos').crear(AHORA, { falla: true });
+  const caida = Puente.crearPuente({ datosBase: tmp('ar-bc2-'), fetch: async (u) => fuenteCaida(u), ahora: () => AHORA, cifrador: cif });
+  const bf = await caida.invocar('blockchain:actualizar', [], 'w1');
+  ok(bf.ok && bf.datos.ok === false && /mempool\.space/.test(bf.datos.error) && /No se cambió a otra fuente/.test(bf.datos.error), 'blockchain: fuente caída → error claro con el nombre de la fuente');
+  caida.cerrarTodo();
 
   puente.cerrarTodo();
   console.log(`\nPruebas de funciones: ${pasan} pasan, ${fallan} fallan`);

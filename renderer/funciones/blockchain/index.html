@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+<title>Monitor de blockchain BTC</title>
+<link rel="stylesheet" href="../comun/tema.css"><link rel="stylesheet" href="estilo.css">
+</head>
+<body data-theme="dark">
+<header>
+  <div class="wrap bar-top">
+    <div class="brand">Monitor de blockchain BTC</div>
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText">Conectando…</span>
+      <button id="btnRefresh" class="btn">Actualizar ahora</button>
+      <button id="btnAvisos" class="btn" aria-expanded="false">Avisos</button>
+      <div id="avisosPanel" class="avisos-panel" hidden>
+        <h2>Notificaciones de Windows</h2>
+        <label class="chk"><input type="checkbox" id="sNewBlock"> Avisar en cada bloque nuevo (llega uno cada ~10 min)</label>
+        <label class="chk"><input type="checkbox" id="sRetarget"> Avisar cuando empiece un nuevo período de dificultad</label>
+        <label class="chk"><input type="checkbox" id="sNear"> Avisar cuando falten pocos bloques para el ajuste</label>
+        <div class="field"><label>«Pocos» = <input type="number" id="sNearBlocks" min="1" max="2016" step="1"> bloques <span class="muted">(144 ≈ 1 día)</span></label></div>
+        <div class="field"><label>Consultar la fuente cada <input type="number" id="sPoll" min="15" step="5"> segundos <span class="muted">(mínimo 15)</span></label></div>
+        <div class="row"><button id="btnTest" class="btn">Enviar aviso de prueba</button><span id="settingsMsg" class="muted"></span></div>
+      </div>
+    </div>
+  </div>
+</header>
+<div id="banners"></div>
+<nav id="tabs"><div class="wrap">
+  <button data-tab="resumen" class="on">Resumen</button>
+  <button data-tab="velocidad">Velocidad por bloque</button>
+  <button data-tab="eras">Eras (halvings)</button>
+</div></nav>
+<main class="wrap">
+  <section id="tab-resumen"></section>
+  <section id="tab-velocidad" hidden>
+    <div class="card range-card">
+      <h2>Velocidad promedio entre dos fechas</h2>
+      <p class="muted">Se usa la hora de su equipo. Cada día va de 00:00 a 23:59.</p>
+      <div class="row center">
+        <label>Desde <input type="date" id="dFrom"></label>
+        <label>Hasta <input type="date" id="dTo"></label>
+        <button id="btnRange" class="btn primary">Calcular</button>
+      </div>
+      <div id="rangeOut"></div>
+    </div>
+    <div id="periodos-box"></div>
+  </section>
+  <section id="tab-eras" hidden></section>
+</main>
+<footer id="foot" class="wrap muted"></footer>
+<script src="chain.js"></script>
+<script src="charts.js"></script>
+<script src="../comun/puente.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

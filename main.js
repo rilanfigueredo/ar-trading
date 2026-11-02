@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, safeStorage, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, safeStorage, net, Notification } = require('electron');
 const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
@@ -24,6 +24,8 @@ function registrarFunciones() {
     datosBase: app.getPath('userData'), appData: app.getPath('appData'), fetch: netFetch, ahora: () => Date.now(),
     cifrador: { disponible: () => safeStorage.isEncryptionAvailable(), cifrar: (s) => safeStorage.encryptString(s), descifrar: (b) => safeStorage.decryptString(b) },
     abrirCarpeta: (ruta) => shell.openPath(ruta),
+    // v0.25: avisos de Windows (los usa el monitor de blockchain). Un aviso que falle no debe tumbar nada.
+    notificar: (lista) => { for (const a of lista || []) { try { if (Notification.isSupported()) new Notification({ title: String(a.title), body: String(a.body) }).show(); } catch (e) { /* sin aviso */ } } },
   });
   puente.canales().forEach((canal) => ipcMain.handle(canal, (_e, p) => puente.invocar(canal, p && p.args, p && p.inst)));
 }

@@ -1,8 +1,16 @@
-AR_TRADING - VERSION 0.24.1
+AR_TRADING - VERSION 0.25.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.25.0 - SIMULADOR DE POSICIONES Y MONITOR DE BLOCKCHAIN
+- Las tarjetas "Simulador de posiciones" y "Monitor de blockchain" del "+" ya funcionan. Mismo estilo de Ar_Trading (modo claro/oscuro incluido) y boton "Inicio" para volver.
+- Simulador: apalancamiento, entradas escalonadas, precio de liquidacion (formula de Binance), cierres parciales, take profit, stop loss, salvavidas y exposicion maxima. Tus escenarios y los tramos de margen se guardan en la carpeta de datos del programa. Comisiones, tramos y funding siguen marcados "a verificar" (editables).
+- Monitor de blockchain: bloque actual, dificultad, proximo ajuste, proximo halving, eras, velocidad entre fechas y precio de Bitcoin (mempool.space y Bitstamp). Si una fuente falla, lo dice con su nombre y NO cambia de fuente.
+- Avisos de Windows (boton "Avisos"): bloque nuevo, nuevo periodo de dificultad y "faltan pocos bloques". Para que avisen, el programa debe estar abierto (aunque no mires esa pestana).
+- Si usabas el monitor de blockchain suelto, su historial se copia solo la primera vez (lo viejo no se borra). Los escenarios del simulador suelto NO se pueden traspasar: hay que guardarlos de nuevo.
+- Probado: 8 grupos de pruebas de Node y Chromium con datos simulados. SIN probar: Windows/Electron, la red real (mempool.space, Bitstamp) y los avisos de Windows.
 
 NOVEDADES DE LA v0.24.1 - MEJOR ASPECTO DE LAS TARJETAS Y DE NOTICIAS
 - Pantalla de tarjetas: textos mas grandes y tipografia moderna, tarjetas con relieve y degradado, todo centrado, iconos nuevos y grandes con colores vivos en el centro de cada tarjeta, y boton ABRIR al centro (minimalista). Contorno permanente morado #b734fe; al pasar el mouse el contorno y el boton pasan al turquesa del programa.

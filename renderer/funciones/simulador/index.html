@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+<title>Simulador de posiciones de futuros</title><link rel="stylesheet" href="../comun/tema.css"><link rel="stylesheet" href="estilo.css"></head>
+<body data-theme="dark">
+<header class="hd">
+<h1>SIMULADOR DE POSICIONES DE FUTUROS</h1>
+<p class="s">Cálculo de posiciones apalancadas, promediaciones, liquidaciones, beneficios y gestión de riesgo con una opción de salvavidas.</p></header>
+<section class="card b-cy"><h2>Cuenta y costos</h2><div class="r1" id="r1"></div><div class="r2" id="r2"></div></section>
+<section class="card b-pu"><h2>Entradas escalonadas <span class="av">(% del saldo disponible puesto como margen)</span></h2><div class="g2" id="ent"></div><button id="add">Agregar promediación</button></section>
+<section class="card b-cy"><h2>Salidas</h2>
+<div class="xrow"><div class="big" id="w_sl"><label for="sl">Stop loss</label><input id="sl" type="number" step="any"></div>
+<button id="bpc" class="tg2">Cierres parciales <span id="bpcn"></span></button><button id="btp" class="tg2">Configurar TP <span id="btpn"></span></button></div>
+<div id="ppanel" class="panel" hidden><div class="g"><div><label for="pcn">¿Cuántos cierres parciales?</label><select id="pcn"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+<div><label for="pct">Los cierres se ejecutan</label><select id="pct"><option value="taker">A mercado (taker)</option><option value="maker">Con orden límite (maker)</option></select></div></div>
+<p class="av">Cada cierre es un % de la posición completa (la que resulta de tus entradas y promediaciones).</p><div id="pcrows"></div></div>
+<div id="tpanel" class="panel" hidden><div class="g"><div><label for="tpm">Tipo de take profit</label><select id="tpm"><option value="total">TP total</option><option value="partial">TP parciales</option></select></div>
+<div id="tpnw" hidden><label for="tpn">¿Cuántos TP?</label><select id="tpn"><option>2</option><option>3</option><option>4</option><option>5</option></select></div></div>
+<p class="av" id="tpnote">El TP total cierra todo lo que quede de la posición.</p><div id="tprows"></div></div></section>
+<section class="card b-am"><h2>Salvavidas y exposición máxima</h2>
+<div class="tri">
+<div class="blk"><h3>Exposición máxima</h3><div id="outA"></div></div>
+<div class="blk"><h3>Distancia objetivo de liquidación</h3><div class="big" id="w_lgt"><label for="lgt">Distancia mínima deseada (%)</label><input id="lgt" type="number" step="any"></div><div id="outB"></div></div>
+<div class="blk"><h3>Salvavidas</h3><div id="deps" class="depgrid"></div><button id="adddep">Agregar depósito</button><div id="outC"></div></div>
+</div></section>
+<section class="card b-gr"><h2>Reporte del trade simulado</h2><div id="dash"></div></section>
+<section class="card"><h2>Escenarios guardados</h2><div class="g" id="scf" style="margin-bottom:8px"></div><div id="out6"></div></section>
+<section class="card"><h2>Tramos de margen del par <span class="av">(a verificar)</span></h2>
+<p class="av">Una línea por tramo: piso,tasa,apalancamiento máximo. También puedes pegar filas de la tabla "Leverage &amp; Margin" de Binance.</p>
+<div id="pnote" class="w"></div><textarea id="tiers" rows="6"></textarea><div style="margin-top:8px"><button id="psave">Guardar tramos de este par</button></div></section>
+<script src="calc.js"></script><script src="exits.js"></script><script src="charts.js"></script>
+<script src="../comun/puente.js"></script><script src="arranque.js"></script></body></html>

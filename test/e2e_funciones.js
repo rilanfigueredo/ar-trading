@@ -45,7 +45,7 @@ async function shot(page, n) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: tru
     ok(tj.length === 5, '5 tarjetas');
     ok(tj.map((x) => x.n).join('|') === 'Gráfico limpio|Mapa de liquidaciones|Simulador de posiciones|Monitor de blockchain|Noticias macro', 'nombres y orden: ' + tj.map((x) => x.n).join('|'));
     ok(tj.every((x) => x.ic && x.b === 'Abrir' && x.d.length > 10 && x.d.length < 70 && !x.d.includes('\n')), 'cada tarjeta: icono, botón «Abrir» y descripción de una línea');
-    ok(tj[2].off && tj[3].off && !tj[0].off && !tj[1].off && !tj[4].off, 'Simulador y Blockchain aún deshabilitados (llegan en la v0.25)');
+    ok(tj.every((x) => !x.off), 'las 5 tarjetas habilitadas (v0.25: Simulador y Blockchain ya llegaron)');
     await shot(page, '02_tarjetas');
 
     // --- 3: Gráfico limpio funciona igual
@@ -149,6 +149,42 @@ async function shot(page, n) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: tru
     ok((await page.isVisible('#toolbar')) === false, 'tras recargar en una función no se ve la barra del gráfico');
     await page.click('#tabBar .tab:nth-child(1)'); await esperar(900);
     ok(await page.isVisible('#toolbar') && (await page.$$('#grid:not(.tab-off) .cell canvas')).length > 0, 'volver al gráfico de la pestaña 1 funciona');
+
+    // --- 11 (v0.25): Simulador de posiciones — calcula y recuerda lo guardado
+    await clickMas(); await abrir('simulador');
+    await page.waitForSelector('.fn-pane:not(.off) iframe.fn-frame'); const fs1 = page.frameLocator('.fn-pane:not(.off) iframe.fn-frame');
+    await fs1.locator('#r1 input').first().waitFor({ timeout: 10000 }); await esperar(600);
+    ok((await tabs()).includes('Simulador de posiciones'), 'Simulador: título de pestaña');
+    await fs1.locator('#ent input').nth(0).fill('100000'); await fs1.locator('#ent input').nth(1).fill('50');
+    await fs1.locator('#sl').fill('101000'); await esperar(500);
+    const dashTxt = await fs1.locator('#dash').innerText();
+    ok(dashTxt.length > 50 && !/NaN|undefined/.test(dashTxt), 'Simulador: el reporte se calcula sin NaN (' + dashTxt.length + ' letras)');
+    ok((await fs1.locator('#outA').innerText()).length > 5, 'Simulador: exposición máxima calculada');
+    ok((await fs1.locator('svg').count()) > 0, 'Simulador: gráficos SVG dibujados');
+    await fs1.locator('#scn').fill('Prueba v025'); await fs1.locator('#scs').click(); await esperar(700);
+    const guard = await page.evaluate(() => fetch('/api/fn', { method: 'POST', body: JSON.stringify({ canal: 'simulador:cargar', args: [], inst: 'w1' }) }).then((r) => r.json()));
+    ok(guard.ok && JSON.stringify(guard.datos).includes('Prueba v025'), 'Simulador: el escenario queda guardado en el programa');
+    await shot(page, '09_simulador');
+    await page.reload(); await page.waitForSelector('#tabBar .tab'); await esperar(1500);
+    const fs2 = page.frameLocator('.fn-pane:not(.off) iframe.fn-frame'); await fs2.locator('#r1 input').first().waitFor({ timeout: 10000 }); await esperar(600);
+    ok((await fs2.locator('#out6').innerText()).includes('Prueba v025'), 'Simulador: tras recargar sigue el escenario guardado');
+
+    // --- 12 (v0.25): Monitor de blockchain — datos de la fuente simulada
+    await clickMas(); await abrir('blockchain');
+    await page.waitForSelector('.fn-pane:not(.off) iframe.fn-frame'); const fb = page.frameLocator('.fn-pane:not(.off) iframe.fn-frame');
+    await fb.locator('#tab-resumen .card').first().waitFor({ timeout: 15000 }); await esperar(800);
+    const resumen = await fb.locator('#tab-resumen').innerText();
+    ok(resumen.includes('985.000') && /mempool\.space/.test(await fb.locator('#statusText').innerText()), 'Blockchain: bloque 985.000 y fuente mempool.space');
+    ok(/95\.000,50/.test(resumen), 'Blockchain: precio actual de Bitstamp');
+    await fb.locator('#tabs button[data-tab="eras"]').click(); await esperar(300);
+    ok((await fb.locator('#tab-eras table tbody tr').count()) >= 5, 'Blockchain: tabla de eras (halvings)');
+    await fb.locator('#tabs button[data-tab="velocidad"]').click(); await fb.locator('#dFrom').fill('2026-10-01'); await fb.locator('#dTo').fill('2026-10-20'); await fb.locator('#btnRange').click();
+    await fb.locator('#rangeOut .range-grid').waitFor({ timeout: 15000 });
+    ok(/58\d,\d s/.test(await fb.locator('#rangeOut').innerText()), 'Blockchain: promedio del rango ≈ 580 s');
+    await fb.locator('#btnAvisos').click(); await fb.locator('#sNewBlock').check(); await esperar(700);
+    const aj = await page.evaluate(() => fetch('/api/fn', { method: 'POST', body: JSON.stringify({ canal: 'blockchain:ajustes', args: [], inst: 'w1' }) }).then((r) => r.json()));
+    ok(aj.ok && aj.datos.notifyNewBlock === true, 'Blockchain: los avisos se guardan');
+    await shot(page, '10_blockchain');
 
     ok(errores.filter((e) => !/favicon|net::ERR|Failed to load resource/.test(e)).length === 0, 'cero errores de consola: ' + JSON.stringify(errores.slice(0, 4)));
   } catch (e) {

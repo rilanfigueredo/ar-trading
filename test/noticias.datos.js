@@ -65,11 +65,13 @@ function serieFred(id) {
 }
 function resp(obj, status = 200) { return { ok: status < 400, status, json: async () => obj }; }
 // opciones: {feed:'ok'|'429'|'html', fred:'ok'|'403', binance:'ok'|'500', sinFechas:bool}
+const chainResp = require('./blockchain.datos').crear(AHORA);
 function crearFetch(op = {}) {
   const o = Object.assign({ feed: 'ok', fred: 'ok', fredCsv: 'ok', binance: 'ok', sinFechas: false }, op);
   const llamadas = [];
   const f = async (url) => {
     llamadas.push(String(url));
+    if (url.includes('mempool.space') || url.includes('bitstamp')) { const r = chainResp(url); if (r) return r; }
     if (url.includes('faireconomy')) {
       if (o.feed === '429') return resp({}, 429);
       if (o.feed === 'html') return { ok: true, status: 200, json: async () => { throw new Error('no json'); } };
