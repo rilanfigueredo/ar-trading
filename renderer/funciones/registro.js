@@ -6,20 +6,22 @@
   else root.TVFunciones_registro = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  const svg = (d) => '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  // Iconos grandes de trazo con degradado (id único por icono, porque todos conviven en la misma página)
+  const svg = (id, c1, c2, d) => '<svg viewBox="0 0 64 64" width="72" height="72" fill="none" stroke="url(#ic-' + id + ')" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<defs><linearGradient id="ic-' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></linearGradient></defs>' + d + '</svg>';
   // tipo 'grafico': usa el gráfico del programa (se abre en la misma pestaña, igual que siempre).
   // tipo 'modulo': interfaz propia en un marco aislado (renderer/funciones/<id>/) + módulo en src/funciones/<id>/ con canales "<prefijo>:<nombre>".
   const LISTA = [
     { id: 'grafico', tipo: 'grafico', titulo: 'Gráfico limpio', desc: 'Un gráfico de velas en blanco, listo para analizar.', listo: true,
-      icono: svg('<path d="M4 4v16h16"/><path d="M8 15l3-4 3 2 4-6"/>') },
+      icono: svg('g', '#00e5ee', '#2962ff', '<path d="M8 54V10M8 54h48"/><path d="M20 20v26M16 27h8v12h-8zM34 12v32M30 19h8v16h-8zM48 24v24M44 31h8v10h-8z"/><path d="M13 47l15-12 10 6 17-21" stroke-dasharray="1 6"/>') },
     { id: 'liq', tipo: 'grafico', titulo: 'Mapa de liquidaciones', desc: 'Dónde se concentran las liquidaciones estimadas.', listo: true,
-      icono: svg('<path d="M4 6h8M4 10h13M4 14h6M4 18h16"/>') },
+      icono: svg('l', '#ffb020', '#ff3d7f', '<path d="M10 14h22M10 24h40M10 34h28M10 44h46M10 54h18"/><circle cx="50" cy="14" r="4"/><circle cx="52" cy="34" r="3"/>') },
     { id: 'simulador', tipo: 'modulo', prefijo: 'simulador', titulo: 'Simulador de posiciones', desc: 'Prueba apalancamiento, margen y precio de liquidación.', listo: false, nota: 'Llega en la v0.25',
-      icono: svg('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M16 15h0"/>') },
+      icono: svg('s', '#7cffb2', '#00c2ff', '<rect x="12" y="6" width="40" height="52" rx="8"/><path d="M20 16h24v8H20zM22 36h4M30 36h4M38 36h4M22 46h4M30 46h4M38 46h4"/>') },
     { id: 'blockchain', tipo: 'modulo', prefijo: 'blockchain', titulo: 'Monitor de blockchain', desc: 'Comisiones, mempool y bloques de Bitcoin al momento.', listo: false, nota: 'Llega en la v0.25',
-      icono: svg('<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M17 13v8M13 17h8"/>') },
+      icono: svg('b', '#b734fe', '#4d7cff', '<path d="M32 6l16 9v18L32 42 16 33V15z"/><path d="M16 15l16 9 16-9M32 24v18"/><path d="M10 46l12 6M54 46l-12 6M26 56h12"/>') },
     { id: 'noticias', tipo: 'modulo', prefijo: 'noticias', titulo: 'Noticias macro', desc: 'Calendario económico, datos publicados y reporte.', listo: true,
-      icono: svg('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>') },
+      icono: svg('n', '#ffe14d', '#ff7a1a', '<rect x="8" y="12" width="48" height="44" rx="8"/><path d="M8 25h48M20 6v12M44 6v12"/><path d="M16 44l8-8 7 5 9-11 8 6"/>') },
   ];
   const PRESERVADOS = ['inicio', 'config', 'window', 'service', 'data', 'shared', 'klines'];
   const porId = (id) => LISTA.find((f) => f.id === id) || null;

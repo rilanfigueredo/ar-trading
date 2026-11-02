@@ -1,8 +1,13 @@
-AR_TRADING - VERSION 0.24.0
+AR_TRADING - VERSION 0.24.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.24.1 - MEJOR ASPECTO DE LAS TARJETAS Y DE NOTICIAS
+- Pantalla de tarjetas: textos mas grandes y tipografia moderna, tarjetas con relieve y degradado, todo centrado, iconos nuevos y grandes con colores vivos en el centro de cada tarjeta, y boton ABRIR al centro (minimalista). Contorno permanente morado #b734fe; al pasar el mouse el contorno y el boton pasan al turquesa del programa.
+- Funciones (Noticias y las proximas): letra mas grande y mas clara sobre el fondo oscuro, margenes a izquierda y derecha, y mas relleno en todas las tarjetas. Las 6 tarjetas de "Mercado y macro global" tienen contorno morado y turquesa alternados.
+- Estas reglas viven en renderer/funciones/comun/tema.css: el Simulador y el Monitor de blockchain (v0.25) nacen con este mismo estilo.
 
 NOVEDADES DE LA v0.24.0 - PANTALLA DE TARJETAS + NOTICIAS MACRO
 - El boton "+" ahora abre una pestana con 5 tarjetas: Grafico limpio, Mapa de liquidaciones, Simulador de posiciones, Monitor de blockchain y Noticias macro. "Abrir" muestra la funcion en esa misma pestana.

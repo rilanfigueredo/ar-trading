@@ -33,6 +33,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - Servidor: `src/funciones/puente.js` descubre `src/funciones/<id>/modulo.js` (`{id, prefijo, canales, crear(entorno)}`); Electron registra un canal IPC por canal (`noticias:estado`…), el modo navegador usa `POST /api/fn`. Errores aislados (`{ok:false,error}`). Prefijos reservados: ver `PRESERVADOS`.
 - **Sumar una función:** entrada en `registro.js` + carpeta `renderer/funciones/<id>/` + `src/funciones/<id>/modulo.js`. Nada más.
 - Noticias macro (`src/funciones/noticias/`, núcleo del monitor v0.4 con 79 pruebas en `test/noticias.test.js`): datos en `<userData>/funciones/noticias` (antes `%APPDATA%\Ar_Monitor\noticias`; se copian una vez sin borrar; la clave de FRED NO se traspasa porque safeStorage usa llave por app: hay que pegarla otra vez). Una sola instancia en el proceso principal: varias pestañas comparten datos sin pisarse. El reloj de 1 h corre en la interfaz y solo mientras la pestaña está a la vista; al volver tras más de 1 h renueva al instante. Fuentes: feed de Forex Factory (no oficial), FRED CSV, Binance.
+- Estilo común de las funciones: todo en `comun/tema.css` (+ `tokens.css`); cada función solo añade su disposición. Las funciones nuevas deben usarlo tal cual.
 - Pruebas: `npm test` (incluye `noticias.test.js` y `funciones.test.js`); `npm run test:e2e` (Playwright, datos simulados con `TV_MOCK=1`, `AR_DATA_DIR`).
 
 - Símbolos de Binance spot, favoritos, tipos Velas/Línea/Área, escala Normal/Log/%, Auto.
@@ -154,6 +155,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.24.1: estilo: tarjetas del inicio (contorno #b734fe permanente, hover turquesa, iconos con degradado en `registro.js`), `tema.css` con letra 15 px, colores más claros en oscuro, márgenes laterales y rellenos; token `--purpura` en `tokens.css`; mcards de Noticias con contorno morado/turquesa alternado.
 - v0.24.0: pantalla de tarjetas en el «+», base de funciones aisladas (iframe + puente con prefijos), tokens.css compartido, Noticias macro integrada. Simulador y Monitor de blockchain quedan para v0.25 (el usuario permitió dividir).
 - v0.23.6: solo lo irrecuperable: se quitó hist.js/velas 1 m/funding/grabar operaciones/archivo de velas 5 min; servicio 24/7 (servicio.js, arranque con Windows), candado de un solo escritor, huecos, compresión gzip verificada de meses cerrados, liquidaciones de ETHUSDT; Ajustes > Datos nuevo. NO hecho (por decisión): historial de operaciones hacia atrás.
 - v0.23.5: datos propios: archivo permanente (sin recorte), velas 1 m + funding (`src/hist.js`), Ajustes > Datos, carpeta elegible, copia de seguridad, grabar operaciones (ver §3).

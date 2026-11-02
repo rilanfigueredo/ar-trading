@@ -83,7 +83,7 @@ async function shot(page, n) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: tru
     const col = async (loc) => loc.evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.color, s.fontFamily]; });
     const bgPar = await page.evaluate(() => getComputedStyle(document.body).backgroundColor), fontPar = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
     const [bgFr, , fontFr] = await col(fr.locator('body'));
-    ok(bgPar === bgFr && fontPar === fontFr, `Noticias usa los colores y la tipografía de Ar_Trading (oscuro): ${bgFr}`);
+    ok(bgPar === bgFr && /Segoe UI/.test(fontFr), `Noticias usa el fondo de Ar_Trading y la tipografía moderna común (oscuro): ${bgFr}`);
     const btnAct = await fr.locator('#btnActualizar').evaluate((e) => getComputedStyle(e).backgroundColor);
     ok(btnAct === 'rgb(41, 98, 255)', 'botón principal = azul de Ar_Trading: ' + btnAct);
     await page.click('.fn-pane:not(.off) .fn-theme'); await esperar(400);
