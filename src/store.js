@@ -12,9 +12,10 @@ const path = require('path');
 
 const MAX_WINDOWS = 10;
 const SHARED_KEYS = ['version', 'scripts', 'theme', 'tz', 'timer', 'palette', 'templates', 'lists'];
-const WINDOW_KEYS = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive', 'max'];
+const WINDOW_KEYS = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive', 'max', 'fn'];
 // v0.22.2: temporalidades y preferencias de dibujo pasaron de compartidas a propias de cada pestaña; la pestaña 1 hereda lo que ya tenía guardado.
 const MOVED_KEYS = ['tfs', 'draw', 'listActive'];
+const Registro = require('../renderer/funciones/registro');
 const ID_RE = /^w([1-9]|10)$/;
 
 function create(dir) {
@@ -136,6 +137,7 @@ function create(dir) {
     return listWindows().map((w) => {
       let c = readJson(winFile(w.id));
       if (!c && w.id === 'w1') c = pick(s, WINDOW_KEYS);
+      if (c && c.fn && Registro.limpiar(c.fn)) return { id: w.id, label: Registro.titulo(c.fn) };
       const ch = c && Array.isArray(c.charts) ? c.charts[Number(c.active) || 0] || c.charts[0] : null;
       let act = c ? c.listActive : undefined;
       if (act === undefined && w.id === 'w1') act = s.listActive;

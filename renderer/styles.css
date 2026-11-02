@@ -1,12 +1,4 @@
-:root { --font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-body[data-theme="dark"] {
-  --bg: #0a102a; --panel: #1e222d; --border: #2a2e39; --text: #d1d4dc; --muted: #787b86;
-  --hover: #2a2e39; --active: #2962ff; --active-text: #ffffff; --input: #0a102a;
-}
-body[data-theme="light"] {
-  --bg: #ffffff; --panel: #f8f9fd; --border: #e0e3eb; --text: #131722; --muted: #787b86;
-  --hover: #eceff5; --active: #2962ff; --active-text: #ffffff; --input: #ffffff;
-}
+@import url("tokens.css");
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; display: flex; flex-direction: column; overflow: hidden; }
@@ -593,3 +585,33 @@ body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #
 .data-row.ok { border-left-color: #26c680; } .data-row.warn { border-left-color: #ffb74d; } .data-row.bad { border-left-color: #ff5252; }
 .data-top { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
 .data-size { font-weight: 700; white-space: nowrap; }
+
+/* ---------- v0.24: pantalla de tarjetas y funciones con interfaz propia ---------- */
+body.fn-mode #toolbar, body.fn-mode #main { display: none; }
+#fnHost { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fn-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fn-pane.off { display: none; }
+.fn-bar { display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: var(--panel); border-bottom: 1px solid var(--border); flex: none; min-height: 34px; }
+.fn-home-btn { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font: inherit; cursor: pointer; }
+.fn-home-btn:hover { background: var(--hover); border-color: var(--acento); }
+.fn-home-btn.hid { display: none; }
+.fn-title { font-weight: 700; font-size: 13px; color: var(--acento); }
+.fn-spacer { flex: 1; }
+.fn-theme { background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }
+.fn-theme:hover { background: var(--hover); color: var(--text); }
+.fn-body { flex: 1; min-height: 0; position: relative; }
+.fn-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); color-scheme: normal; }
+.fn-home { height: 100%; overflow: auto; padding: 34px 40px; }
+.fn-home-t { font-size: 20px; margin: 0 0 4px; }
+.fn-home-s { color: var(--muted); margin: 0 0 24px; }
+.fn-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; max-width: 1360px; }
+.fn-card { display: flex; flex-direction: column; gap: 8px; padding: 18px; background: var(--panel); border: 1.5px solid var(--border); border-radius: 12px; transition: border-color .15s, box-shadow .15s; }
+.fn-card:not(.off):hover { border-color: var(--acento); box-shadow: 0 0 0 1px var(--acento); }
+.fn-card.off { opacity: .6; border-style: dashed; }
+.fn-card-ic { color: var(--acento); line-height: 0; }
+.fn-card-n { margin: 4px 0 0; font-size: 15px; }
+.fn-card-d { margin: 0; color: var(--muted); font-size: 12px; flex: 1; }
+.fn-card-b { align-self: flex-start; margin-top: 6px; background: var(--active); color: var(--active-text); border: 0; border-radius: 4px; padding: 6px 18px; font: inherit; cursor: pointer; }
+.fn-card-b:disabled { background: var(--hover); color: var(--muted); cursor: default; }
+.fn-card-note { font-size: 11px; color: var(--muted); }
+.fn-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--bg); text-align: center; padding: 20px; }

@@ -399,6 +399,7 @@
     document.body.dataset.theme = effTheme();
     const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png';
     eachView((v) => v.applyTheme());
+    if (window.TVFunciones) window.TVFunciones.setTema(effTheme());
     // barra de pestañas = barra de título (Windows): los botones del sistema siguen los colores del tema
     if (window.desktopApi && window.desktopApi.setOverlayColors) { const l = effTheme() === 'light'; try { window.desktopApi.setOverlayColors(l ? '#ffffff' : '#0a102a', l ? '#131722' : '#d1d4dc'); } catch (e) { /* ok */ } }
   }
@@ -1369,6 +1370,7 @@
     return n + ({ s: 'S', h: 'H', d: 'D', w: 'W', M: 'MES' })[u];
   }
   function tabLabelOf(cfg) {
+    if (cfg && cfg.fn && window.TVFunciones) { const ft = window.TVFunciones.titulo(cfg.fn); if (ft) return ft; }   // v0.24: pestaña en una función → su título
     const c = cfg && cfg.charts && (cfg.charts[cfg.active] || cfg.charts[0]);
     if (!c) return 'BTCUSDT-1H';
     const lst = (cfg.lists || []).find((l) => l.id === cfg.listActive);
@@ -1376,7 +1378,75 @@
   }
   const curTabLabel = () => tabLabelOf(A.cfg);
   let switching = false;
-  const pendingLiq = new Set();                       // v0.23: pestañas nuevas que nacen con el mapa de liquidaciones activado
+  const pendingHome = new Set();                      // v0.24: pestañas nuevas: nacen en la pantalla de tarjetas
+  const isFn = (cfg) => !!(cfg && cfg.fn);
+  // v0.23: el mapa de liquidaciones es un gráfico BTCUSDT 15 min con la capa activada
+  function applyLiqPreset(cfg) {
+    cfg.layout = '1'; cfg.active = 0;
+    Object.assign(cfg.charts[0], { symbol: 'BTCUSDT', exchange: 'binance', tf: 'm:15' });
+    cfg.charts[0].liq.on = true;
+  }
+  // Muestra una pestaña ya cargada (gráfico o función). `cur` = la pestaña que se deja (o null si es la misma).
+  function showTab(t, cur) {
+    if (cur) { cur.views.forEach((v) => v.setSuspended(true)); cur.gridEl.classList.add('tab-off'); }
+    A.tabId = t.id; API.setWindow(t.id);
+    A.cfg = t.cfg; A.views = t.views; A.gridEl = t.gridEl;
+    if (isFn(A.cfg)) {                                // función: sin gráficos en esta pestaña
+      document.body.classList.add('fn-mode'); $('fnHost').classList.remove('hidden');
+      t.gridEl.classList.add('tab-off');
+      if (t.theme !== A.cfg.theme) { applyTheme(); t.theme = A.cfg.theme; }
+      window.TVFunciones.mostrar(t.id, A.cfg.fn);
+      return;
+    }
+    document.body.classList.remove('fn-mode'); $('fnHost').classList.add('hidden');
+    if (window.TVFunciones) window.TVFunciones.ocultar();
+    t.gridEl.classList.remove('tab-off');
+    if (!t.views.length) {
+      applyLayout();
+      t.theme = A.cfg.theme; t.tz = A.cfg.tz; t.scriptsSig = sig(A.cfg.scripts);
+      applyTheme();
+    } else {
+      A.max = Number.isInteger(A.cfg.max) && A.cfg.max >= 0 && A.cfg.max < t.views.length ? A.cfg.max : -1;
+      applyMax();
+      if (t.theme !== A.cfg.theme) { applyTheme(); t.theme = A.cfg.theme; }
+      if (t.tz !== A.cfg.tz) { eachView((v) => v.applyTz()); t.tz = A.cfg.tz; }
+      if (t.scriptsSig !== sig(A.cfg.scripts)) { eachView((v) => v.refreshScripts && v.refreshScripts(true)); t.scriptsSig = sig(A.cfg.scripts); }
+      eachView((v) => { v.applyTimer(); if (v.draw) v.draw.repaint(); v.setSuspended(false); });
+      markActive(); renderStatus();
+    }
+    renderTfButtons();
+    if (!$('panel').classList.contains('hidden')) renderPanel();
+    if (window.TVBt) TVBt.render();
+    if (window.TVWatch) window.TVWatch.refresh();
+    if (window.TVDrawUI) window.TVDrawUI.refresh();
+  }
+  // Pantalla de tarjetas → una función (en esta misma pestaña)
+  function openFunction(fnId) {
+    const f = window.TVFunciones.porId(fnId), t = tabsState.get(A.tabId);
+    if (!f || !f.listo || !t) return;
+    if (f.tipo === 'grafico') {                        // Gráfico limpio / Mapa de liquidaciones: el gráfico de siempre
+      window.TVFunciones.quitar(t.id);
+      delete A.cfg.fn;
+      if (fnId === 'liq') applyLiqPreset(A.cfg);
+      t.theme = null;
+    } else A.cfg.fn = fnId;
+    saveTab(t.id, A.cfg);
+    showTab(t, null);
+    renderTabs(true);
+  }
+  // Barra de la función → «Inicio»: se cierra la función de esta pestaña (para sus relojes) y vuelven las tarjetas
+  function goHome() {
+    const t = tabsState.get(A.tabId); if (!t || !isFn(A.cfg)) return;
+    window.TVFunciones.quitar(t.id);
+    A.cfg.fn = 'inicio';
+    saveTab(t.id, A.cfg);
+    showTab(t, null);
+    renderTabs(true);
+  }
+  function toggleTheme() {
+    A.cfg.theme = effTheme() === 'dark' ? 'light' : 'dark';
+    applyTheme(); saveCfg(); if (tabsState.get(A.tabId)) tabsState.get(A.tabId).theme = A.cfg.theme;
+  }
   async function switchTab(id) {
     if (id === A.tabId || switching) return;
     switching = true;
@@ -1389,12 +1459,7 @@
         let saved = null;
         try { saved = await API.getConfig(id); } catch (e) { /* valores por defecto */ }
         const cfg = migrate(saved);
-        if (pendingLiq.has(id)) {
-          pendingLiq.delete(id);
-          cfg.layout = '1'; cfg.active = 0;
-          Object.assign(cfg.charts[0], { symbol: 'BTCUSDT', exchange: 'binance', tf: 'm:15' });
-          cfg.charts[0].liq.on = true;
-        }
+        if (pendingHome.has(id)) { pendingHome.delete(id); cfg.fn = 'inicio'; saveTab(id, cfg); }   // pestaña nueva: pantalla de tarjetas
         cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
         (cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
         const gridEl = document.createElement('div');
@@ -1405,27 +1470,7 @@
       }
       // lo compartido (plantillas, listas, scripts, tema…) pasa de la pestaña que se deja a la que se abre
       if (cur) SHARED_CLIENT.forEach((k) => { if (cur.cfg[k] !== undefined) t.cfg[k] = cur.cfg[k]; });
-      if (cur) { cur.views.forEach((v) => v.setSuspended(true)); cur.gridEl.classList.add('tab-off'); }
-      A.tabId = id; API.setWindow(id);
-      A.cfg = t.cfg; A.views = t.views; A.gridEl = t.gridEl;
-      t.gridEl.classList.remove('tab-off');
-      if (!t.views.length) {
-        applyLayout();
-        t.theme = A.cfg.theme; t.tz = A.cfg.tz; t.scriptsSig = sig(A.cfg.scripts);
-      } else {
-        A.max = Number.isInteger(A.cfg.max) && A.cfg.max >= 0 && A.cfg.max < t.views.length ? A.cfg.max : -1;
-        applyMax();
-        if (t.theme !== A.cfg.theme) { applyTheme(); t.theme = A.cfg.theme; }
-        if (t.tz !== A.cfg.tz) { eachView((v) => v.applyTz()); t.tz = A.cfg.tz; }
-        if (t.scriptsSig !== sig(A.cfg.scripts)) { eachView((v) => v.refreshScripts && v.refreshScripts(true)); t.scriptsSig = sig(A.cfg.scripts); }
-        eachView((v) => { v.applyTimer(); if (v.draw) v.draw.repaint(); v.setSuspended(false); });
-        markActive(); renderStatus();
-      }
-      renderTfButtons();
-      if (!$('panel').classList.contains('hidden')) renderPanel();
-      if (window.TVBt) TVBt.render();
-      if (window.TVWatch) window.TVWatch.refresh();
-      if (window.TVDrawUI) window.TVDrawUI.refresh();
+      showTab(t, cur);
       try { const u = new URL(location.href); u.searchParams.set('w', id); history.replaceState(null, '', u.toString()); } catch (e) { /* ok */ }
       Promise.resolve(API.setActive(id)).catch(() => {});
       renderTabs(true);
@@ -1457,31 +1502,16 @@
       }
       bar.appendChild(el);
     });
-    const nb = hh('button', 'tab-new', '+'); nb.title = tabs.length >= MAXTABS ? `Máximo ${MAXTABS} pestañas` : 'Nueva pestaña (gráfico limpio BTCUSDT, 1h)';
+    const nb = hh('button', 'tab-new', '+'); nb.title = tabs.length >= MAXTABS ? `Máximo ${MAXTABS} pestañas` : 'Nueva pestaña (elige una función)';
     nb.disabled = tabs.length >= MAXTABS;
-    const openNew = async (liq) => {
+    // v0.24: el «+» abre una pestaña nueva directamente con la pantalla de tarjetas (la función se elige ahí)
+    nb.onclick = async () => {
       nb.disabled = true;
       try {
         const r = await API.openWindow();
-        if (r && r.ok) { if (liq) pendingLiq.add(r.id); await switchTab(r.id); }
+        if (r && r.ok) { pendingHome.add(r.id); await switchTab(r.id); }
         else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; }
       } catch (e) { nb.disabled = false; }
-    };
-    // v0.23: el "+" ofrece un menú: gráfico limpio o mapa de liquidaciones
-    nb.onclick = (ev) => {
-      ev.stopPropagation();
-      document.querySelectorAll('.tab-menu').forEach((m) => m.remove());
-      const m = hh('div', 'ctx-menu tab-menu');
-      [['Nuevo gráfico limpio', () => openNew(false)], ['Mapa de liquidaciones', () => openNew(true)]].forEach(([t, fn]) => {
-        const b = hh('button', 'ctx-item'); b.append(hh('span', 'ctx-check', ''), hh('span', '', t));
-        b.onclick = () => { m.remove(); fn(); };
-        m.appendChild(b);
-      });
-      document.body.appendChild(m);
-      const r = nb.getBoundingClientRect();
-      m.style.left = Math.min(r.left, window.innerWidth - m.offsetWidth - 6) + 'px'; m.style.top = (r.bottom + 4) + 'px';
-      const off = (e2) => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('mousedown', off, true); } };
-      document.addEventListener('mousedown', off, true);
     };
     bar.appendChild(nb);
   }
@@ -1494,6 +1524,7 @@
     }
     const t = tabsState.get(id);
     const e = saveTimers.get(id); if (e) { clearTimeout(e.timer); saveTimers.delete(id); }
+    if (window.TVFunciones) window.TVFunciones.quitar(id);
     if (t) { t.views.forEach((v) => { try { v.destroy(); } catch (err) { /* ok */ } }); t.gridEl.remove(); tabsState.delete(id); }
     try { await API.closeWindow(id); } catch (err) { /* ok */ }
     renderTabs(true);
@@ -1823,6 +1854,7 @@
       if (e.key === 'Escape') { if (!(window.TVDrawUI && window.TVDrawUI.cancelProps())) closeModal(); if (A.max >= 0) { A.max = -1; A.cfg.max = -1; applyMax(); saveCfg(); } }
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (document.body.classList.contains('fn-mode')) return;       // v0.24: en una función no hay gráficos que mover
       if (e.key === '[' || e.key === ']') {
         const list = sortedTfs();
         const i = list.findIndex((t) => t.id === activeCfg().tf);
@@ -1936,6 +1968,9 @@
       const b = saved.bt && typeof saved.bt === 'object' ? saved.bt : {};
       cfg.bt = { h: Math.max(120, Math.min(900, Number(b.h) || 260)), tab: b.tab === 'trades' ? 'trades' : 'report', collapsed: !!b.collapsed };
     }
+    // v0.24: modo de la pestaña ('' = gráfico, 'inicio' = pantalla de tarjetas, o el id de una función con interfaz propia)
+    cfg.fn = window.TVFunciones_registro ? window.TVFunciones_registro.limpiar(cfg.fn) : '';
+    if (!cfg.fn) delete cfg.fn;
     cfg.version = 11;
     return cfg;
   }
@@ -2046,13 +2081,16 @@
     A.drawStore = G.drawStore; // para depuración (F12)
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png'; }
-    applyLayout();
+    window.TVFunciones.init({ host: $('fnHost'), API, tema: effTheme, cambiarTema: toggleTheme, abrir: openFunction, inicio: goHome });
+    if (isFn(A.cfg)) { document.body.classList.add('fn-mode'); $('fnHost').classList.remove('hidden'); applyTheme(); }   // la pestaña abierta al cerrar era una función
+    else applyLayout();
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
     if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
     const used = new Set(['binance']);
     (A.cfg.charts || []).forEach((c) => used.add(c.exchange || 'binance'));
     used.forEach((ex) => loadSymbols(ex).then(() => eachView((v) => v.applyLook())).catch(() => {}));
+    if (isFn(A.cfg)) window.TVFunciones.mostrar(A.tabId, A.cfg.fn);
   }
 
   // Las ventanas flotantes (Ajustes, propiedades de dibujos...) se cierran al hacer clic fuera de ellas

@@ -1,0 +1,14 @@
+/* Colores y tipografía de Ar_Trading: UNA sola fuente de verdad (v0.24).
+   La cargan styles.css (programa principal) y funciones/comun/tema.css (cada función dentro de su marco),
+   así todo se ve como un solo programa y el modo claro/oscuro manda en todas partes. */
+:root { --font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+body[data-theme="dark"] {
+  --bg: #0a102a; --panel: #1e222d; --border: #2a2e39; --text: #d1d4dc; --muted: #787b86;
+  --hover: #2a2e39; --active: #2962ff; --active-text: #ffffff; --input: #0a102a;
+  --ok: #26a69a; --bad: #ef5350; --warn: #f5a623; --acento: #00e5ee;
+}
+body[data-theme="light"] {
+  --bg: #ffffff; --panel: #f8f9fd; --border: #e0e3eb; --text: #131722; --muted: #787b86;
+  --hover: #eceff5; --active: #2962ff; --active-text: #ffffff; --input: #ffffff;
+  --ok: #1a8a7d; --bad: #d32f2f; --warn: #c77c00; --acento: #0088a0;
+}

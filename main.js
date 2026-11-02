@@ -1,10 +1,11 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, safeStorage, net } = require('electron');
 const path = require('path');
 const core = require('./src/core');
 const Store = require('./src/store');
 const Service = require('./src/service');
 const Autostart = require('./src/autostart');
+const Puente = require('./src/funciones/puente');
 
 // v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
@@ -14,6 +15,18 @@ if (!hwAtStart) app.disableHardwareAcceleration();
 // lo compartido (tema, plantillas, scripts…) vive aparte. Cambiar de pestaña recarga la página con la otra configuración.
 let store = null;
 let win = null;
+let puente = null;
+
+// v0.24: funciones de la pantalla de tarjetas. Un canal por mensaje, con el prefijo de cada función (noticias:…); toda la red sale de aquí.
+function registrarFunciones() {
+  const netFetch = (u, o) => (net && typeof net.fetch === 'function' ? net.fetch(u, o) : fetch(u, o));
+  puente = Puente.crearPuente({
+    datosBase: app.getPath('userData'), appData: app.getPath('appData'), fetch: netFetch, ahora: () => Date.now(),
+    cifrador: { disponible: () => safeStorage.isEncryptionAvailable(), cifrar: (s) => safeStorage.encryptString(s), descifrar: (b) => safeStorage.decryptString(b) },
+    abrirCarpeta: (ruta) => shell.openPath(ruta),
+  });
+  puente.canales().forEach((canal) => ipcMain.handle(canal, (_e, p) => puente.invocar(canal, p && p.args, p && p.inst)));
+}
 
 ipcMain.handle('klines', async (_e, p) => core.klines(p));
 ipcMain.handle('aggTrades', async (_e, p) => core.aggTrades(p));
@@ -158,12 +171,13 @@ app.whenReady().then(() => {
   core.setRole('app'); core.setAssets(Service.read(app.getPath('userData')).assets);
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
+  try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
   core.liqStart();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('before-quit', () => { core.shutdown(); });
+app.on('before-quit', () => { core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

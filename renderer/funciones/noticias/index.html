@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+<title>Noticias macroeconómicas</title><link rel="stylesheet" href="../comun/tema.css"><link rel="stylesheet" href="estilo.css"></head>
+<body data-theme="dark">
+<header class="hd">
+  <div class="hl"><button id="btnActualizar" class="btn solido">Actualizar calendario</button><span id="actualizado" class="av"></span></div>
+  <h1>NOTICIAS MACROECONÓMICAS</h1>
+  <p class="s">Calendario económico, valores publicados y reporte bajo demanda: sorpresa de los datos, mercado global y reacción histórica de BTC.</p>
+</header>
+<div id="banners"></div>
+<div id="avisos"></div>
+<section class="card b-cy ordenes">
+  <h2>Órdenes</h2>
+  <div class="fila"><input id="orden" type="text" placeholder="Escribe una orden, por ejemplo: reporte de la lista de seguimiento" autocomplete="off"><button id="btnOrden" class="btn solido grande">Enviar</button></div>
+  <div id="chips" class="chips"></div>
+</section>
+<nav class="tabs">
+  <button class="btn tab activa" data-tab="cal">Calendario</button>
+  <button class="btn tab" data-tab="rep">Reporte</button>
+  <button class="btn tab" data-tab="lista">Lista y clave</button>
+</nav>
+<main>
+  <section id="tab-cal">
+    <div class="barra">
+      <div class="seg" id="segRango"><button class="btn" data-rango="hoy">Hoy</button><button class="btn activa" data-rango="semana">Esta semana</button></div>
+      <div class="grupo" id="pills">
+        <label class="filtro alta"><input type="checkbox" class="imp" value="alta" checked><span><i class="punto"></i>Alta</span></label>
+        <label class="filtro media"><input type="checkbox" class="imp" value="media" checked><span><i class="punto"></i>Media</span></label>
+        <label class="filtro baja"><input type="checkbox" class="imp" value="baja"><span><i class="punto"></i>Baja</span></label>
+      </div>
+      <div class="drop"><button id="btnPaises" class="btn">Países</button><div id="panelPaises" class="desplegable" hidden></div></div>
+      <div class="grow"></div>
+      <button id="btnPublicados" class="btn">Traer valores publicados</button>
+    </div>
+    <div class="card b-cy"><div class="tabla-caja"><table id="tablaCal"><thead><tr><th>Fecha</th><th>Hora</th><th>País</th><th>Imp.</th><th>Evento</th><th>Previo</th><th>Esperado</th><th>Publicado</th></tr></thead><tbody></tbody></table></div></div>
+    <p id="cuentaCal" class="av"></p>
+  </section>
+  <section id="tab-rep" hidden>
+    <div class="barra">
+      <div class="seg verde" id="segPeriodo"><button class="btn activa" data-periodo="semana">Esta semana</button><button class="btn" data-periodo="mes">Este mes</button></div>
+      <div class="grow"></div><span id="copiado" class="av"></span><button id="btnCopiar" class="btn" disabled>Copiar reporte</button>
+    </div>
+    <div id="resultado"><p class="empty">Elige «Esta semana» o «Este mes», o envía una orden, para ver el reporte.</p></div>
+  </section>
+  <section id="tab-lista" hidden>
+    <div class="card b-cy"><h2>Lista de seguimiento</h2><div id="checksLista" class="checks"></div><button id="btnGuardarLista" class="btn solido">Guardar lista</button></div>
+    <div class="card b-pu"><h2>Clave de FRED (opcional)</h2>
+      <p class="av">No es una suscripción ni se paga: es un código gratuito. <b>Sin clave la app funciona</b> (calendario, valores publicados, mercado y gráficos). La clave solo sirve para calcular la reacción histórica de BTC. <span id="estadoClave"></span></p>
+      <div class="fila"><input id="clave" type="password" placeholder="Opcional: pega aquí tu clave gratuita de FRED" autocomplete="off"><button id="btnClave" class="btn">Guardar clave</button></div></div>
+    <div class="card b-gr"><h2>Datos editables</h2>
+      <p class="av">Los códigos de FRED y las reglas «más restrictivo» y «mejor/peor para la economía» están en <b>series_fred.json</b> (se abre con el Bloc de notas). Todo está marcado <b>a verificar</b>.</p>
+      <button id="btnCarpeta" class="btn">Abrir carpeta de datos</button></div>
+  </section>
+</main>
+<script src="../comun/puente.js"></script>
+<script src="banderas.js"></script>
+<script src="app.js"></script>
+</body></html>

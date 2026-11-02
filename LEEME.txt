@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.23.6
+AR_TRADING - VERSION 0.24.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.24.0 - PANTALLA DE TARJETAS + NOTICIAS MACRO
+- El boton "+" ahora abre una pestana con 5 tarjetas: Grafico limpio, Mapa de liquidaciones, Simulador de posiciones, Monitor de blockchain y Noticias macro. "Abrir" muestra la funcion en esa misma pestana.
+- Grafico limpio y Mapa de liquidaciones funcionan igual que antes (la pestana conserva su nombre de siempre, por ejemplo FAVORITOS-BTCUSDT-1H).
+- Noticias macro integrada: calendario economico, valores publicados, mercado global y reporte. Mismo estilo de Ar_Trading (modo claro/oscuro incluido). El boton "Inicio" (arriba a la izquierda) vuelve a las tarjetas y cierra la funcion en esa pestana. Para cambiar claro/oscuro en una funcion usa el boton de la derecha de su barra.
+- Las tarjetas de mercado se renuevan cada hora SOLO mientras esa pestana este abierta y a la vista.
+- Tus datos de Noticias ahora estan en la carpeta de datos de Ar_Trading. Si ya usabas el monitor suelto, se copian solos la primera vez (lo viejo no se borra). LA CLAVE DE FRED NO SE PUEDE TRASPASAR (va cifrada con otra llave): pegala otra vez en "Lista y clave". La clave nunca se guarda sin cifrar.
+- Si una funcion falla, solo falla esa pestana: los graficos y las demas funciones siguen.
+- Simulador y Monitor de blockchain: tarjetas visibles pero apagadas; llegan en la v0.25 (el cambio se dividio en dos versiones como permitiste). Sumar funciones futuras (como el auditor de trades) solo requiere una tarjeta y su modulo.
+- Probado: pruebas de Node (79 de Noticias + 40 de la base + las de siempre), Chromium con datos simulados (42 comprobaciones) y Electron en Linux. SIN probar: Windows, y la red real (Forex Factory, FRED, Binance).
 
 NOVEDADES DE LA v0.23.6 - SOLO GUARDAR LO QUE NO SE PUEDE VOLVER A BAJAR
 - Se quito lo que se puede bajar de internet en cualquier momento (velas de 1 min, funding, grabar operaciones, archivo de velas de 5 min): menos codigo y menos trabajo en segundo plano. TUS ARCHIVOS YA GUARDADOS NO SE BORRAN (la carpeta "hist" ya no se usa; si quieres espacio, la puedes borrar tu).

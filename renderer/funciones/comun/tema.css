@@ -1,0 +1,53 @@
+/* Estilo común de las funciones (v0.24): son los MISMOS colores, tipografía y componentes de Ar_Trading (../../tokens.css),
+   así que modo claro/oscuro, botones, tarjetas, tablas, desplegables e interruptores se ven iguales en todo el programa.
+   Vive dentro del marco de cada función: no puede alterar los estilos del resto de Ar_Trading ni al revés. */
+@import url("../../tokens.css");
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; line-height: 1.45; overflow: auto; padding: 14px 18px 28px; }
+h1 { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+h2 { font-size: 14px; font-weight: 700; margin: 0 0 10px; }
+h3 { font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.hint, .av { color: var(--muted); font-size: 12px; }
+.grow { flex: 1; }
+.fila { display: flex; gap: 8px; align-items: center; }
+.empty { color: var(--muted); text-align: center; padding: 30px; }
+/* Botones (igual que .btn de Ar_Trading: azul de acción; .secundario como .btn.secondary) */
+.btn { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.btn:hover:not(:disabled) { background: var(--hover); }
+.btn.solido, .btn.activa { background: var(--active); color: var(--active-text); border-color: var(--active); }
+.btn.solido:hover:not(:disabled) { filter: brightness(1.1); background: var(--active); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible { outline: 2px solid var(--active); outline-offset: 1px; }
+.btn.peque { padding: 2px 8px; font-size: 11px; }
+.btn.grande { padding: 8px 20px; font-size: 14px; }
+/* Campos */
+input[type=text], input[type=password], input[type=number], select, textarea { background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font: inherit; width: 100%; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--active); }
+/* Tarjetas */
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; overflow-x: auto; }
+.card.b-cy { border-color: var(--acento); } .card.b-pu { border-color: var(--active); } .card.b-gr { border-color: var(--ok); } .card.b-am { border-color: var(--warn); }
+/* Interruptores */
+.sw { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 8px; border-radius: 4px; }
+.sw:hover { background: var(--hover); }
+.sw input { position: absolute; opacity: 0; }
+.sw .pista { width: 36px; height: 20px; border-radius: 10px; background: var(--border); position: relative; transition: background .15s; flex: none; }
+.sw .pista::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+.sw input:checked + .pista { background: var(--active); }
+.sw input:checked + .pista::after { left: 19px; }
+.sw input:focus-visible + .pista { outline: 2px solid var(--active); outline-offset: 2px; }
+.sw .nombre { flex: 1; font-weight: 600; }
+/* Desplegables */
+.drop { position: relative; }
+.desplegable { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 260px; max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px; box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+/* Tablas */
+.tabla-caja { overflow: auto; max-height: 52vh; }
+table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+tbody tr:hover { background: var(--hover); }
+/* Avisos */
+.banner { background: var(--bad); color: #fff; padding: 8px 14px; font-weight: 700; border-radius: 4px; margin-bottom: 8px; }
+.aviso { background: var(--panel); border-left: 3px solid var(--warn); padding: 6px 12px; font-size: 12px; color: var(--muted); margin-bottom: 6px; border-radius: 0 4px 4px 0; }
+details { margin-top: 8px; } summary { cursor: pointer; font-weight: 700; padding: 6px; border-radius: 4px; } summary:hover { background: var(--hover); }

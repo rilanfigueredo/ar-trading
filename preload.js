@@ -33,5 +33,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
   dataBackup: () => ipcRenderer.invoke('data:backup'),
   dataSetDir: () => ipcRenderer.invoke('data:setDir'),
   dataResetDir: () => ipcRenderer.invoke('data:resetDir'),
+  // v0.24: funciones. Solo canales con prefijo propio (noticias:…); nunca los internos del programa.
+  fnInvocar: (canal, args, inst) => (/^(?!config:|window:|service:|data:|shared:)[a-z][a-z0-9]*:[a-z][a-z0-9-]*$/.test(String(canal)) ? ipcRenderer.invoke(canal, { args, inst }).catch(() => ({ ok: false, error: 'Esa función no está disponible.' })) : Promise.resolve({ ok: false, error: 'Canal no permitido.' })),
   onShared: (cb) => ipcRenderer.on('shared:update', (_e, patch) => cb(patch)),
 });

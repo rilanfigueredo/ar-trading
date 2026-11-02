@@ -5,9 +5,20 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const core = require('./src/core');
-core.setDataDir(path.join(__dirname, 'data'));
-const store = require('./src/store').create(path.join(__dirname, 'data'));   // v0.22: configuración por ventana + parte compartida
+const Puente = require('./src/funciones/puente');
+const DATA = process.env.AR_DATA_DIR || path.join(__dirname, 'data');   // AR_DATA_DIR: solo para pruebas
+core.setDataDir(DATA);
+const store = require('./src/store').create(DATA);   // v0.22: configuración por ventana + parte compartida
 
+// v0.24: funciones. En el modo navegador no hay cifrado del sistema (las claves no se guardan) ni carpeta que abrir.
+// Con TV_MOCK=1 (pruebas) la red de las funciones es simulada (test/noticias.datos.js) y el cifrado es de juguete.
+const MOCK = process.env.TV_MOCK === '1';
+const SIM = MOCK ? require('./test/noticias.datos') : null;
+const puente = Puente.crearPuente({
+  datosBase: DATA, appData: null, fetch: MOCK ? SIM.crearFetch() : (u, o) => fetch(u, o), ahora: MOCK ? () => SIM.AHORA : () => Date.now(),
+  cifrador: MOCK ? { disponible: () => true, cifrar: (t) => Buffer.from(Buffer.from(t).map((b) => b ^ 0x5a)), descifrar: (b) => Buffer.from(b.map((x) => x ^ 0x5a)).toString() } : { disponible: () => false },
+  abrirCarpeta: null,
+});
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, 'renderer');
 const TYPES = {
@@ -30,6 +41,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/testconnection') return send(res, 200, await core.testConnection());
     if (url.pathname === '/api/symbols') return send(res, 200, await core.symbols(Object.fromEntries(url.searchParams)));
     if (url.pathname === '/api/tickers') return send(res, 200, await core.tickers(Object.fromEntries(url.searchParams)));
+    if (url.pathname === '/api/fn' && req.method === 'POST') {
+      let data = ''; for await (const chunk of req) data += chunk;
+      const b = JSON.parse(data || '{}');
+      return send(res, 200, await puente.invocar(b.canal, b.args, b.inst));
+    }
     if (url.pathname === '/api/config') {
       const w = url.searchParams.get('w') || 'w1';
       if (req.method === 'POST') {
@@ -43,7 +59,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/data/status') return send(res, 200, Object.assign(await core.dataStatus(), { desktop: false }));
     if (url.pathname === '/api/data/assets' && req.method === 'POST') {
       let data = ''; for await (const chunk of req) data += chunk;
-      const Service = require('./src/service'), d = path.join(__dirname, 'data');
+      const Service = require('./src/service'), d = DATA;
       Service.write(d, { assets: JSON.parse(data) }); core.setAssets(Service.read(d).assets); core.restartLiq();
       return send(res, 200, { ok: true });
     }
@@ -84,7 +100,7 @@ const server = http.createServer(async (req, res) => {
 
 process.on('SIGINT', () => { core.shutdown(); process.exit(0); });
 process.on('SIGTERM', () => { core.shutdown(); process.exit(0); });
-core.setRole('app'); core.setAssets(require('./src/service').read(path.join(__dirname, 'data')).assets); core.liqStart();
+core.setRole('app'); core.setAssets(require('./src/service').read(DATA).assets); core.liqStart();
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Ar_Trading en modo navegador: http://localhost:${PORT}`);
 });
