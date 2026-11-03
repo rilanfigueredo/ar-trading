@@ -2068,7 +2068,7 @@
 
   async function init() {
     let saved = null;
-    try { saved = await API.getConfig(); } catch (e) { /* valores por defecto */ }
+    try { saved = await API.getConfig(); } catch (e) { await new Promise((r) => setTimeout(r, 600)); try { saved = await API.getConfig(); } catch (e2) { /* valores por defecto */ } }   // v0.26.2: un reintento antes de rendirse (no se parte de cero por un fallo de un instante)
     A.cfg = migrate(saved);
     A.tabId = API.windowId || 'w1'; A.gridEl = $('grid');
     // Velas por volumen: desactivadas por ahora (ver NOTAS_VELAS_VOLUMEN.txt). Se limpian de configuraciones guardadas.

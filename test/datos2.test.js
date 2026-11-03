@@ -92,17 +92,30 @@ const tmp = (n) => fs.mkdtempSync(path.join(os.tmpdir(), n));
   const d = tmp('areth-');
   const sock = (ex, onEvent, onState, syms) => { onState('ok', 'test'); setTimeout(() => { onEvent({ t: 1700000000, ex, sym: 'BTCUSDT', side: 0, price: 1, usd: 1 }); onEvent({ t: 1700000001, ex, sym: 'ETHUSDT', side: 1, price: 2, usd: 3 }); onEvent({ t: 1700000002, ex, sym: 'SOLUSDT', side: 1, price: 2, usd: 3 }); }, 5); assert.deepStrictEqual(syms, both); return { close() {} }; };
   const deps = Object.assign({}, L.mockDeps(), { openSocket: sock });
-  const svc = L.create({ dir: d, deps, assets: ['ETHUSDT', 'ETHUSDT', 'NOEXISTE'] });
+  const svc = L.create({ dir: d, deps, compressDelayMs: 0, assets: ['ETHUSDT', 'ETHUSDT', 'NOEXISTE'] });
   await svc.start(); await new Promise((r) => setTimeout(r, 60));
+  await new Promise((r) => setTimeout(r, 300));
   const rows = svc.dataInfo(); svc.stop();
   const eth = rows.find((x) => x.id === 'liq-events-ETHUSDT');
   assert.ok(eth && eth.bytes > 0, 'ETH tiene su propio archivo y peso');
   assert.ok(!rows.find((x) => x.id === 'liq-events-SOLUSDT'), 'un activo no elegido no se guarda');
   assert.ok(fs.existsSync(path.join(d, 'ETHUSDT')) && fs.readdirSync(path.join(d, 'ETHUSDT')).some((f) => /^events-/.test(f)));
   assert.ok(!fs.readFileSync(path.join(d, fs.readdirSync(d).find((f) => /^events-/.test(f))), 'utf8').includes('ETHUSDT'), 'los eventos de BTC no se mezclan con los de ETH');
-  assert.ok(svc.compressInfo().at, 'la compresión corrió al arrancar');
+  assert.ok(svc.compressInfo().at, 'la compresión corrió (sin bloquear) poco después de arrancar');
   fs.rmSync(d, { recursive: true, force: true });
   console.log('ETH OK');
+  // v0.26.2: la compresión que no bloquea da el mismo resultado y no pierde datos
+  const Ev = require('../src/liq/events');
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'cmpa-'));
+  const lin = []; for (let i = 0; i < 2000; i++) lin.push(JSON.stringify({ t: 1759300000 + i, ex: 'binance', side: 'long', price: 60000 + i, usd: 1000 + i }));
+  fs.writeFileSync(path.join(d2, 'events-2025-10.jsonl'), lin.join('\n') + '\n');
+  const e9 = Ev.create(d2); const ra = await e9.compressAsync(Date.parse('2026-11-03') / 1000);
+  assert.strictEqual(ra.files, 1); assert.deepStrictEqual(ra.errors, []);
+  assert.ok(!fs.existsSync(path.join(d2, 'events-2025-10.jsonl')) && fs.existsSync(path.join(d2, 'events-2025-10.jsonl.gz')));
+  assert.strictEqual(e9.load(1759300000 - 1).length, 2000, 'tras comprimir se leen los mismos 2000 eventos');
+  assert.strictEqual((await e9.compressAsync(Date.parse('2026-11-03') / 1000)).files, 0);
+  fs.rmSync(d2, { recursive: true, force: true });
+  console.log('compresión sin bloqueo OK');
 })().catch((e) => { console.error(e); process.exit(1); });
 
 // --- arranque automático (carpeta Inicio de Windows): se prueba con una carpeta cualquiera ---

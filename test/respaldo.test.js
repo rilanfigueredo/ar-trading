@@ -40,7 +40,8 @@ const ahora = () => { reloj = new Date(reloj.getTime() + 1000); return reloj; };
   ok(R.auto({ userData: ud, destino: dest, ahora }).omitido === true, 'auto: justo después, no repite');
   for (let i = 0; i < 6; i++) { w(path.join(ud, 'win-w1.json'), '{"i":' + i + '}'); R.auto({ userData: ud, destino: dest, max: 3, ahora }); }
   const l = R.listar(dest);
-  ok(l.filter((x) => x.origen === 'auto').length === 3, 'auto: rota a 3 (' + l.filter((x) => x.origen === 'auto').length + ')');
+  ok(l.filter((x) => x.origen === 'auto').length === 4, 'auto: rota a 3 y además conserva el más completo (v0.26.2) (' + l.filter((x) => x.origen === 'auto').length + ')');
+  ok(l.some((x) => x.origen === 'auto' && fs.readFileSync(path.join(x.ruta, 'archivos', 'win-w1.json'), 'utf8').includes('charts')), 'auto: el respaldo más completo no se borra');
   ok(l.filter((x) => x.origen === 'manual').length === 1, 'auto: el manual nunca se borra solo');
   ok(R.auto({ userData: tmp('ar-vacio-'), destino: tmp('ar-bk2-'), ahora }).omitido === true, 'auto: sin configuración todavía no crea un respaldo vacío');
 

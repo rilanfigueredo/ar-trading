@@ -4,6 +4,13 @@ AR_TRADING - VERSION 0.26.1
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
 
+NOVEDADES DE LA v0.26.2 - SE ACABA EL CUELGUE Y SE PROTEGEN TUS PLANTILLAS
+- Causa encontrada del cuelgue: al abrir, el programa comprimia de golpe, y sin avisar, los datos de liquidaciones del mes ya cerrado y la ventana quedaba congelada (con datos grandes: 5,7 s medidos). Ahora lo hace despues de 90 s, fuera del hilo principal y de a poco.
+- Tus plantillas, herramientas y ajustes ya no se pueden perder por un fallo de lectura: se reintenta, se guarda una copia .bak y un archivo danado se aparta, nunca se reemplaza por uno vacio.
+- El respaldo automatico conserva siempre el mas completo.
+- El Monitor de blockchain solo consulta mientras su pestana esta abierta y a la vista; sin pestana no consume nada. Noticias igual.
+- Segundo plano: solo se guardan las liquidaciones reales y el interes abierto (lo que no se puede volver a bajar).
+
 NOVEDADES DE LA v0.26.1 - ARRANQUE MAS LIGERO, REGISTRO DE PROBLEMAS Y MODO SEGURO
 - Motivo: la v0.26.0 instalada se colgaba a los pocos segundos en un PC con Windows. No se pudo reproducir fuera de ese PC, asi que esta version hace TRES cosas para resolverlo y, si falla otra vez, saber por que.
 - ARRANQUE MAS LIGERO: la pantalla se abre primero; lo demas (guardado de liquidaciones en segundo plano y el buscador de versiones nuevas) empieza DESPUES de que la pantalla ya esta abierta.

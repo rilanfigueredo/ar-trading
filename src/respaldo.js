@@ -84,7 +84,10 @@ function auto({ userData, destino, max = 20, appVersion = '', ahora }) {
   if (!recoger(userData).length) return { omitido: true, motivo: 'todavía no hay configuración que respaldar' };
   const r = hacer({ userData, destino, origen: 'auto', appVersion, ahora });
   const autos = listar(destino).filter((x) => x.origen === 'auto');
-  for (const x of autos.slice(Math.max(1, max))) { try { fs.rmSync(x.ruta, { recursive: true, force: true }); } catch (e) { /* ok */ } }
+  // v0.26.2: el respaldo MÁS COMPLETO (el de más peso) nunca se borra por antigüedad: si algún día la configuración quedara vacía, no arrastra consigo a los buenos
+  const mayor0 = autos.reduce((a, b) => (b.bytes > (a ? a.bytes : -1) ? b : a), null);
+  const mayor = mayor0 && autos.slice(0, Math.max(1, max)).every((k) => k.bytes < mayor0.bytes) ? mayor0 : null;   // solo si de verdad es más completo que los que se quedan
+  for (const x of autos.slice(Math.max(1, max))) { if (mayor && x.ruta === mayor.ruta) continue; try { fs.rmSync(x.ruta, { recursive: true, force: true }); } catch (e) { /* ok */ } }
   return r;
 }
 

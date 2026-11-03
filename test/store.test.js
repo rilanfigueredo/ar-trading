@@ -89,3 +89,18 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'artr-'));
   assert.deepStrictEqual(m.tfs, ['d:1']); assert.strictEqual(m.listActive, 'l9');
 }
 console.log('store.test.js OK');
+// v0.26.2: un archivo ilegible NO se pierde ni se reemplaza por uno vacío
+(() => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const Store = require('../src/store');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'stb-'));
+  let s = Store.create(d);
+  s.getConfig('w1'); s.setConfig('w1', { templates: [{ id: 't1', name: 'mi plantilla' }], theme: 'dark', charts: [] });
+  s.setConfig('w1', { templates: [{ id: 't1', name: 'mi plantilla' }, { id: 't2', name: 'otra' }], theme: 'light', charts: [] });   // la segunda vez deja .bak
+  fs.writeFileSync(path.join(d, 'config.json'), '{ roto');                                              // simula lectura/escritura a medias
+  s = Store.create(d);
+  const c = s.getConfig('w1');
+  const ok = c && c.templates && c.templates.length >= 1;
+  if (!ok) { console.error('FALLA: se perdieron las plantillas con el archivo dañado', JSON.stringify(c).slice(0, 200)); process.exit(1); }
+  console.log('OK  archivo dañado: se recuperan las plantillas desde la copia .bak');
+})();

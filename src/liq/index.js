@@ -65,9 +65,16 @@ function create(opt) {
     if (!sym || sym === S.SYMBOL) { store.addEvent(e); status[ex].lastEvent = e.t; } else if (exStores[sym]) exStores[sym].add(e);
   };
   let compressInfo = { at: null, files: 0, saved: 0, errors: [] }, compressT = null;
-  const compressAll = () => {
+  let compressing = false;
+  const compressAll = async () => {                                  // v0.26.2: fuera del hilo principal y un mes cada vez
+    if (compressing) return compressInfo;
+    compressing = true;
     const r = { at: Math.floor(Date.now() / 1000), files: 0, saved: 0, errors: [] };
-    [store.compress].concat(extra.map((a) => () => exStores[a].compress())).forEach((fn) => { try { const x = fn(); r.files += x.files; r.saved += x.saved; r.errors.push.apply(r.errors, x.errors); } catch (e) { r.errors.push(e.message); } });
+    try {
+      for (const fn of [store.compressAsync].concat(extra.map((a) => () => exStores[a].compressAsync()))) {
+        try { const x = await fn(); r.files += x.files; r.saved += x.saved; r.errors.push.apply(r.errors, x.errors); } catch (e) { r.errors.push(e.message); }
+      }
+    } finally { compressing = false; }
     compressInfo = r; return r;
   };
   let pollT = null, stopped = false, cache = null;
@@ -106,7 +113,9 @@ function create(opt) {
       const sock = deps.openSocket(ex, (ev) => onLiq(ex, ev), (state, txt) => { status[ex].ws = state === 'ok' ? 'ok' : 'error'; status[ex].wsMsg = txt || ''; }, syms);
       socks.push(sock);
     });
-    compressAll(); compressT = setInterval(compressAll, 6 * 3600 * 1000); if (compressT.unref) compressT.unref();
+    // la primera compresión espera 90 s (que el programa ya esté abierto y tranquilo); después, cada 6 horas
+    const t0 = setTimeout(() => { compressAll().catch(() => {}); }, opt.compressDelayMs === undefined ? 90000 : opt.compressDelayMs); if (t0.unref) t0.unref();
+    compressT = setInterval(() => { compressAll().catch(() => {}); }, 6 * 3600 * 1000); if (compressT.unref) compressT.unref();
     await cycle(true);
     if (!stopped) { pollT = setInterval(() => { cycle(false); }, POLL_MS); if (pollT.unref) pollT.unref(); }
   }
