@@ -1,0 +1,43 @@
+# Publica el instalador de Windows cuando se sube una etiqueta de versión (v0.26.0, v0.27.0…).
+# Lo hace GitHub en un Windows real (así el icono y el instalador salen bien) y deja en «Releases»:
+#   Ar_Trading-Instalador-X.Y.Z.exe + latest.yml (+ blockmap): con eso el programa instalado detecta y descarga la versión nueva solo.
+name: Publicar versión
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - name: La etiqueta debe coincidir con la versión de package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node -e "const v=require('./package.json').version; const t='${{ github.ref_name }}'.replace(/^v/,''); if(v!==t){console.error('La etiqueta '+t+' no coincide con package.json ('+v+')');process.exit(1)}"
+  instalador:
+    needs: pruebas
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Crear y publicar el instalador
+        run: npx electron-builder --win --publish always -c.win.signAndEditExecutable=true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Poner las novedades en la publicación
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          node tools/notas_version.js > notas.txt
+          gh release edit "${{ github.ref_name }}" --notes-file notas.txt --title "Ar_Trading ${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

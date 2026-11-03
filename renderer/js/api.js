@@ -47,6 +47,10 @@
           status: () => desktop.dataStatus(), setAssets: (l) => desktop.dataSetAssets(l), svcEnable: () => desktop.dataSvcEnable(), svcDisable: () => desktop.dataSvcDisable(), openFolder: () => desktop.dataOpenFolder(),
           backup: () => desktop.dataBackup(), setDir: () => desktop.dataSetDir(), resetDir: () => desktop.dataResetDir(),
         },
+        // v0.26: respaldo, actualizaciones y acceso desde el móvil (app de escritorio)
+        respaldo: { get: () => desktop.respaldoGet(), hacer: () => desktop.respaldoHacer(), elegir: () => desktop.respaldoElegir(), usarDefecto: () => desktop.respaldoUsarDefecto(), setAuto: (on) => desktop.respaldoSetAuto(on), abrir: () => desktop.respaldoAbrir(), restaurar: (r) => desktop.respaldoRestaurar(r) },
+        update: { get: () => desktop.updateGet(), check: () => desktop.updateCheck(), install: () => desktop.updateInstall(), onChange: (cb) => desktop.onUpdate(cb) },
+        movil: { get: () => desktop.movilGet(), set: (on) => desktop.movilSet(on), codigoNuevo: () => desktop.movilCodigoNuevo(), puerto: (p) => desktop.movilPuerto(p) },
         service: {
           get: () => desktop.serviceGet(), setHw: (on) => desktop.serviceSetHw(on), relaunch: () => desktop.serviceRelaunch(),
           clearCache: () => desktop.serviceClearCache(), factoryReset: () => desktop.serviceFactoryReset(),
@@ -78,6 +82,9 @@
           backup: async () => ({ ok: false, error: 'Solo en la app de escritorio. En el navegador copia la carpeta data a mano.' }),
           setDir: async () => ({ ok: false, error: 'Solo en la app de escritorio.' }), resetDir: async () => ({ ok: false }),
         },
+        // v0.26: en el navegador/móvil solo se consulta la versión (el respaldo y el acceso se manejan en la app del PC)
+        respaldo: null, movil: null,
+        update: { get: async () => { const v = await http('/api/version').catch(() => null); if (!v) return { fase: 'ninguna' }; return { fase: v.hayNueva ? 'disponible' : v.error ? 'error' : 'alDia', actual: v.actual, version: v.ultima || '', notas: v.notas || '', url: v.url || '', error: v.error || '', instalable: false, soloAviso: true }; }, check: async () => window.TVApi.update.get(), install: async () => ({ ok: false }), onChange: () => {} },
         service: {
           get: () => http('/api/service/get'), setHw: async () => ({ ok: false }), relaunch: async () => { location.reload(); return { ok: true }; },
           clearCache: async () => ({ ok: true }), factoryReset: () => http('/api/service/factoryreset', { method: 'POST' }),

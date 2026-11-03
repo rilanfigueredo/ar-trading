@@ -621,3 +621,14 @@ body.fn-mode #toolbar, body.fn-mode #main { display: none; }
 .fn-card-b:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
 .fn-card-note { font-size: 12px; color: var(--muted); }
 .fn-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--bg); text-align: center; padding: 20px; }
+
+/* v0.26: cartel de actualización, respaldos y acceso desde el móvil */
+.upd-banner { position: fixed; right: 16px; bottom: 16px; z-index: 9000; width: min(360px, calc(100vw - 32px)); background: var(--panel); color: var(--text); border: 1px solid var(--active); border-radius: 10px; padding: 14px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+.upd-t b { display: block; font-size: 14px; margin-bottom: 2px; } .upd-v { font-size: 12.5px; color: var(--muted); }
+.upd-f { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.upd-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 10px; overflow: hidden; } .upd-bar i { display: block; height: 100%; background: var(--active); }
+.btn.primary { background: var(--active); color: var(--active-text); border-color: var(--active); }
+.upd-notas { max-height: 160px; overflow: auto; white-space: pre-wrap; font: 12px/1.4 inherit; background: var(--input); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.bk-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); } .bk-f { font-weight: 600; min-width: 170px; } .bk-t { flex: 1; color: var(--muted); font-size: 12.5px; }
+.mv-box { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; margin: 10px 0; } .mv-code { font-size: 34px; letter-spacing: .25em; font-weight: 700; margin: 4px 0 10px; font-variant-numeric: tabular-nums; }
+.mv-url { font-family: Consolas, monospace; font-size: 14px; margin: 3px 0; user-select: all; } .mv-box img { background: #fff; border-radius: 8px; padding: 6px; }

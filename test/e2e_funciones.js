@@ -186,6 +186,26 @@ async function shot(page, n) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: tru
     ok(aj.ok && aj.datos.notifyNewBlock === true, 'Blockchain: los avisos se guardan');
     await shot(page, '10_blockchain');
 
+    // --- 13 (v0.26): Ajustes > Respaldo / Móvil / Programa y app instalable (modo navegador)
+    await page.click('#tabBar .tab:nth-child(1)'); await esperar(900);
+    await page.click('#btnSettings'); await page.waitForSelector('.setwin .props-tab');
+    const pestanas = await page.$$eval('.setwin .props-tab', (a) => a.map((x) => x.textContent));
+    ok(pestanas.join('|') === 'General|Gráfico|Plantillas|Paleta|Datos|Servicio|Respaldo|Móvil|Programa', 'Ajustes: pestañas nuevas: ' + pestanas.join('|'));
+    await page.click('.setwin .props-tab:has-text("Respaldo")'); await esperar(300);
+    ok(/app de escritorio/.test(await page.innerText('.setwin .props-body')), 'Respaldo: en el navegador lo explica (solo app de escritorio)');
+    await page.click('.setwin .props-tab:has-text("Móvil")'); await esperar(300);
+    ok(/app de escritorio/.test(await page.innerText('.setwin .props-body')), 'Móvil: en el navegador lo explica');
+    await page.click('.setwin .props-tab:has-text("Programa")'); await esperar(800);
+    const prog = await page.innerText('.setwin .props-body');
+    ok(/Versión instalada/.test(prog) && /Estás al día/.test(prog) && /Buscar actualizaciones/.test(prog), 'Programa: versión y estado de actualización');
+    await shot(page, '11_ajustes_programa');
+    await page.keyboard.press('Escape'); await esperar(300);
+    const man = await page.evaluate(() => fetch('/manifest.webmanifest').then((r) => r.json()));
+    ok(man.display === 'standalone' && man.icons.length >= 3, 'App instalable: manifiesto disponible');
+    const swOk = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return !!r; });
+    ok(swOk, 'App instalable: service worker registrado (localhost)');
+    ok(await page.evaluate(() => !!document.querySelector('link[rel=manifest]') && !!document.querySelector('meta[name=theme-color]')), 'App instalable: etiquetas en la página');
+
     ok(errores.filter((e) => !/favicon|net::ERR|Failed to load resource/.test(e)).length === 0, 'cero errores de consola: ' + JSON.stringify(errores.slice(0, 4)));
   } catch (e) {
     fallan++; console.log('  ERROR en la prueba: ' + e.message);

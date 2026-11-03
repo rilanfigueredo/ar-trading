@@ -1,9 +1,6 @@
 // Modo navegador: sirve la interfaz en http://localhost:3000 (respaldo si Electron no funciona).
 'use strict';
-const http = require('http');
-const fs = require('fs');
 const path = require('path');
-const { URL } = require('url');
 const core = require('./src/core');
 const Puente = require('./src/funciones/puente');
 const DATA = process.env.AR_DATA_DIR || path.join(__dirname, 'data');   // AR_DATA_DIR: solo para pruebas
@@ -21,81 +18,11 @@ const puente = Puente.crearPuente({
 });
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, 'renderer');
-const TYPES = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',
-};
-
-function send(res, code, body, type) {
-  res.writeHead(code, { 'Content-Type': type || 'application/json', 'Cache-Control': 'no-store' });
-  res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
-}
-
-const server = http.createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url, 'http://localhost');
-    if (url.pathname === '/api/klines') return send(res, 200, await core.klines(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/aggtrades') return send(res, 200, await core.aggTrades(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/liqmap') return send(res, 200, await core.liqMap(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/tradestatus') return send(res, 200, core.tradeStatus());
-    if (url.pathname === '/api/testconnection') return send(res, 200, await core.testConnection());
-    if (url.pathname === '/api/symbols') return send(res, 200, await core.symbols(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/tickers') return send(res, 200, await core.tickers(Object.fromEntries(url.searchParams)));
-    if (url.pathname === '/api/fn' && req.method === 'POST') {
-      let data = ''; for await (const chunk of req) data += chunk;
-      const b = JSON.parse(data || '{}');
-      return send(res, 200, await puente.invocar(b.canal, b.args, b.inst));
-    }
-    if (url.pathname === '/api/config') {
-      const w = url.searchParams.get('w') || 'w1';
-      if (req.method === 'POST') {
-        let data = '';
-        for await (const chunk of req) data += chunk;
-        const r = store.setConfig(w, JSON.parse(data));
-        return send(res, 200, { ok: true, changed: r.changed });
-      }
-      return send(res, 200, store.getConfig(w));
-    }
-    if (url.pathname === '/api/data/status') return send(res, 200, Object.assign(await core.dataStatus(), { desktop: false }));
-    if (url.pathname === '/api/data/assets' && req.method === 'POST') {
-      let data = ''; for await (const chunk of req) data += chunk;
-      const Service = require('./src/service'), d = DATA;
-      Service.write(d, { assets: JSON.parse(data) }); core.setAssets(Service.read(d).assets); core.restartLiq();
-      return send(res, 200, { ok: true });
-    }
-    if (url.pathname === '/api/service/get') return send(res, 200, { desktop: false });
-    if (url.pathname === '/api/service/factoryreset' && req.method === 'POST') {
-      store.reset(); core.resetData({ restart: true });
-      return send(res, 200, { ok: true });
-    }
-    if (url.pathname === '/api/tabs') return send(res, 200, store.tabs());
-    if (url.pathname === '/api/window/active') {
-      if (req.method === 'POST') { store.setActive(url.searchParams.get('w')); return send(res, 200, { ok: true }); }
-      return send(res, 200, { id: store.getActive() });
-    }
-    if (url.pathname === '/api/windows') return send(res, 200, store.listWindows().map((x) => x.id));
-    if (url.pathname === '/api/window/new' && req.method === 'POST') {
-      const id = store.newWindowId();
-      if (!id) return send(res, 200, { ok: false, error: `Máximo ${store.MAX_WINDOWS} pestañas. Cierra alguna.` });
-      store.addWindow(id);
-      return send(res, 200, { ok: true, id });
-    }
-    if (url.pathname === '/api/window/remove' && req.method === 'POST') {
-      const id = url.searchParams.get('w');
-      if (store.listWindows().length <= 1) return send(res, 200, { ok: false, error: 'No se puede cerrar la última pestaña.' });
-      store.removeWindow(id);
-      return send(res, 200, { ok: true });
-    }
-    let rel = decodeURIComponent(url.pathname);
-    if (rel === '/') rel = '/index.html';
-    const file = path.normalize(path.join(ROOT, rel));
-    if (!file.startsWith(ROOT)) return send(res, 403, { error: 'No permitido' });
-    const buf = fs.readFileSync(file);
-    return send(res, 200, buf, TYPES[path.extname(file)] || 'application/octet-stream');
-  } catch (e) {
-    if (e.code === 'ENOENT') return send(res, 404, { error: 'No encontrado' });
-    return send(res, 500, { error: e.message });
-  }
+// v0.26: las rutas viven en src/web.js (así la app de escritorio puede ofrecer el mismo servidor al móvil, con código de acceso).
+const Actualizar = require('./src/actualizar');
+const server = require('./src/web').crear({
+  core, store, puente, root: ROOT, data: DATA,
+  version: () => (MOCK ? Promise.resolve({ actual: require('./package.json').version, hayNueva: false, error: '' }) : Actualizar.estado({ actual: require('./package.json').version, fetchFn: (u, o) => fetch(u, o) })),
 });
 
 process.on('SIGINT', () => { core.shutdown(); process.exit(0); });

@@ -6,6 +6,7 @@ const Store = require('./src/store');
 const Service = require('./src/service');
 const Autostart = require('./src/autostart');
 const Puente = require('./src/funciones/puente');
+const Escritorio = require('./src/escritorio');          // v0.26: respaldo, actualizaciones y acceso desde el móvil
 
 // v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
@@ -16,6 +17,7 @@ if (!hwAtStart) app.disableHardwareAcceleration();
 let store = null;
 let win = null;
 let puente = null;
+let extra = null;
 
 // v0.24: funciones de la pantalla de tarjetas. Un canal por mensaje, con el prefijo de cada función (noticias:…); toda la red sale de aquí.
 function registrarFunciones() {
@@ -39,8 +41,8 @@ ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
 ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
 
 ipcMain.handle('config:get', async (_e, id) => store.getConfig(id || 'w1'));
-ipcMain.handle('config:set', async (_e, id, cfg) => ({ changed: store.setConfig(id || 'w1', cfg).changed }));
-ipcMain.on('config:setSync', (e, id, cfg) => { try { store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
+ipcMain.handle('config:set', async (_e, id, cfg) => (extra && extra.estado.restaurando ? { changed: {} } : { changed: store.setConfig(id || 'w1', cfg).changed }));
+ipcMain.on('config:setSync', (e, id, cfg) => { try { if (!(extra && extra.estado.restaurando)) store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
 ipcMain.on('window:activeSync', (e) => { try { e.returnValue = store.getActive(); } catch (err) { e.returnValue = 'w1'; } });
 
 ipcMain.handle('window:overlay', async (_e, color, symbolColor) => {
@@ -80,6 +82,7 @@ ipcMain.handle('service:clearCache', async () => {
 });
 ipcMain.handle('service:factoryReset', async () => {
   try {
+    try { const sv = Service.read(app.getPath('userData')); require('./src/respaldo').hacer({ userData: app.getPath('userData'), destino: sv.respaldoDir || path.join(app.getPath('documents'), 'Ar_Trading_Respaldo'), origen: 'previo', appVersion: app.getVersion() }); } catch (e) { /* sin respaldo previo: se sigue */ }
     Service.factoryReset({ dir: app.getPath('userData'), store, core, restart: false });
     await session.defaultSession.clearStorageData();
     await session.defaultSession.clearCache();
@@ -167,6 +170,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') app.setAppUserModelId('com.artrading.app');   // v0.26: los avisos de Windows salen a nombre de Ar_Trading
   // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
   const dd = Service.resolveDataDir(app.getPath('userData'));
   core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
@@ -174,12 +178,15 @@ app.whenReady().then(() => {
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
   try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
+  try {
+    extra = Escritorio.registrar({ app, ipcMain, shell, dialog, Notification, net, getWin: () => win, store, core, puente, relanzar: () => { try { core.shutdown(); } catch (e) { /* ok */ } relaunch(); } });
+  } catch (e) { console.error('Escritorio:', e.message); }   // respaldo/actualizaciones/móvil: si fallan, el resto sigue
   core.liqStart();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('before-quit', () => { core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
+app.on('before-quit', () => { try { if (extra) extra.alCerrar(); } catch (e) { /* ok */ } core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

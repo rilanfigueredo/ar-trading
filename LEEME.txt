@@ -1,8 +1,18 @@
-AR_TRADING - VERSION 0.25.0
+AR_TRADING - VERSION 0.26.0
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.26.0 - INSTALADOR, RESPALDO, ACTUALIZACIONES Y MOVIL
+- INSTALADOR DE WINDOWS: Ar_Trading se instala UNA vez (doble clic en Ar_Trading-Instalador-0.26.0.exe), queda con icono en el escritorio y en el menu Inicio y se abre como cualquier programa. Ya no hace falta instalar.bat ni iniciar.bat. Windows puede mostrar "Windows protegio su PC" porque el instalador no esta firmado: pulsa "Mas informacion" y luego "Ejecutar de todas formas".
+- TU CONFIGURACION SE CONSERVA al instalar y al actualizar (pestanas, graficos, dibujos, plantillas, scripts, escenarios, etc.). Si antes usabas iniciar.bat, copia la carpeta "data" vieja solo si quieres traer cosas de alli (la app instalada guarda sus datos en AppData\Roaming\Ar_Trading).
+- RESPALDO AUTOMATICO (Ajustes > Respaldo): copia toda tu configuracion a Documentos\Ar_Trading_Respaldo al abrir, cada 3 horas y al cerrar (solo si hubo cambios; guarda los ultimos 20). "Respaldar ahora", "Restaurar" (antes guarda una copia de lo actual) y "Cambiar carpeta" (por ejemplo a OneDrive o Google Drive para tener copia en la nube).
+- ACTUALIZACIONES (Ajustes > Programa): el programa mira solo al abrir y cada 6 horas. Si hay version nueva, sale un aviso de Windows y un cartel "Actualizar ahora": se descarga, se hace un respaldo, se instala y vuelve a abrirse con todo tal cual.
+- MOVIL (Ajustes > Movil): activa "Permitir el acceso desde el movil", escanea el QR con el movil (misma Wi-Fi) y escribe el codigo de 6 cifras. Ar_Trading es ahora instalable como app (manifiesto, iconos y service worker). iPhone: Safari > Compartir > Anadir a pantalla de inicio. Android solo la instala como app con direccion https:// (por ejemplo con Tailscale, gratis); sin eso funciona como pagina web. La interfaz sigue siendo la de escritorio: en pantalla pequena se usa pero no esta rediseñada para tactil.
+- Seguridad del movil: apagado por defecto; sin el codigo no se ve nada; 5 intentos fallidos bloquean 1 minuto; desde el movil no se puede borrar datos ni cambiar el servicio.
+- El modo navegador (iniciar_navegador.bat) sigue igual.
+- Probado: pruebas de Node (respaldo, versiones, servidor y codigo de acceso, funciones del escritorio), Chromium con datos simulados y Electron real en Linux (arranca; el respaldo automatico se crea). SIN probar: el instalador en Windows, la actualizacion de una version a otra, los avisos de Windows, el movil real y Tailscale.
 
 NOVEDADES DE LA v0.25.0 - SIMULADOR DE POSICIONES Y MONITOR DE BLOCKCHAIN
 - Las tarjetas "Simulador de posiciones" y "Monitor de blockchain" del "+" ya funcionan. Mismo estilo de Ar_Trading (modo claro/oscuro incluido) y boton "Inicio" para volver.
