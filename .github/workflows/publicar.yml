@@ -38,17 +38,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm ci
         if: steps.chk.outputs.existe != 'true'
+      - name: Crear la publicación (con las novedades) antes de subir los archivos
+        if: steps.chk.outputs.existe != 'true'
+        shell: bash
+        run: |
+          node tools/notas_version.js > notas.txt
+          # Se crea una sola vez aquí: si electron-builder la creara él, subir dos archivos a la vez choca (error 422).
+          gh release view "v${{ steps.chk.outputs.ver }}" >/dev/null 2>&1 || gh release create "v${{ steps.chk.outputs.ver }}" --target "${{ github.sha }}" --title "Ar_Trading v${{ steps.chk.outputs.ver }}" --notes-file notas.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Crear y publicar el instalador
         if: steps.chk.outputs.existe != 'true'
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Poner las novedades en la publicación
-        if: steps.chk.outputs.existe != 'true'
-        shell: bash
-        run: |
-          node tools/notas_version.js > notas.txt
-          gh release edit "v${{ steps.chk.outputs.ver }}" --notes-file notas.txt --title "Ar_Trading v${{ steps.chk.outputs.ver }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
