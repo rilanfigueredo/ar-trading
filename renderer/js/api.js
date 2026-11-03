@@ -49,6 +49,7 @@
         },
         // v0.26: respaldo, actualizaciones y acceso desde el móvil (app de escritorio)
         respaldo: { get: () => desktop.respaldoGet(), hacer: () => desktop.respaldoHacer(), elegir: () => desktop.respaldoElegir(), usarDefecto: () => desktop.respaldoUsarDefecto(), setAuto: (on) => desktop.respaldoSetAuto(on), abrir: () => desktop.respaldoAbrir(), restaurar: (r) => desktop.respaldoRestaurar(r) },
+        diag: { get: () => desktop.diagGet(), abrir: () => desktop.diagAbrir(), normal: () => desktop.diagNormal() },
         update: { get: () => desktop.updateGet(), check: () => desktop.updateCheck(), install: () => desktop.updateInstall(), onChange: (cb) => desktop.onUpdate(cb) },
         movil: { get: () => desktop.movilGet(), set: (on) => desktop.movilSet(on), codigoNuevo: () => desktop.movilCodigoNuevo(), puerto: (p) => desktop.movilPuerto(p) },
         service: {

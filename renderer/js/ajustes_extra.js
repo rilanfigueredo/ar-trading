@@ -117,6 +117,30 @@
     };
     API.update.get().then(pintar);
     if (API.update.onChange) API.update.onChange((st) => { if (caja.isConnected) pintar(st); });
+    // v0.26.1: consumo y registro de problemas (solo en la app de escritorio)
+    if (API.diag) {
+      title('Consumo y problemas');
+      const caja2 = mk('div', {}); body.appendChild(caja2);
+      const pintar2 = (d) => {
+        if (!caja2.isConnected) return;
+        caja2.innerHTML = '';
+        caja2.appendChild(mk('div', { className: 'field' })).append(mk('span', { textContent: 'Memoria en uso ahora' }), mk('b', { textContent: (d.mb || 0) + ' MB' }));
+        caja2.appendChild(mk('div', { className: 'field' })).append(mk('span', { textContent: 'Procesador ahora' }), mk('b', { textContent: (d.cpu || 0) + ' %' }));
+        caja2.appendChild(mk('div', { className: 'hint', textContent: (d.procesos || []).map((x) => x.tipo + ': ' + x.mb + ' MB').join(' · ') }));
+        if (d.seguro) {
+          caja2.appendChild(mk('div', { className: 'svc-msg bad', textContent: 'MODO SEGURO activo: sin aceleración de gráficos y sin guardado de liquidaciones en segundo plano. ' + (d.motivo || '') }));
+          const vol = mk('button', { className: 'btn primary', textContent: 'Volver al modo normal' });
+          vol.onclick = async () => { if (!window.confirm('El programa se reiniciará en modo normal. Si vuelve a fallar, arrancará solo en modo seguro. ¿Continuar?')) return; await API.diag.normal(); };
+          caja2.appendChild(vol);
+        }
+        const fila2 = mk('div', { className: 'row-actions' });
+        const ab = mk('button', { className: 'btn', textContent: 'Abrir el registro de problemas' }); ab.onclick = () => API.diag.abrir();
+        const ref = mk('button', { className: 'btn', textContent: 'Actualizar consumo' }); ref.onclick = async () => pintar2(await API.diag.get());
+        fila2.append(ab, ref); caja2.appendChild(fila2);
+        caja2.appendChild(mk('div', { className: 'hint', textContent: 'Si el programa se cuelga o se cierra, el registro (registro.log) dice qué pasó. Si falló al abrir, la próxima vez arranca solo en modo seguro.' }));
+      };
+      API.diag.get().then(pintar2).catch(() => {});
+    }
   }
 
   window.TVAjustesExtra = { tabs, render: (tab, body, mk, title, hint) => ({ respaldo, movil, programa }[tab] || (() => {}))(body, mk, title, hint) };

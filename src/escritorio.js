@@ -66,9 +66,9 @@ function registrar(ctx) {
   });
 
   // ================= ACTUALIZACIONES =================
-  let updater = null;
-  if (app.isPackaged) { try { updater = require('electron-updater').autoUpdater; updater.autoDownload = false; updater.autoInstallOnAppQuit = false; updater.logger = null; } catch (e) { updater = null; } }
-  const up = { fase: 'ninguna', actual: app.getVersion(), version: '', notas: '', pct: 0, error: '', url: '', instalable: !!updater, manual: false };
+  // v0.26.1: electron-updater se carga SOLO cuando hace falta (a los 10 s de abrir o al buscar a mano), no en el arranque.
+  let updater = null, updaterListo = false;
+  const up = { fase: 'ninguna', actual: app.getVersion(), version: '', notas: '', pct: 0, error: '', url: '', instalable: app.isPackaged, manual: false };
   let avisada = '';
   const enviar = () => { try { const w = ctx.getWin(); if (w && !w.isDestroyed()) w.webContents.send('update:state', up); } catch (e) { /* ok */ } };
   function hayNueva(version, notas, url) {
@@ -81,17 +81,22 @@ function registrar(ctx) {
     }
     enviar();
   }
-  if (updater) {
+  function getUpdater() {
+    if (updaterListo) return updater;
+    updaterListo = true;
+    if (!app.isPackaged) return null;
+    try { updater = require('electron-updater').autoUpdater; updater.autoDownload = false; updater.autoInstallOnAppQuit = false; updater.logger = null; } catch (e) { updater = null; up.instalable = false; return null; }
     updater.on('update-available', (i) => hayNueva(i.version, typeof i.releaseNotes === 'string' ? i.releaseNotes : '', ''));
     updater.on('update-not-available', () => { Object.assign(up, { fase: 'alDia', error: '' }); enviar(); });
     updater.on('download-progress', (p) => { Object.assign(up, { fase: 'descargando', pct: Math.round(p.percent || 0) }); enviar(); });
     updater.on('update-downloaded', () => { Object.assign(up, { fase: 'listo', pct: 100 }); enviar(); });
     updater.on('error', (e) => { Object.assign(up, { fase: 'error', error: 'No se pudo actualizar: ' + ((e && e.message) || e).toString().split('\n')[0] }); enviar(); });
+    return updater;
   }
   async function buscar(manual) {
     if (up.fase === 'descargando' || up.fase === 'listo') return up;
     up.manual = !!manual; up.fase = 'buscando'; up.error = ''; enviar();
-    if (updater) { try { await updater.checkForUpdates(); } catch (e) { Object.assign(up, { fase: 'error', error: 'No se pudo consultar: ' + e.message }); enviar(); } return up; }
+    if (getUpdater()) { try { await updater.checkForUpdates(); } catch (e) { Object.assign(up, { fase: 'error', error: 'No se pudo consultar: ' + e.message }); enviar(); } return up; }
     const r = await Actualizar.estado({ actual: app.getVersion(), fetchFn });         // sin instalador automático (programa sin instalar): solo avisa y abre la descarga
     if (r.error && !r.ultima) Object.assign(up, { fase: 'error', error: r.error }); else if (r.hayNueva) hayNueva(r.ultima, r.notas, r.url); else Object.assign(up, { fase: 'alDia', error: '' });
     enviar(); return up;
@@ -100,7 +105,7 @@ function registrar(ctx) {
   ipcMain.handle('update:check', async () => buscar(true));
   ipcMain.handle('update:install', async () => {
     try {
-      if (!updater) { if (up.url) await shell.openExternal(up.url); return { ok: true, abierto: true }; }
+      if (!getUpdater()) { if (up.url) await shell.openExternal(up.url); return { ok: true, abierto: true }; }
       if (up.fase === 'disponible') { up.fase = 'descargando'; up.pct = 0; enviar(); await updater.downloadUpdate(); return { ok: true }; }
       if (up.fase === 'listo') {
         try { Respaldo.hacer({ userData: userData(), destino: destino(), origen: 'previo', appVersion: app.getVersion() }); } catch (e) { /* un respaldo fallido no impide actualizar */ }

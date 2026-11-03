@@ -9,6 +9,14 @@ const Puente = require('./src/funciones/puente');
 const Escritorio = require('./src/escritorio');          // v0.26: respaldo, actualizaciones y acceso desde el móvil
 
 // v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
+// v0.26.1: registro de problemas y modo seguro. Si la vez anterior el programa no llegó a abrir bien, arranca sin aceleración de gráficos
+// y sin el guardado de liquidaciones en segundo plano (ver src/diagnostico.js). Todo esto es a prueba de fallos: nunca impide abrir.
+const Diag = require('./src/diagnostico').crear({ dir: app.getPath('userData') });
+let modoSeguro = { seguro: false, nuevo: false, motivo: '' };
+try {
+  modoSeguro = Diag.arrancar({ version: app.getVersion(), hwAccelActual: Service.read(app.getPath('userData')).hwAccel });
+  if (modoSeguro.seguro && Service.read(app.getPath('userData')).hwAccel) Service.write(app.getPath('userData'), { hwAccel: false });
+} catch (e) { /* ok */ }
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
 if (!hwAtStart) app.disableHardwareAcceleration();
 
@@ -171,22 +179,38 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('com.artrading.app');   // v0.26: los avisos de Windows salen a nombre de Ar_Trading
+  let vig = null;
+  try { Diag.cabecera({ app, version: app.getVersion() }); vig = Diag.vigilar({ app, getWin: () => win }); } catch (e) { /* ok */ }
   // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
   const dd = Service.resolveDataDir(app.getPath('userData'));
   core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
   core.setRole('app'); core.setAssets(Service.read(app.getPath('userData')).assets);
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
-  try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
+  try { registrarFunciones(); } catch (e) { Diag.log('Funciones: ' + e.message); }   // un fallo aquí no impide abrir los gráficos
   try {
     extra = Escritorio.registrar({ app, ipcMain, shell, dialog, Notification, net, getWin: () => win, store, core, puente, relanzar: () => { try { core.shutdown(); } catch (e) { /* ok */ } relaunch(); } });
-  } catch (e) { console.error('Escritorio:', e.message); }   // respaldo/actualizaciones/móvil: si fallan, el resto sigue
-  core.liqStart();
+  } catch (e) { Diag.log('Escritorio: ' + e.message); }   // respaldo/actualizaciones/móvil: si fallan, el resto sigue
   createWindow();
+  try { if (vig) vig.ventana(win); } catch (e) { /* ok */ }
+  // v0.26.1: el guardado de liquidaciones en segundo plano (WebSockets a 3 casas) arranca DESPUÉS de que la pantalla ya está abierta,
+  // para no competir con la carga inicial. En modo seguro no arranca.
+  win.webContents.once('did-finish-load', () => { setTimeout(() => { try { if (!modoSeguro.seguro) core.liqStart(); else Diag.log('Modo seguro: no se inicia el guardado de liquidaciones'); } catch (e) { Diag.log('liqStart: ' + e.message); } }, 4000); });
+  if (modoSeguro.seguro) win.webContents.once('did-finish-load', () => setTimeout(() => { try {
+    dialog.showMessageBox(win, { type: 'warning', title: 'Ar_Trading en modo seguro', buttons: ['Entendido'], message: 'Ar_Trading arrancó en MODO SEGURO',
+      detail: (modoSeguro.nuevo ? modoSeguro.motivo + '\n\n' : '') + 'Se desactivó la aceleración de gráficos y el guardado de liquidaciones en segundo plano, para que abra sin problemas.\n\nSi así funciona bien, déjalo. Para volver al modo normal: Ajustes > Programa > «Volver al modo normal».\n\nSe guardó un registro de lo ocurrido en: ' + Diag.logF });
+  } catch (e) { /* ok */ } }, 1500));
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('before-quit', () => { try { if (extra) extra.alCerrar(); } catch (e) { /* ok */ } core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
+// v0.26.1: registro de problemas, modo seguro y consumo (Ajustes > Programa)
+ipcMain.handle('diag:get', async () => Object.assign(Diag.estado(), Diag.rendimiento(app), { desktop: true }));
+ipcMain.handle('diag:abrir', async () => { try { shell.showItemInFolder(Diag.logF); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('diag:normal', async () => {
+  try { const r = Diag.salirDeSeguro(); Service.write(app.getPath('userData'), { hwAccel: r.hwAccel }); relaunch(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+});
+
+app.on('before-quit', () => { try { Diag.estable(); Diag.log('Cierre normal'); } catch (e) { /* ok */ } try { if (extra) extra.alCerrar(); } catch (e) { /* ok */ } core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
