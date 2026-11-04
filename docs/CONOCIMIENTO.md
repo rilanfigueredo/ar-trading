@@ -173,6 +173,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.26.3: registro.log real del usuario (Win 10.0.26300, i7-1065G7): GPU ya en software, muere sin 'Estable' ni 'Cierre normal' ni eventos (muerte nativa). Con hwAccel apagado se añaden disable-gpu, disable-gpu-compositing, in-process-gpu; modo seguro sin titleBarOverlay; chromium.log + crashReporter local. Sin confirmar en Windows.
 - v0.26.2: CAUSA del cuelgue reproducida (compresión síncrona de meses cerrados al abrir, 5,7 s con ~800 mil eventos; `compressAsync` + retraso de 90 s). `src/store.js` ya no pierde la configuración si el archivo es ilegible (reintento, `.bak`, `.danado-*`). Respaldo conserva el más completo. Blockchain solo consulta con la pestaña a la vista (vigencia 20 s por llamada). Prueba `test/blockchain.reposo.test.js`.
 - v0.26.1: el instalado de la 0.26.0 se colgaba a los pocos segundos en el PC del usuario (no reproducido en Linux, ni con datos simulados ni con red real bloqueada): arranque más ligero, registro de problemas, modo seguro automático y consumo en Ajustes > Programa.
 - v0.26.0: instalador de Windows por GitHub Actions, respaldo automático de la configuración, aviso/instalación de versiones nuevas (electron-updater) y acceso desde el móvil + app instalable (PWA). `server.js` → `src/web.js`; `src/escritorio.js` nuevo. El backtest con apalancamiento pasa a v0.27.

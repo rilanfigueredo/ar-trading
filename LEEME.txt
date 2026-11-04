@@ -1,8 +1,12 @@
-AR_TRADING - VERSION 0.26.1
+AR_TRADING - VERSION 0.26.3
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.26.3 - ARREGLO DEL CIERRE SIN AVISO EN WINDOWS (sin confirmar aun en tu PC)
+- Tu registro mostro que el programa moria de golpe sin dejar error. Tus graficos (GPU) ya caian a modo software. Ahora, con la aceleracion apagada (modo seguro), el programa no usa proceso de graficos aparte y en modo seguro usa la barra de titulo normal de Windows.
+- Si vuelve a cerrarse, deja un registro propio de Chromium (chromium.log) y un volcado (carpeta Crashpad) en AppData\Roaming\Ar_Trading.
 
 NOVEDADES DE LA v0.26.2 - SE ACABA EL CUELGUE Y SE PROTEGEN TUS PLANTILLAS
 - Causa encontrada del cuelgue: al abrir, el programa comprimia de golpe, y sin avisar, los datos de liquidaciones del mes ya cerrado y la ventana quedaba congelada (con datos grandes: 5,7 s medidos). Ahora lo hace despues de 90 s, fuera del hilo principal y de a poco.

@@ -18,7 +18,18 @@ try {
   if (modoSeguro.seguro && Service.read(app.getPath('userData')).hwAccel) Service.write(app.getPath('userData'), { hwAccel: false });
 } catch (e) { /* ok */ }
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
-if (!hwAtStart) app.disableHardwareAcceleration();
+if (!hwAtStart) {
+  app.disableHardwareAcceleration();
+  // v0.26.3: el registro del usuario mostró que sus gráficos (GPU) ya caían a software y aun así el programa moría sin dejar rastro
+  // (típico de "GPU process isn't usable" de Chromium). Sin proceso de GPU aparte no hay nada que pueda matar al programa.
+  try { app.commandLine.appendSwitch('disable-gpu'); app.commandLine.appendSwitch('disable-gpu-compositing'); app.commandLine.appendSwitch('in-process-gpu'); } catch (e) { /* ok */ }
+}
+// v0.26.3: si el programa muere de golpe, Chromium deja aquí su propio registro (chromium.log) y un volcado (carpeta Crashpad) para ver la causa.
+try {
+  const ud = app.getPath('userData');
+  app.commandLine.appendSwitch('enable-logging', 'file'); app.commandLine.appendSwitch('log-file', path.join(ud, 'chromium.log'));
+  require('electron').crashReporter.start({ uploadToServer: false, compress: true });
+} catch (e) { /* ok */ }
 
 // v0.22: UNA sola ventana con pestañas (como un navegador). Cada pestaña (w1…w10) guarda su propia configuración;
 // lo compartido (tema, plantillas, scripts…) vive aparte. Cambiar de pestaña recarga la página con la otra configuración.
@@ -155,7 +166,7 @@ function createWindow() {
     },
   };
   // Windows: sin barra de título del sistema (ni icono ni nombre); los botones minimizar/maximizar/cerrar se dibujan sobre la barra de pestañas.
-  if (process.platform === 'win32') Object.assign(opts, { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a102a', symbolColor: '#d1d4dc', height: 34 } });
+  if (process.platform === 'win32' && !modoSeguro.seguro) Object.assign(opts, { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a102a', symbolColor: '#d1d4dc', height: 34 } });
   if (b && Number.isFinite(b.width) && Number.isFinite(b.height)) {
     Object.assign(opts, { width: b.width, height: b.height });
     if (Number.isFinite(b.x) && Number.isFinite(b.y)) Object.assign(opts, { x: b.x, y: b.y });
