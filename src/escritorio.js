@@ -12,6 +12,7 @@ const Web = require('./web');
 // ctx: { app, ipcMain, shell, dialog, Notification, net, getWin(), store, core, puente, relanzar() }
 function registrar(ctx) {
   const { app, ipcMain, shell, dialog, Notification, net, store, core, puente } = ctx;
+  const seguro = !!ctx.seguro, dlog = typeof ctx.log === 'function' ? ctx.log : () => {};   // v0.26.3: en modo seguro no corren solos ni las actualizaciones ni el respaldo, y cada paso queda en el registro
   const userData = () => app.getPath('userData');
   const cfg = () => Service.read(userData());
   const fetchFn = (u, o) => (net && typeof net.fetch === 'function' ? net.fetch(u, o) : fetch(u, o));
@@ -25,12 +26,14 @@ function registrar(ctx) {
   function respaldoAuto() {
     if (!cfg().respaldoAuto || estado.restaurando) return;
     try {
+      dlog('Respaldo automático: empieza');
       const r = Respaldo.auto({ userData: userData(), destino: destino(), appVersion: app.getVersion() });
       if (!r.omitido) ultimoAuto = r.fecha;
       ultimoError = '';
-    } catch (e) { ultimoError = e.message; }
+      dlog('Respaldo automático: terminó');
+    } catch (e) { ultimoError = e.message; dlog('Respaldo automático falló: ' + e.message); }
   }
-  const t1 = setTimeout(respaldoAuto, 20000);                      // al abrir (ya con todo cargado)
+  const t1 = setTimeout(() => { if (seguro) dlog('Modo seguro: sin respaldo automático al abrir'); else respaldoAuto(); }, 20000);                      // al abrir (ya con todo cargado)
   const t2 = setInterval(respaldoAuto, 3 * 60 * 60 * 1000);       // y cada 3 horas, solo si algo cambió
   [t1, t2].forEach((t) => t.unref && t.unref());
 
@@ -114,7 +117,7 @@ function registrar(ctx) {
       return { ok: false, error: 'No hay nada que instalar.' };
     } catch (e) { Object.assign(up, { fase: 'error', error: e.message }); enviar(); return { ok: false, error: e.message }; }
   });
-  const t3 = setTimeout(() => buscar(false), 10000), t4 = setInterval(() => buscar(false), 6 * 60 * 60 * 1000);
+  const t3 = setTimeout(() => { if (seguro) { dlog('Modo seguro: sin búsqueda automática de actualizaciones'); return; } dlog('Actualizaciones: empieza la búsqueda'); buscar(false).then(() => dlog('Actualizaciones: terminó la búsqueda'), (e) => dlog('Actualizaciones falló: ' + e.message)); }, 10000), t4 = setInterval(() => { if (!seguro) buscar(false); }, 6 * 60 * 60 * 1000);
   [t3, t4].forEach((t) => t.unref && t.unref());
   let cacheVer = null;
   const versionWeb = async () => { if (!cacheVer || Date.now() - cacheVer.t > 3600000) cacheVer = { t: Date.now(), v: await Actualizar.estado({ actual: app.getVersion(), fetchFn }) }; return cacheVer.v; };

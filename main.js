@@ -200,7 +200,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   try { registrarFunciones(); } catch (e) { Diag.log('Funciones: ' + e.message); }   // un fallo aquí no impide abrir los gráficos
   try {
-    extra = Escritorio.registrar({ app, ipcMain, shell, dialog, Notification, net, getWin: () => win, store, core, puente, relanzar: () => { try { core.shutdown(); } catch (e) { /* ok */ } relaunch(); } });
+    extra = Escritorio.registrar({ seguro: modoSeguro.seguro, log: Diag.log, app, ipcMain, shell, dialog, Notification, net, getWin: () => win, store, core, puente, relanzar: () => { try { core.shutdown(); } catch (e) { /* ok */ } relaunch(); } });
   } catch (e) { Diag.log('Escritorio: ' + e.message); }   // respaldo/actualizaciones/móvil: si fallan, el resto sigue
   createWindow();
   try { if (vig) vig.ventana(win); } catch (e) { /* ok */ }

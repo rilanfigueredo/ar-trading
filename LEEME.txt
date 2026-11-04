@@ -1,8 +1,11 @@
-AR_TRADING - VERSION 0.26.3
+AR_TRADING - VERSION 0.26.4
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.26.4 - BUSCANDO LA CAUSA DEL CIERRE (sin confirmar aun en tu PC)
+- Con la v0.26.3 el programa seguia cerrandose sin dejar error. Ahora, en modo seguro, no corren solos la busqueda de actualizaciones (a los 10 s) ni el respaldo automatico (a los 20 s), y cada uno deja su linea en el registro. Si sigue cerrandose, la ultima linea dice en que paso fue.
 
 NOVEDADES DE LA v0.26.3 - ARREGLO DEL CIERRE SIN AVISO EN WINDOWS (sin confirmar aun en tu PC)
 - Tu registro mostro que el programa moria de golpe sin dejar error. Tus graficos (GPU) ya caian a modo software. Ahora, con la aceleracion apagada (modo seguro), el programa no usa proceso de graficos aparte y en modo seguro usa la barra de titulo normal de Windows.
