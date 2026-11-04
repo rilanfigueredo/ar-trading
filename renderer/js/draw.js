@@ -457,6 +457,37 @@
         fixSel(sym);
         changed(); emit('select');
       },
+      // v0.25.1: orden visual (los últimos de la lista se ven por delante). mode: 'front' | 'back' | 'up' (un paso adelante) | 'down' (un paso atrás).
+      // Un paso se cuenta solo contra los dibujos que se ven en el mismo gráfico y panel (los demás no cambian lo que ves).
+      reorder(sym, ids, mode, chartId) {
+        const set = new Set(ids);
+        const arr = list(sym).slice();
+        if (!arr.some((d) => set.has(d.id))) return false;
+        const before = arr.map((d) => d.id).join(',');
+        let out;
+        if (mode === 'front') out = arr.filter((d) => !set.has(d.id)).concat(arr.filter((d) => set.has(d.id)));
+        else if (mode === 'back') out = arr.filter((d) => set.has(d.id)).concat(arr.filter((d) => !set.has(d.id)));
+        else {
+          out = arr;
+          const step = mode === 'up' ? 1 : -1;
+          const peer = (i, k) => k !== i && store.visibleIn(out[k], chartId) && (out[k].pane || 'main') === (out[i].pane || 'main');
+          const order = []; for (let i = 0; i < out.length; i++) order.push(i);
+          if (step === 1) order.reverse();
+          order.forEach((i) => {
+            if (!set.has(out[i].id)) return;
+            let k = i + step;
+            while (k >= 0 && k < out.length && !peer(i, k)) k += step;
+            if (k < 0 || k >= out.length || set.has(out[k].id)) return;
+            const [it] = out.splice(i, 1);
+            out.splice(k, 0, it);
+          });
+        }
+        if (out.map((d) => d.id).join(',') === before) return false;
+        snap(sym);
+        setList(sym, out);
+        changed();
+        return true;
+      },
       remove(sym, id) { store.removeMany(sym, [id]); },
       removeMany(sym, ids) {
         const set = new Set(ids);

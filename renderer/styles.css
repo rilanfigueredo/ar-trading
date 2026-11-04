@@ -20,7 +20,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 .status.loading::before { content: "◌"; margin-right: 5px; }
 
 #main { flex: 1; display: flex; min-height: 0; }
-#grid .legend { position: absolute; top: 8px; left: 10px; z-index: 5; pointer-events: none; font-size: 12px; line-height: 1.55; text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg); }
+#grid .legend { position: absolute; top: 8px; left: 10px; z-index: 2; pointer-events: none; font-size: 12px; line-height: 1.55; text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg); }
 #grid .lg-title { font-size: 14px; font-weight: 600; }
 #grid .lg-ohlc b { font-weight: 600; margin-right: 8px; }
 #grid .lg-mas span { margin-right: 12px; }
@@ -77,9 +77,9 @@ input[type=color]:disabled { cursor: not-allowed; }
 #grid.layout-3 .cell:nth-child(1) { grid-row: 1 / span 2; }
 #grid.layout-4 { grid-template: 1fr 1fr / 1fr 1fr; }
 #grid .cell { position: relative; min-width: 0; min-height: 0; background: var(--bg); overflow: hidden; }
-#grid .chart { position: absolute; inset: 0; }
+#grid .chart { position: absolute; inset: 0; z-index: 3; }
 #grid.multi .cell.active::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--active); pointer-events: none; z-index: 8; }
-#grid .legend { position: absolute; top: 8px; left: 10px; z-index: 5; pointer-events: none; font-size: 12px; line-height: 1.55; text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg); max-width: calc(100% - 90px); }
+#grid .legend { position: absolute; top: 8px; left: 10px; z-index: 2; pointer-events: none; font-size: 12px; line-height: 1.55; text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg); max-width: calc(100% - 90px); }
 #grid .lg-note { color: #ff9800; font-size: 11px; }
 .pane-legend { position: absolute; top: 4px; left: 8px; z-index: 4; pointer-events: none; font-size: 12px; text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg); }
 .pl-title { color: var(--muted); font-weight: 600; margin-right: 8px; }
@@ -144,7 +144,7 @@ input[type=color]:disabled { cursor: not-allowed; }
 .modal-box.wide { width: min(560px, 75vw); }
 .wm-range { width: 110px; vertical-align: middle; }
 .wm-val { display: inline-block; width: 38px; font-size: 11px; color: var(--muted); }
-.wm { position: absolute; z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: 14px; font-weight: 700; user-select: none; }
+.wm { position: absolute; z-index: 1; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: 14px; font-weight: 700; user-select: none; }
 .wm.pos-center { inset: 0; justify-content: center; }
 .wm.pos-tl { top: 40px; left: 6px; align-items: flex-start; }
 .wm.pos-tr { top: 40px; right: 76px; align-items: flex-end; }
@@ -471,7 +471,7 @@ body.has-overlay .tab-bar { padding-right: 150px; }
 /* Pantalla completa: solo el gráfico (y las pestañas) */
 body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #objPanel, body.fs #watchPanel { display: none !important; }
 /* Icono del programa (en lugar de la marca de TradingView) abajo a la izquierda de cada gráfico */
-.brand-mark { position: absolute; left: 10px; bottom: 36px; width: 28px; height: 28px; z-index: 3; opacity: .9; pointer-events: none; user-select: none; }
+.brand-mark { position: absolute; left: 10px; bottom: 36px; width: 28px; height: 28px; z-index: 1; opacity: .9; pointer-events: none; user-select: none; }
 
 /* v0.22.5: cada pestaña tiene su propio grid, todos vivos; solo se ve el de la pestaña activa (mismo tamaño, sin recargar) */
 #gridStack { flex: 1; min-width: 0; min-height: 0; position: relative; }

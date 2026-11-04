@@ -98,7 +98,7 @@
     const timerEl = el('div', 'ctimer hidden');
     const xhV = el('div', 'xh-v hidden'), xhH = el('div', 'xh-h hidden');
     const xhT = el('div', 'xh-label hidden'), xhP = el('div', 'xh-label hidden');
-    host.append(chartEl, markEl, wmEl, legendEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, fsBtn, rpBar, maxBtn);
+    host.append(markEl, wmEl, legendEl, chartEl, overlayEl, xhV, xhH, xhT, xhP, timerEl, camBtn, fsBtn, rpBar, maxBtn);
 
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
@@ -204,7 +204,7 @@
       const dark = lv.isDark;
       return {
         layout: {
-          background: { type: 'solid', color: lv.bg }, textColor: lv.text,
+          background: { type: 'solid', color: 'rgba(0,0,0,0)' }, textColor: lv.text,
           panes: { separatorColor: lv.border, separatorHoverColor: dark ? 'rgba(41,98,255,0.35)' : 'rgba(41,98,255,0.25)' },
         },
         grid: { vertLines: { color: lv.grid, visible: !!vcfg.look.gridV }, horzLines: { color: lv.grid, visible: !!vcfg.look.gridH } },
@@ -1593,7 +1593,7 @@
       const out = document.createElement('canvas');
       out.width = base.width; out.height = base.height;
       const ctx = out.getContext('2d');
-      ctx.drawImage(base, 0, 0);
+      ctx.fillStyle = lookVars().bg; ctx.fillRect(0, 0, out.width, out.height);   // v0.25.1: el fondo es transparente en pantalla
       const org = chartEl.getBoundingClientRect();
       const k = base.width / Math.max(1, chartEl.clientWidth);
       const opacityOf = (n, root) => { let o = 1; for (let e = n; e && e !== root.parentElement; e = e.parentElement) { const v = parseFloat(getComputedStyle(e).opacity); if (isFinite(v)) o *= v; } return o; };
@@ -1624,6 +1624,7 @@
           ctx.restore();
         });
       });
+      ctx.drawImage(base, 0, 0);   // las velas van por delante de los textos
       return out;
     }
     function toast(text) {

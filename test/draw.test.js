@@ -308,3 +308,26 @@ console.log('draw.test.js v0.9 OK');
   assert.strictEqual(D2.geom.nearestSegment(P, 50, 3), 0, 'incluye los tramos eliminados (para restaurarlos)');
   console.log('draw.test.js v0.17 OK');
 }
+
+// v0.25.1: orden visual de los dibujos
+{
+  const root = {};
+  const st = D.createStore(() => root, () => ({}), () => {}, () => ({}));
+  root.X = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, type: 'trend', pts: [], chart: id === 'c' ? 'otro' : 'g1' }));   // 'c' es de otro gráfico
+  const ord = () => root.X.map((d) => d.id).join('');
+  assert.strictEqual(st.reorder('X', ['b'], 'up', 'g1'), true);
+  assert.strictEqual(ord(), 'acdbe', 'sube un paso y pasa por delante de d');
+  st.reorder('X', ['b'], 'down', 'g1');
+  assert.strictEqual(ord(), 'acbde');
+  st.reorder('X', ['b'], 'down', 'g1');
+  assert.strictEqual(ord(), 'bacde', 'el paso atrás salta lo que no se ve en este gráfico');
+  assert.strictEqual(st.reorder('X', ['b'], 'back', 'g1'), false, 'ya está al fondo');
+  st.reorder('X', ['a', 'd'], 'front', 'g1');
+  assert.strictEqual(ord(), 'bcead');
+  st.reorder('X', ['e', 'a'], 'back', 'g1');
+  assert.strictEqual(ord(), 'eabcd');
+  st.reorder('X', ['e', 'a'], 'up', 'g1');
+  assert.strictEqual(ord(), 'beacd');
+  assert.strictEqual(st.reorder('X', ['zz'], 'front', 'g1'), false);
+  console.log('draw.test.js v0.25.1 orden OK');
+}

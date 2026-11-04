@@ -1,8 +1,14 @@
-AR_TRADING - VERSION 0.25.0
+AR_TRADING - VERSION 0.25.1
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.25.1 - VELAS POR DELANTE Y ORDEN VISUAL DE LOS DIBUJOS
+- El nombre del activo, el intervalo (marca de agua), la leyenda de arriba (nombre, precios) y el logo ahora van al FONDO: las velas y los dibujos quedan por delante y ya no se tapan.
+- Panel de Objetos (derecha): junto al icono de eliminar hay un icono nuevo de capas. Al pulsarlo: Traer al frente, Subir un paso, Bajar un paso o Enviar al fondo. Sirve para todas las herramientas (lineas, retrocesos, polilineas, rectangulos, textos, etc.). Tambien esta en el menu de clic derecho sobre el dibujo ("Orden visual"). Si seleccionas varios, se mueven juntos.
+- "Un paso" se cuenta solo contra los dibujos que se ven en ese mismo grafico y panel. Se puede deshacer con Ctrl+Z.
+- Probado: pruebas de Node y Chromium con datos simulados. SIN probar: Windows/Electron y datos reales de Binance.
 
 NOVEDADES DE LA v0.25.0 - SIMULADOR DE POSICIONES Y MONITOR DE BLOCKCHAIN
 - Las tarjetas "Simulador de posiciones" y "Monitor de blockchain" del "+" ya funcionan. Mismo estilo de Ar_Trading (modo claro/oscuro incluido) y boton "Inicio" para volver.

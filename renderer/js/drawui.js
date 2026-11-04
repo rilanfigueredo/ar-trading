@@ -36,6 +36,7 @@
     zoom: '<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/><path d="M10 7v6M7 10h6"/>',
     zoomout: '<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="21" y2="21"/><path d="M7 10h6"/>',
     ind: '<path d="M3 17l5-6 4 3 5-8 4 5"/>',
+    layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
     out: '<path d="M14 4h6v6M20 4l-9 9M10 6H5a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-5"/>',
   };
   const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -243,6 +244,30 @@
     ctxMenu = m;
   }
 
+  // v0.25.1: orden visual de los dibujos (por delante / por detrás de los demás)
+  function orderMenuItems(m, sym, ids) {
+    const add = (text, mode) => {
+      const b = el('button', 'ctx-item');
+      b.append(el('span', 'ctx-check', ''), el('span', '', text));
+      b.onclick = () => { closeFly(); store.reorder(sym, ids, mode, chartNow()); };
+      m.appendChild(b);
+    };
+    add('Traer al frente (todo delante)', 'front');
+    add('Subir un paso (más adelante)', 'up');
+    add('Bajar un paso (más atrás)', 'down');
+    add('Enviar al fondo (todo detrás)', 'back');
+  }
+  function openOrderMenu(anchor, sym, ids) {
+    closeFly();
+    const m = el('div', 'ctx-menu');
+    orderMenuItems(m, sym, ids);
+    document.body.appendChild(m);
+    const r = anchor.getBoundingClientRect();
+    m.style.left = Math.max(6, Math.min(r.left, window.innerWidth - m.offsetWidth - 6)) + 'px';
+    m.style.top = Math.min(r.bottom + 2, window.innerHeight - m.offsetHeight - 6) + 'px';
+    ctxMenu = m;
+  }
+
   function showCtx(x, y, sym, id, seg) {
     closeFly();
     const d = store.get(sym, id);
@@ -319,6 +344,17 @@
         });
       };
       m.appendChild(wrap);
+    }
+    {
+      const wrapO = el('div', 'ctx-wrap');
+      const headO = el('button', 'ctx-item');
+      headO.append(el('span', 'ctx-check', ''), el('span', '', 'Orden visual'), el('span', 'ctx-arrow', '▸'));
+      wrapO.appendChild(headO);
+      const subO = el('div', 'ctx-menu ctx-sub');
+      orderMenuItems(subO, sym, ids);
+      wrapO.appendChild(subO);
+      wrapO.onmouseenter = () => { const r = m.getBoundingClientRect(); subO.classList.toggle('left', r.right + 260 > window.innerWidth); };
+      m.appendChild(wrapO);
     }
     item(many ? `Duplicar (${ids.length})` : 'Duplicar', duplicateSel);
     item(many ? 'Agrupar en carpeta…' : 'Meter en una carpeta…', () => newFolder(ids, null));
@@ -584,6 +620,7 @@
       mkBtn(row, gLock ? 'lock' : 'unlock', gLock ? 'Desbloquear' : 'Bloquear', () => store.patchMany(sym, grp(), { locked: !gLock }));
       if (fexists(d.folder)) mkBtn(row, 'out', 'Sacar de la carpeta', () => store.moveToFolder(sym, grp(), null));
       mkBtn(row, 'copy', 'Duplicar', () => store.duplicateMany(sym, grp(), shiftFn()));
+      { const bo = el('button', 'obj-btn'); bo.innerHTML = svg('layers', 15); bo.title = 'Orden visual: al frente, un paso adelante, un paso atrás o al fondo'; bo.onclick = (e) => { e.stopPropagation(); openOrderMenu(bo, sym, grp()); }; row.appendChild(bo); }
       mkBtn(row, 'trash', 'Eliminar', () => { const ok = unlocked(sym, grp()); if (ok.length) store.removeMany(sym, ok); });
       row.onmousedown = (e) => { if (e.shiftKey) e.preventDefault(); };   // evita que Shift+clic seleccione texto
       row.onclick = (e) => {
