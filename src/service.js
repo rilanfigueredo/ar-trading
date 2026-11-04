@@ -7,17 +7,10 @@ const path = require('path');
 const file = (dir) => path.join(dir, 'service.json');
 // hwAccel: aceleración por hardware · dataDir: carpeta de los datos históricos propios ('' = la de siempre) · assets: otros activos cuyas liquidaciones se guardan (ej. ['ETHUSDT'])
 function read(dir) {
-  // v0.26: respaldoDir ('' = Documentos\Ar_Trading_Respaldo) y respaldoAuto · movil*: acceso desde el móvil (puerto, código de 6 cifras y secreto de la sesión)
-  const def = { hwAccel: true, dataDir: '', assets: [], respaldoDir: '', respaldoAuto: true, movilActivo: false, movilPuerto: 3000, movilCodigo: '', movilSecreto: '' };
+  const def = { hwAccel: true, dataDir: '', assets: [] };
   try {
     const o = JSON.parse(fs.readFileSync(file(dir), 'utf8'));
-    const txt = (v) => (typeof v === 'string' ? v : '');
-    const pt = Number(o.movilPuerto);
-    return {
-      hwAccel: o.hwAccel !== false, dataDir: typeof o.dataDir === 'string' ? o.dataDir : '', assets: Array.isArray(o.assets) ? o.assets.filter((a) => /^[A-Z0-9]{4,20}$/.test(a)) : [],
-      respaldoDir: txt(o.respaldoDir), respaldoAuto: o.respaldoAuto !== false, movilActivo: o.movilActivo === true,
-      movilPuerto: Number.isInteger(pt) && pt >= 1024 && pt <= 65535 ? pt : 3000, movilCodigo: /^\d{6}$/.test(txt(o.movilCodigo)) ? o.movilCodigo : '', movilSecreto: /^[0-9a-f]{64}$/.test(txt(o.movilSecreto)) ? o.movilSecreto : '',
-    };
+    return { hwAccel: o.hwAccel !== false, dataDir: typeof o.dataDir === 'string' ? o.dataDir : '', assets: Array.isArray(o.assets) ? o.assets.filter((a) => /^[A-Z0-9]{4,20}$/.test(a)) : [] };
   } catch (e) { return def; }
 }
 function write(dir, patch) {                // une con lo ya guardado: cambiar una opción no borra las demás
@@ -60,9 +53,9 @@ function resolveDataDir(userData) {
 function factoryReset({ dir, store, core, restart }) {
   store.reset();
   core.resetData({ restart: !!restart });
-  // vuelve la aceleración al valor inicial, pero se CONSERVA la carpeta de datos elegida (los datos están ahí) y la de respaldos
+  // vuelve la aceleración al valor inicial, pero se CONSERVA la carpeta de datos elegida (los datos están ahí)
   const keep = read(dir);
   try { fs.unlinkSync(file(dir)); } catch (e) { /* ok */ }
-  if (keep.dataDir || keep.assets.length || keep.respaldoDir) write(dir, { dataDir: keep.dataDir, assets: keep.assets, respaldoDir: keep.respaldoDir });
+  if (keep.dataDir || keep.assets.length) write(dir, { dataDir: keep.dataDir, assets: keep.assets });
 }
 module.exports = { read, write, factoryReset, backup, copyData, resolveDataDir, DATA_DIRS };

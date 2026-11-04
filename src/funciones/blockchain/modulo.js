@@ -1,7 +1,7 @@
 // Función «Monitor de blockchain» (v0.25): une el núcleo del monitor (monitor.js) con el puente de funciones.
 // Fuentes: mempool.space (bloques, dificultad) y Bitstamp (precios). Si una falla, se avisa; nunca se cambia de fuente en silencio.
-// v0.26.2: consulta cada «pollSeconds» (por defecto 30 s) SOLO mientras la pestaña esté abierta y a la vista (la pantalla pregunta cada 5 s).
-// Si nadie pregunta durante 20 s, se detiene del todo y no consume nada; al volver a la pestaña se reanuda. Datos en <datos del programa>/funciones/blockchain/historial.json (si existía el del monitor suelto, se copia una vez).
+// Consulta sola cada «pollSeconds» (por defecto 30 s) mientras el programa esté abierto, para poder avisar de bloques nuevos aunque la
+// pestaña no se esté mirando. Datos en <datos del programa>/funciones/blockchain/historial.json (si existía el del monitor suelto, se copia una vez).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -31,9 +31,7 @@ function crear(entorno) {
     notifier: notificar,
     now: entorno.ahora,
   });
-  let ultima = null, timer = null, cerrado = false, buenaUltima = true, ultimoUso = 0, activo = false;
-  const ahoraMs = () => (entorno.ahora || Date.now)();
-  const VIGENCIA = 20000;
+  let ultima = null, timer = null, cerrado = false, buenaUltima = true;
 
   async function consultar(forzar) {
     const v = await monitor.refresh(forzar);
@@ -43,13 +41,13 @@ function crear(entorno) {
     return v;
   }
   function programar() {
-    clearTimeout(timer); activo = false;
-    if (cerrado || ahoraMs() - ultimoUso > VIGENCIA) return;       // nadie mira la pestaña: parado
-    activo = true;
+    clearTimeout(timer);
+    if (cerrado) return;
     const s = monitor.getSettings().pollSeconds;
-    timer = setTimeout(async () => { if (ahoraMs() - ultimoUso <= VIGENCIA) { try { await consultar(false); } catch (e) { /* ya queda como error en la vista */ } } programar(); }, (buenaUltima ? s : Math.min(s, 15)) * 1000);
+    timer = setTimeout(async () => { try { await consultar(false); } catch (e) { /* ya queda como error en la vista */ } programar(); }, (buenaUltima ? s : Math.min(s, 15)) * 1000);
     if (timer.unref) timer.unref();
   }
+  consultar(true).catch(() => {}).then(programar);
 
   const acciones = {
     // Lo último que se sabe (al instante). Si aún no hay nada, lo guardado en el equipo.
@@ -66,10 +64,7 @@ function crear(entorno) {
   };
   return {
     monitor,
-    async llamar(nombre, args) {
-      ultimoUso = ahoraMs();
-      if (!activo && !cerrado) { if (!ultima) consultar(true).catch(() => {}); programar(); }
-      const f = acciones[nombre]; if (!f) throw new Error('Canal desconocido.'); return f(...args); },
+    async llamar(nombre, args) { const f = acciones[nombre]; if (!f) throw new Error('Canal desconocido.'); return f(...args); },
     cerrar() { cerrado = true; clearTimeout(timer); },
   };
 }

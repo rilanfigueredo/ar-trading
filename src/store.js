@@ -23,26 +23,12 @@ function create(dir) {
   const sharedFile = () => path.join(dir, 'config.json');
   const winFile = (id) => path.join(dir, `win-${id}.json`);
 
-  // v0.26.2: NUNCA se pierde lo guardado. Si el archivo existe pero no se puede leer un instante (antivirus, copia de respaldo en
-  // Windows) se reintenta; si sigue mal, se usa la copia .bak; y si tampoco, el archivo dañado se aparta con otro nombre (no se borra ni se pisa).
-  const espera = (ms) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (e) { /* ok */ } };
-  function readJson(file) {
-    let ultimo = null;
-    for (let i = 0; i < 4; i++) {
-      try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
-      catch (e) { if (e.code === 'ENOENT') return null; ultimo = e; espera(60); }
-    }
-    try { const b = JSON.parse(fs.readFileSync(file + '.bak', 'utf8')); if (b && typeof b === 'object') return b; } catch (e) { /* sin copia */ }
-    try { fs.renameSync(file, file + '.danado-' + Date.now()); } catch (e) { /* ok */ }
-    void ultimo;
-    return null;
-  }
+  function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; } }
   function writeJson(file, obj) {
     fs.mkdirSync(dir, { recursive: true });
     const tmp = file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
-    try { const cur = fs.readFileSync(file, 'utf8'); JSON.parse(cur); fs.writeFileSync(file + '.bak', cur); } catch (e) { /* no había archivo bueno que copiar */ }
-    for (let i = 0; ; i++) { try { fs.renameSync(tmp, file); break; } catch (e) { if (i >= 4) throw e; espera(80); } }   // en Windows el cambio puede fallar si otro programa lo tiene abierto un instante
+    fs.renameSync(tmp, file);
   }
   const pick = (src, keys) => { const o = {}; keys.forEach((k) => { if (src && src[k] !== undefined) o[k] = src[k]; }); return o; };
   const checkId = (id) => { if (!ID_RE.test(String(id))) throw new Error('Ventana no válida: ' + id); return String(id); };
@@ -177,7 +163,7 @@ function create(dir) {
   function reset() {
     let files = [];
     try { files = fs.readdirSync(dir); } catch (e) { files = []; }
-    files.forEach((f) => { if (/^config\.json(\.tmp|\.bak|\.danado-\d+)?$/.test(f) || /^win-w(10|[1-9])\.json(\.tmp|\.bak|\.danado-\d+)?$/.test(f)) { try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* ya no estaba */ } } });
+    files.forEach((f) => { if (f === 'config.json' || /^win-w(10|[1-9])\.json(\.tmp)?$/.test(f) || f === 'config.json.tmp') { try { fs.unlinkSync(path.join(dir, f)); } catch (e) { /* ya no estaba */ } } });
     snaps.clear();
   }
   return { reset, tabs, getActive, setActive, getMainBounds, setMainBounds, tfLabel, getConfig, setConfig, markShared, listWindows, addWindow, removeWindow, newWindowId, setBounds, MAX_WINDOWS, SHARED_KEYS, WINDOW_KEYS };

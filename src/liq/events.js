@@ -14,12 +14,14 @@ function create(dir) {
   const size = (f) => { try { return fs.statSync(full(f)).size; } catch (e) { return 0; } };
   const files = () => { try { return fs.readdirSync(dir).filter((f) => RE.test(f)); } catch (e) { return []; } };
   const months = () => Array.from(new Set(files().map((f) => RE.exec(f)[1]))).sort();
-  const textOf = (m) => {                                          // contenido del mes: .gz + .jsonl; solo si existen los dos se quitan las líneas repetidas
-    const fs_ = ['.jsonl.gz', '.jsonl'].filter((ext) => fs.existsSync(full('events-' + m + ext)));
-    const read = (ext) => { const raw = fs.readFileSync(full('events-' + m + ext)); return (ext === '.jsonl.gz' ? zlib.gunzipSync(raw) : raw).toString('utf8').split('\n'); };
-    if (fs_.length === 1) return read(fs_[0]).filter(Boolean);
+  const textOf = (m) => {                                          // contenido del mes: .gz + .jsonl, sin líneas repetidas
     const seen = new Set(), out = [];
-    fs_.forEach((ext) => read(ext).forEach((ln) => { if (ln && !seen.has(ln)) { seen.add(ln); out.push(ln); } }));
+    ['.jsonl.gz', '.jsonl'].forEach((ext) => {
+      const f = 'events-' + m + ext;
+      if (!fs.existsSync(full(f))) return;
+      const raw = fs.readFileSync(full(f));
+      (ext === '.jsonl.gz' ? zlib.gunzipSync(raw) : raw).toString('utf8').split('\n').forEach((ln) => { if (ln && !seen.has(ln)) { seen.add(ln); out.push(ln); } });
+    });
     return out;
   };
   const rowsOf = (m) => { const rows = []; textOf(m).forEach((ln) => { try { const e = JSON.parse(ln); if (e && e.t) rows.push(e); } catch (er) { /* línea dañada: se salta */ } }); return rows; };
@@ -61,34 +63,6 @@ function create(dir) {
     return res;
   };
 
-  // v0.26.2: versión que NO bloquea el programa (lee, comprime y comprueba fuera del hilo principal, un mes cada vez).
-  // Es la que usa el servicio; la síncrona de arriba queda para las pruebas. Mismas garantías: el original solo se quita si el .gz es idéntico.
-  const compressAsync = async (nowSec) => {
-    flush();
-    const fsp = fs.promises, { promisify } = require('util');
-    const gzip = promisify(zlib.gzip), gunzip = promisify(zlib.gunzip);
-    const cur = monthOf(nowSec || Date.now() / 1000), res = { files: 0, saved: 0, errors: [] };
-    for (const m of months().filter((x) => x < cur)) {
-      const jf = 'events-' + m + '.jsonl', gf = jf + '.gz';
-      if (!fs.existsSync(full(jf))) continue;
-      try {
-        let want;
-        if (fs.existsSync(full(gf))) want = Buffer.from(textOf(m).join('\n') + '\n', 'utf8');    // caso raro: existen los dos (se quitan repetidas)
-        else { want = await fsp.readFile(full(jf)); if (want.length && want[want.length - 1] !== 10) want = Buffer.concat([want, Buffer.from('\n')]); }
-        const gz = await gzip(want, { level: 6 });
-        await fsp.writeFile(full(gf + '.tmp'), gz);
-        const back = await gunzip(await fsp.readFile(full(gf + '.tmp')));
-        if (!back.equals(want)) throw new Error('la copia comprimida no coincide con el original');
-        const before = size(jf) + size(gf);
-        await fsp.rename(full(gf + '.tmp'), full(gf));
-        await fsp.unlink(full(jf));
-        res.files++; res.saved += Math.max(0, before - size(gf));
-      } catch (e) { try { fs.unlinkSync(full(gf + '.tmp')); } catch (er) { /* nada */ } res.errors.push(m + ': ' + e.message); }
-      await new Promise((r) => setTimeout(r, 50));                   // respiro entre meses
-    }
-    return res;
-  };
-
   const info = () => {
     const ms = months(); let bytes = 0; files().forEach((f) => { bytes += size(f); });
     let from = null, to = lastT;
@@ -100,6 +74,6 @@ function create(dir) {
     if (!to && ms.length) { const l = rowsOf(ms[ms.length - 1]); to = l.length ? Math.max.apply(null, l.map((e) => e.t)) : null; lastT = to; }
     return { from, to, bytes, months: ms.length, error: writeError };
   };
-  return { add, flush, load, compress, compressAsync, info, months };
+  return { add, flush, load, compress, info, months };
 }
 module.exports = { create, monthOf, RE };

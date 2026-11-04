@@ -955,7 +955,7 @@
 
   // v0.23.3: Ajustes por pestañas (General, Gráfico, Plantillas, Paleta, Datos, Servicio)
   let settingsTab = 'general';
-  const SET_TABS = [['general', 'General'], ['grafico', 'Gráfico'], ['plantillas', 'Plantillas'], ['paleta', 'Paleta'], ['datos', 'Datos'], ['servicio', 'Servicio']].concat(window.TVAjustesExtra ? window.TVAjustesExtra.tabs : []);   // v0.26: Respaldo, Móvil, Programa (ajustes_extra.js)
+  const SET_TABS = [['general', 'General'], ['grafico', 'Gráfico'], ['plantillas', 'Plantillas'], ['paleta', 'Paleta'], ['datos', 'Datos'], ['servicio', 'Servicio']];
   const THEME_ICONS = {
     light: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
     dark: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
@@ -1171,7 +1171,6 @@
         }
 
         if (tab === 'servicio') fillService(body, mk, field, title, hint);
-        if (window.TVAjustesExtra && window.TVAjustesExtra.tabs.some((t) => t[0] === tab)) window.TVAjustesExtra.render(tab, body, mk, title, hint);
         decoratePalette(body);
       };
       fill();
@@ -2068,7 +2067,7 @@
 
   async function init() {
     let saved = null;
-    try { saved = await API.getConfig(); } catch (e) { await new Promise((r) => setTimeout(r, 600)); try { saved = await API.getConfig(); } catch (e2) { /* valores por defecto */ } }   // v0.26.2: un reintento antes de rendirse (no se parte de cero por un fallo de un instante)
+    try { saved = await API.getConfig(); } catch (e) { /* valores por defecto */ }
     A.cfg = migrate(saved);
     A.tabId = API.windowId || 'w1'; A.gridEl = $('grid');
     // Velas por volumen: desactivadas por ahora (ver NOTAS_VELAS_VOLUMEN.txt). Se limpian de configuraciones guardadas.

@@ -70,7 +70,7 @@ function create(dir) {
   };
   const touch = () => { st.ver++; if (!timer) { timer = setTimeout(flush, 5000); if (timer.unref) timer.unref(); } };
   return {
-    state: st, firstRun, flush, info, compress: () => ev.compress(), compressAsync: () => ev.compressAsync(),
+    state: st, firstRun, flush, info, compress: () => ev.compress(),
     addCandles(rows) { if (rows.length) { st.candles = merge(st.candles, rows); dirtySeries = true; touch(); } },
     addOi(ex, rows) { if (rows.length) { st.oi[ex] = merge(st.oi[ex], rows); dirtySeries = true; touch(); } },
     addEvent(e) { st.events.push(e); ev.add(e); if (st.events.length > 200000) st.events.shift(); touch(); },

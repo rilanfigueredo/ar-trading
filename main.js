@@ -6,37 +6,16 @@ const Store = require('./src/store');
 const Service = require('./src/service');
 const Autostart = require('./src/autostart');
 const Puente = require('./src/funciones/puente');
-const Escritorio = require('./src/escritorio');          // v0.26: respaldo, actualizaciones y acceso desde el móvil
 
 // v0.23.3: la aceleración por hardware se decide ANTES de arrancar (Electron no deja cambiarla después).
-// v0.26.1: registro de problemas y modo seguro. Si la vez anterior el programa no llegó a abrir bien, arranca sin aceleración de gráficos
-// y sin el guardado de liquidaciones en segundo plano (ver src/diagnostico.js). Todo esto es a prueba de fallos: nunca impide abrir.
-const Diag = require('./src/diagnostico').crear({ dir: app.getPath('userData') });
-let modoSeguro = { seguro: false, nuevo: false, motivo: '' };
-try {
-  modoSeguro = Diag.arrancar({ version: app.getVersion(), hwAccelActual: Service.read(app.getPath('userData')).hwAccel });
-  if (modoSeguro.seguro && Service.read(app.getPath('userData')).hwAccel) Service.write(app.getPath('userData'), { hwAccel: false });
-} catch (e) { /* ok */ }
 const hwAtStart = Service.read(app.getPath('userData')).hwAccel;
-if (!hwAtStart) {
-  app.disableHardwareAcceleration();
-  // v0.26.3: el registro del usuario mostró que sus gráficos (GPU) ya caían a software y aun así el programa moría sin dejar rastro
-  // (típico de "GPU process isn't usable" de Chromium). Sin proceso de GPU aparte no hay nada que pueda matar al programa.
-  try { app.commandLine.appendSwitch('disable-gpu'); app.commandLine.appendSwitch('disable-gpu-compositing'); app.commandLine.appendSwitch('in-process-gpu'); } catch (e) { /* ok */ }
-}
-// v0.26.3: si el programa muere de golpe, Chromium deja aquí su propio registro (chromium.log) y un volcado (carpeta Crashpad) para ver la causa.
-try {
-  const ud = app.getPath('userData');
-  app.commandLine.appendSwitch('enable-logging', 'file'); app.commandLine.appendSwitch('log-file', path.join(ud, 'chromium.log'));
-  require('electron').crashReporter.start({ uploadToServer: false, compress: true });
-} catch (e) { /* ok */ }
+if (!hwAtStart) app.disableHardwareAcceleration();
 
 // v0.22: UNA sola ventana con pestañas (como un navegador). Cada pestaña (w1…w10) guarda su propia configuración;
 // lo compartido (tema, plantillas, scripts…) vive aparte. Cambiar de pestaña recarga la página con la otra configuración.
 let store = null;
 let win = null;
 let puente = null;
-let extra = null;
 
 // v0.24: funciones de la pantalla de tarjetas. Un canal por mensaje, con el prefijo de cada función (noticias:…); toda la red sale de aquí.
 function registrarFunciones() {
@@ -60,8 +39,8 @@ ipcMain.handle('symbols', async (_e, p) => core.symbols(p));
 ipcMain.handle('tickers', async (_e, p) => core.tickers(p));
 
 ipcMain.handle('config:get', async (_e, id) => store.getConfig(id || 'w1'));
-ipcMain.handle('config:set', async (_e, id, cfg) => (extra && extra.estado.restaurando ? { changed: {} } : { changed: store.setConfig(id || 'w1', cfg).changed }));
-ipcMain.on('config:setSync', (e, id, cfg) => { try { if (!(extra && extra.estado.restaurando)) store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
+ipcMain.handle('config:set', async (_e, id, cfg) => ({ changed: store.setConfig(id || 'w1', cfg).changed }));
+ipcMain.on('config:setSync', (e, id, cfg) => { try { store.setConfig(id || 'w1', cfg); } catch (err) { /* ok */ } e.returnValue = true; });
 ipcMain.on('window:activeSync', (e) => { try { e.returnValue = store.getActive(); } catch (err) { e.returnValue = 'w1'; } });
 
 ipcMain.handle('window:overlay', async (_e, color, symbolColor) => {
@@ -101,7 +80,6 @@ ipcMain.handle('service:clearCache', async () => {
 });
 ipcMain.handle('service:factoryReset', async () => {
   try {
-    try { const sv = Service.read(app.getPath('userData')); require('./src/respaldo').hacer({ userData: app.getPath('userData'), destino: sv.respaldoDir || path.join(app.getPath('documents'), 'Ar_Trading_Respaldo'), origen: 'previo', appVersion: app.getVersion() }); } catch (e) { /* sin respaldo previo: se sigue */ }
     Service.factoryReset({ dir: app.getPath('userData'), store, core, restart: false });
     await session.defaultSession.clearStorageData();
     await session.defaultSession.clearCache();
@@ -166,7 +144,7 @@ function createWindow() {
     },
   };
   // Windows: sin barra de título del sistema (ni icono ni nombre); los botones minimizar/maximizar/cerrar se dibujan sobre la barra de pestañas.
-  if (process.platform === 'win32' && !modoSeguro.seguro) Object.assign(opts, { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a102a', symbolColor: '#d1d4dc', height: 34 } });
+  if (process.platform === 'win32') Object.assign(opts, { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a102a', symbolColor: '#d1d4dc', height: 34 } });
   if (b && Number.isFinite(b.width) && Number.isFinite(b.height)) {
     Object.assign(opts, { width: b.width, height: b.height });
     if (Number.isFinite(b.x) && Number.isFinite(b.y)) Object.assign(opts, { x: b.x, y: b.y });
@@ -189,39 +167,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  if (process.platform === 'win32') app.setAppUserModelId('com.artrading.app');   // v0.26: los avisos de Windows salen a nombre de Ar_Trading
-  let vig = null;
-  try { Diag.cabecera({ app, version: app.getVersion() }); vig = Diag.vigilar({ app, getWin: () => win }); } catch (e) { /* ok */ }
   // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
   const dd = Service.resolveDataDir(app.getPath('userData'));
   core.setDataDir(dd.dir); core.setDataNote({ dir: dd.dir, wanted: dd.wanted, error: dd.error });
   core.setRole('app'); core.setAssets(Service.read(app.getPath('userData')).assets);
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
-  try { registrarFunciones(); } catch (e) { Diag.log('Funciones: ' + e.message); }   // un fallo aquí no impide abrir los gráficos
-  try {
-    extra = Escritorio.registrar({ seguro: modoSeguro.seguro, log: Diag.log, app, ipcMain, shell, dialog, Notification, net, getWin: () => win, store, core, puente, relanzar: () => { try { core.shutdown(); } catch (e) { /* ok */ } relaunch(); } });
-  } catch (e) { Diag.log('Escritorio: ' + e.message); }   // respaldo/actualizaciones/móvil: si fallan, el resto sigue
+  try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
+  core.liqStart();
   createWindow();
-  try { if (vig) vig.ventana(win); } catch (e) { /* ok */ }
-  // v0.26.1: el guardado de liquidaciones en segundo plano (WebSockets a 3 casas) arranca DESPUÉS de que la pantalla ya está abierta,
-  // para no competir con la carga inicial. En modo seguro no arranca.
-  win.webContents.once('did-finish-load', () => { setTimeout(() => { try { if (!modoSeguro.seguro) core.liqStart(); else Diag.log('Modo seguro: no se inicia el guardado de liquidaciones'); } catch (e) { Diag.log('liqStart: ' + e.message); } }, 4000); });
-  if (modoSeguro.seguro) win.webContents.once('did-finish-load', () => setTimeout(() => { try {
-    dialog.showMessageBox(win, { type: 'warning', title: 'Ar_Trading en modo seguro', buttons: ['Entendido'], message: 'Ar_Trading arrancó en MODO SEGURO',
-      detail: (modoSeguro.nuevo ? modoSeguro.motivo + '\n\n' : '') + 'Se desactivó la aceleración de gráficos y el guardado de liquidaciones en segundo plano, para que abra sin problemas.\n\nSi así funciona bien, déjalo. Para volver al modo normal: Ajustes > Programa > «Volver al modo normal».\n\nSe guardó un registro de lo ocurrido en: ' + Diag.logF });
-  } catch (e) { /* ok */ } }, 1500));
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-// v0.26.1: registro de problemas, modo seguro y consumo (Ajustes > Programa)
-ipcMain.handle('diag:get', async () => Object.assign(Diag.estado(), Diag.rendimiento(app), { desktop: true }));
-ipcMain.handle('diag:abrir', async () => { try { shell.showItemInFolder(Diag.logF); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
-ipcMain.handle('diag:normal', async () => {
-  try { const r = Diag.salirDeSeguro(); Service.write(app.getPath('userData'), { hwAccel: r.hwAccel }); relaunch(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
-});
-
-app.on('before-quit', () => { try { Diag.estable(); Diag.log('Cierre normal'); } catch (e) { /* ok */ } try { if (extra) extra.alCerrar(); } catch (e) { /* ok */ } core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
+app.on('before-quit', () => { core.shutdown(); try { if (puente) puente.cerrarTodo(); } catch (e) { /* ok */ } });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
