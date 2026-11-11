@@ -103,7 +103,7 @@
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
       maSeries: new Map(), maLast: new Map(), sub: {}, overlays: {}, precision: 2,
-      token: 0, loadingMore: false, reachedStart: false, polling: false, pollTimer: null, autoFillRunning: false,
+      token: 0, loadingMore: false, reachedStart: false, polling: false, pollTimer: null,
       hover: false, hoverTime: null, loading: false, status: { text: '', kind: '' }, destroyed: false,
     };
     const view = { index, host, cfg: vcfg, state: s };
@@ -1322,7 +1322,6 @@
         setStatus(okText(), 'live');
         if (!s.suspended) s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
         G.onLoaded(view);
-        if (!s.suspended) autoFill(token);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
         s.loading = false;
@@ -1364,28 +1363,6 @@
         s.loadingMore = false;
       }
     }
-    // Completa el historial sin que haya que mover el gráfico: sigue pidiendo velas anteriores hasta tener
-    // unas 1.500 barras (o todo el historial disponible), con un tope de bloques por seguridad.
-    async function autoFill(token) {
-      const tf = tfNow();
-      const heavy = L.ratioOf(tf) > L.MAX_RATIO; // barras exactas muy pesadas: menos barras objetivo, más bloques de tope
-      // Bitstamp con velas menores a un día: se sigue cargando en segundo plano hasta el inicio del historial (2011).
-      const deepBs = exId() === 'bitstamp' && !trOn() && L.baseSec(tf) && L.baseSec(tf) < 86400;
-      const TARGET = deepBs ? 160000 : heavy ? 120 : 1500, MAX_BLOCKS = deepBs ? 400 : heavy ? 600 : 150;
-      let used = 0;
-      const pages = Math.max(4, Math.min(16, Math.ceil((300 * L.ratioOf(tf)) / 1000)));
-      if (s.autoFillRunning || s.suspended) return;
-      s.autoFillRunning = true;
-      try {
-      while (token === s.token && !s.destroyed && !s.suspended && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
-        if (s.loadingMore) { await new Promise((r) => setTimeout(r, 150)); continue; }
-        const ok = await loadMore(pages);
-        used += pages;
-        if (ok === false) break;
-      }
-      } finally { s.autoFillRunning = false; }
-    }
-
     function onRangeChange(r) {
       if (r && r.from < 150) loadMore();
       if (!s.loading) G.onRange(view);
@@ -1873,7 +1850,7 @@
         if (!s.destroyed && s.bars.length) {
           if (!s.pollTimer) s.pollTimer = setInterval(poll, tfNow().kind === 'vol' ? 1500 : (tfNow().sec < 60 ? 1000 : 3000));
           if (trOn() && !s.trTimer) s.trTimer = setInterval(pollTradeInfo, 2000);
-          try { poll(); if (tfNow().kind !== 'vol') autoFill(s.token); } catch (e) { /* se reintenta en el siguiente ciclo */ }
+          try { poll(); } catch (e) { /* se reintenta en el siguiente ciclo */ }
         }
       },
       setFullscreen(on) { fsBtn.textContent = on ? '⤓' : '⛶'; fsBtn.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (Esc para salir)'; fsBtn.classList.toggle('on', !!on); },
