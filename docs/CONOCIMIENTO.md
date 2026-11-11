@@ -3,7 +3,7 @@
 ## Actualización v0.25.2 — rendimiento
 - El recolector de liquidaciones se inicia bajo demanda al abrir el mapa; el servicio 24/7 continúa siendo explícito y opcional.
 - Los gráficos de pestañas inactivas detienen sus temporizadores; al volver a la pestaña se reanuda la actualización en vivo y la carga de historial pendiente.
-- Se elimina el precalentamiento adicional de bloques de velas en segundo plano; el historial se completa mediante la carga principal y las solicitudes del usuario.
+- Se elimina el precalentamiento y la carga automatica extensa hasta 1.500 velas; el historial adicional se solicita al acercarse al borde izquierdo o cuando el usuario lo necesita.
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
