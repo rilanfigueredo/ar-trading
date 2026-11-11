@@ -1,0 +1,36 @@
+name: Compilar instalador de Ar_Trading para Windows
+
+on:
+  push:
+    branches:
+      - optimizacion-v0.25.2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Ejecutar pruebas
+        run: npm test
+      - name: Crear instalador
+        run: npm run dist
+      - name: Publicar instalador como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ar_Trading-Instalador-0.25.2
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
