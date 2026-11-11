@@ -103,7 +103,7 @@
     const s = {
       base: [], bars: [], anchor: 0, chart: null, series: null, pivot: null, fut: null,
       maSeries: new Map(), maLast: new Map(), sub: {}, overlays: {}, precision: 2,
-      token: 0, loadingMore: false, reachedStart: false, polling: false, pollTimer: null,
+      token: 0, loadingMore: false, reachedStart: false, polling: false, pollTimer: null, autoFillRunning: false,
       hover: false, hoverTime: null, loading: false, status: { text: '', kind: '' }, destroyed: false,
     };
     const view = { index, host, cfg: vcfg, state: s };
@@ -1126,7 +1126,7 @@
         renderLegend(null);
         s.loading = false;
         setStatus('En vivo', 'live');
-        s.pollTimer = setInterval(poll, 1500);
+        if (!s.suspended) s.pollTimer = setInterval(poll, 1500);
         G.onLoaded(view);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
@@ -1136,7 +1136,7 @@
       }
     }
     async function loadMoreVol() {
-      if (s.loadingMore || s.reachedStart || !s.bars.length || s.loading) return;
+      if (s.suspended || s.loadingMore || s.reachedStart || !s.bars.length || s.loading) return;
       s.loadingMore = true;
       const token = s.token;
       try {
@@ -1320,10 +1320,9 @@
         s.loading = false;
         if (view.draw) view.draw.repaint();
         setStatus(okText(), 'live');
-        s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
-        warmBack(token);
+        if (!s.suspended) s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
         G.onLoaded(view);
-        autoFill(token);
+        if (!s.suspended) autoFill(token);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
         s.loading = false;
@@ -1332,13 +1331,6 @@
       }
     }
 
-    // Mientras el usuario mira el gráfico, se va guardando en el equipo el historial anterior.
-    function warmBack(token) {
-      const tf = tfNow();
-      if (trOn() || !window.TVHistory || !TVHistory.supported(tf.base) || !s.base.length || s.reachedStart) return;
-      const blocks = Math.max(4, Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 300 : 40, Math.ceil((1200 * L.ratioOf(tf)) / 1000)));
-      TVHistory.warm(vcfg.symbol, tf.base, s.base[0].time * 1000 - 1, blocks, () => token !== s.token || s.destroyed, exId());
-    }
     async function loadMore(pagesOverride) {
       if (s.rp) return false;   // en reproducción no se agrega historial
       if (tfNow().kind === 'vol') return loadMoreVol();
@@ -1364,7 +1356,6 @@
           if (range && added > 0) s.chart.timeScale().setVisibleLogicalRange({ from: range.from + added, to: range.to + added });
         }
         setStatus(okText(), 'live');
-        warmBack(token);
         return true;
       } catch (e) {
         setStatus('Error al cargar historial', 'err');
@@ -1383,12 +1374,16 @@
       const TARGET = deepBs ? 160000 : heavy ? 120 : 1500, MAX_BLOCKS = deepBs ? 400 : heavy ? 600 : 150;
       let used = 0;
       const pages = Math.max(4, Math.min(16, Math.ceil((300 * L.ratioOf(tf)) / 1000)));
-      while (token === s.token && !s.destroyed && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
+      if (s.autoFillRunning || s.suspended) return;
+      s.autoFillRunning = true;
+      try {
+      while (token === s.token && !s.destroyed && !s.suspended && !s.reachedStart && s.bars.length < TARGET && used < MAX_BLOCKS) {
         if (s.loadingMore) { await new Promise((r) => setTimeout(r, 150)); continue; }
         const ok = await loadMore(pages);
         used += pages;
         if (ok === false) break;
       }
+      } finally { s.autoFillRunning = false; }
     }
 
     function onRangeChange(r) {
@@ -1868,7 +1863,19 @@
       toggleMaxPane(name) { setMaxPane(s.maxPane === name ? null : name); },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },
       // Pestaña en segundo plano: el gráfico sigue vivo pero no pide datos; al volver se pone al día.
-      setSuspended(on) { s.suspended = !!on; if (!on && !s.destroyed && s.bars.length) { try { poll(); } catch (e) { /* ok */ } } },
+      setSuspended(on) {
+        s.suspended = !!on;
+        if (s.suspended) {
+          stopPolling();
+          clearInterval(s.trTimer); s.trTimer = null;
+          return;
+        }
+        if (!s.destroyed && s.bars.length) {
+          if (!s.pollTimer) s.pollTimer = setInterval(poll, tfNow().kind === 'vol' ? 1500 : (tfNow().sec < 60 ? 1000 : 3000));
+          if (trOn() && !s.trTimer) s.trTimer = setInterval(pollTradeInfo, 2000);
+          try { poll(); if (tfNow().kind !== 'vol') autoFill(s.token); } catch (e) { /* se reintenta en el siguiente ciclo */ }
+        }
+      },
       setFullscreen(on) { fsBtn.textContent = on ? '⤓' : '⛶'; fsBtn.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (Esc para salir)'; fsBtn.classList.toggle('on', !!on); },
       setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
       applyTheme() { applyLook(); if (s.scr) s.scr.update(); },
