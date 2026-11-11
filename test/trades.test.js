@@ -68,8 +68,14 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'artr-'));
     assert.ok(Math.abs(sum(fh, 5) - sum(got, 5)) < 1e-6, 'resaltar no cambia la vela');
     assert.ok(Math.abs(sum(fh, 12) - sum(fo, 5)) < 1e-6, 'el volumen resaltado = el de "quitar"');
     // el hueco de ayer y hoy se rellena con consultas y la vela en vivo llega
-    await new Promise((r) => setTimeout(r, 2500));
-    const st = store.status();
+    // En Windows CI el relleno simulado de cientos de miles de operaciones puede tardar más de 2,5 s.
+    // Esperar a que el almacén complete el hueco, con un límite para detectar bloqueos reales.
+    let st = store.status(), waited = 0;
+    while ((st.holes > 0 || !st.live.lastId) && waited < 30000) {
+      await new Promise((r) => setTimeout(r, 250));
+      waited += 250;
+      st = store.status();
+    }
     eq(st.holes, 0); assert.ok(st.live.lastId > 0, 'hay operaciones en vivo'); eq(st.errors.length, 0, JSON.stringify(st.errors));
     const last = await store.bars({ interval: '1s', limit: 5, days: 2 });
     assert.ok(Date.now() - last[last.length - 1][0] < 5000, 'la última vela de 1 s es reciente');
