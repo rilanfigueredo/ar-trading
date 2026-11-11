@@ -1284,7 +1284,7 @@
           showOverlay('Las velas de operaciones reales funcionan solo con BTCUSDT de Binance (Futuros) en esta versión. Elige BTCUSDT de Binance o vuelve a «Velas del exchange» en el botón Datos.', false);
           return;
         }
-        s.trTimer = setInterval(pollTradeInfo, 2000);
+        if (!s.suspended) s.trTimer = setInterval(pollTradeInfo, 2000);
       }
       s.loadingMore = false; s.reachedStart = false; s.loading = true;
       setStatus(trOn() ? 'Cargando operaciones (la primera vez descarga archivos del día)…' : 'Cargando historial…', 'loading');
