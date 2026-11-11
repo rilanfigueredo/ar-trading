@@ -174,7 +174,8 @@ app.whenReady().then(() => {
   store = Store.create(app.getPath('userData'));
   Menu.setApplicationMenu(null);
   try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
-  core.liqStart();
+  // v0.25.2: el recolector de liquidaciones se inicia al abrir el mapa, no al arrancar la app.
+  // El servicio 24/7 sigue siendo una opción explícita del usuario.
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
