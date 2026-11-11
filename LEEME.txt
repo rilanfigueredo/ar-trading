@@ -1,8 +1,12 @@
-AR_TRADING - VERSION 0.25.1
+AR_TRADING - VERSION 0.25.2
 ========================
 
-NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
-Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+OPTIMIZACION DE RECURSOS Y CARGA
+- El mapa de liquidaciones ya no inicia su recopilacion al abrir Ar_Trading. Se activa cuando abres el mapa; el servicio 24/7 sigue siendo voluntario.
+- Las pestañas inactivas detienen sus temporizadores y dejan de consultar datos. Al volver a abrirlas, se actualizan y reanudan la carga pendiente.
+- Se elimina la descarga anticipada de bloques de historial que duplicaba trabajo con la carga automatica del grafico.
+- Se conservan las funciones y los datos guardados de versiones anteriores.
+- Pruebas de Node: pendientes de ejecutar sobre esta version. Windows/Electron y Binance real: pendientes de verificar.
 
 NOVEDADES DE LA v0.25.1 - VELAS POR DELANTE Y ORDEN VISUAL DE LOS DIBUJOS
 - El nombre del activo, el intervalo (marca de agua), la leyenda de arriba (nombre, precios) y el logo ahora van al FONDO: las velas y los dibujos quedan por delante y ya no se tapan.
