@@ -1298,7 +1298,7 @@
             if (first.length) s.anchor = Math.floor(first[0][0] / 1000);
           }
         }
-        // Primera carga corta (se ve enseguida); el resto del historial se completa solo en segundo plano (autoFill).
+        // Primera carga corta para mostrar el gráfico rápido; el historial anterior se amplía cuando hace falta.
         const pages = Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 24 : 16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
         const res = await fetchBack(undefined, pages, token);
         if (!res) return;
