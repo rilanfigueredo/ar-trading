@@ -100,7 +100,7 @@ function nuevaApp(fetchFn, conClave = true, t = { ahora: AHORA }) {
     ok(f.llamadas.every((u) => !u.includes('faireconomy')) === false && f.llamadas.filter((u) => u.includes('faireconomy')).length === 1, 'calendario descargado una sola vez');
     const v = app.vistaCalendario({ rango: 'hoy', monedas: ['USD'], importancias: ['alta', 'media'] });
     ok(v.filas.some((x) => x.publicado === '3.0 %'), 'panel muestra publicado');
-    fs.writeFileSync('/tmp/reporte_muestra.txt', r1.texto); }
+    fs.writeFileSync(path.join(os.tmpdir(), 'reporte_muestra.txt'), r1.texto); }
   // calendario falla con caché -> banner rojo y datos viejos
   { const t = { ahora: AHORA }; const f1 = crearFetch(); const { app, alm, dir } = nuevaApp(f1, true, t);
     await app.actualizarCalendario({ forzar: true });
