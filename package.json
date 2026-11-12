@@ -1,7 +1,7 @@
 {
   "name": "ar-trading",
   "productName": "Ar_Trading",
-  "version": "0.25.2",
+  "version": "0.25.4",
   "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
   "main": "main.js",
   "scripts": {
@@ -9,11 +9,13 @@
     "browser": "node server.js",
     "test": "node test/lib.test.js && node test/indicators.test.js && node test/draw.test.js && node test/exchanges.test.js && node test/connection.test.js && node test/trades.test.js && node test/script.test.js && node test/backtest.test.js && node test/store.test.js && node test/futureaxis.test.js && node test/http.test.js && node test/swings.test.js && node test/polymerge.test.js && node test/liq.test.js && node test/service.test.js && node test/datos2.test.js && node test/noticias.test.js && node test/funciones.test.js && node test/blockchain.test.js && node test/sim_calc.test.js && node test/sim_exits.test.js && node test/sim_extra.test.js && node test/sim_trade.test.js",
     "test:e2e": "node test/e2e_funciones.js",
-    "dist": "electron-builder --win --publish never"
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "^44.7.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "rcedit": "^4.0.1"
   },
   "build": {
     "appId": "com.artrading.app",
@@ -24,16 +26,34 @@
       "servicio.js",
       "src/**/*",
       "renderer/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.ico"
     ],
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
-    }
+      "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "Ar_Trading"
+    },
+    "afterPack": "build/afterPack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rilanfigueredo",
+        "repo": "ar-trading-releases",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }
