@@ -178,6 +178,7 @@ app.whenReady().then(() => {
   try { registrarFunciones(); } catch (e) { console.error('Funciones:', e.message); }   // un fallo aquí no impide abrir los gráficos
   core.liqStart();
   createWindow();
+  require('./src/updater').start(() => win);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 

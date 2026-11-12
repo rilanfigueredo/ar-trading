@@ -1,8 +1,16 @@
-AR_TRADING - VERSION 0.25.2
+AR_TRADING - VERSION 0.25.3
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.25.3 - AVISO DE ACTUALIZACIONES (SIN .BAT)
+- Al abrir el programa (y cada 6 horas) revisa si hay una version nueva. Si la hay, sale un aviso: "Descargar ahora" o "Mas tarde". Al terminar de descargar, "Reiniciar ahora" la instala sola.
+- Ya no hace falta instalar.bat ni crear_instalador.bat: el instalador (.exe) se crea solo en GitHub cada vez que se publica una version, en la pagina "Releases" del repositorio.
+- Instalacion la primera vez: descarga "Ar_Trading Setup X.exe" desde Releases y ejecutalo. Desde ahi, todo cambio llega como aviso.
+- Windows puede mostrar "SmartScreen" (programa sin firma): pulsa "Mas informacion" y "Ejecutar de todas formas".
+- El aviso solo funciona en el programa instalado, no con iniciar.bat ni en modo navegador.
+- SIN probar: Windows y la actualizacion real (necesita publicar una version posterior).
 
 NOVEDADES DE LA v0.25.2 - ICONO DE AR_TRADING
 - Nuevo icono (tu marca sobre fondo azul oscuro) en: el archivo .exe, el acceso directo del escritorio / menu Inicio y la barra de tareas de Windows.
