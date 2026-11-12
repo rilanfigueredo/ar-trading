@@ -48,7 +48,8 @@
       {
         "provider": "github",
         "owner": "rilanfigueredo",
-        "repo": "ar-trading"
+        "repo": "ar-trading",
+        "releaseType": "release"
       }
     ]
   },

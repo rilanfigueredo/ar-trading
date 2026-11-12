@@ -1,7 +1,9 @@
 name: Crear instalador y publicar
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['package.json']   # solo cuando se sube una version nueva
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
