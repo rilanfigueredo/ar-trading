@@ -44,6 +44,9 @@ jobs:
           if ! gh api "repos/$REPO_PUBLICO/contents/README.md" >/dev/null 2>&1; then
             gh api -X PUT "repos/$REPO_PUBLICO/contents/README.md" -f message="Inicio" -f content="$(printf '# Ar_Trading - actualizaciones\nSolo instaladores. Sin codigo fuente.\n' | base64 -w0)"
           fi
+          # notas = primera sección de LEEME.txt (lo que el aviso muestra al usuario)
+          awk 'NR>2 { if ($0 == "") { if (seen) exit } else { seen=1; print } }' LEEME.txt | head -c 1400 > notas.txt
+          [ -s notas.txt ] || echo "Ar_Trading $VER" > notas.txt
           gh release delete "v$VER" --repo "$REPO_PUBLICO" --cleanup-tag -y || true
           gh release create "v$VER" "dist/Ar_Trading-Setup-$VER.exe" "dist/Ar_Trading-Setup-$VER.exe.blockmap" dist/latest.yml \
-            --repo "$REPO_PUBLICO" --title "Ar_Trading $VER" --notes "Ar_Trading $VER"
+            --repo "$REPO_PUBLICO" --title "Ar_Trading $VER" --notes-file notas.txt

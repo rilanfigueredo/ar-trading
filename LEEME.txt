@@ -1,3 +1,13 @@
+AR_TRADING - VERSION 0.25.6
+========================
+
+AVISO DE ACTUALIZACIONES DENTRO DEL PROGRAMA
+- Al abrir el programa (y cada 6 horas) revisa si hay una versión nueva. Si no hay internet, no hace nada ni molesta.
+- Si hay una, aparece un aviso abajo a la derecha con tu versión, la nueva y lo que cambió. Botones: «Descargar actualización» o «Recordármelo más tarde».
+- Muestra el avance de la descarga y puedes seguir trabajando. Nada se descarga ni se instala solo.
+- Al terminar: «Reiniciar e instalar» o «Instalar después». Antes de instalar se guarda una copia de tu configuración (carpeta copia-antes-de-actualizar). Tus datos no se borran.
+- Probado: aviso con puente simulado, tema oscuro y claro. NO probado: actualización real en tu Windows.
+
 AR_TRADING - VERSION 0.25.5
 ========================
 

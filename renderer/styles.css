@@ -621,3 +621,12 @@ body.fn-mode #toolbar, body.fn-mode #main { display: none; }
 .fn-card-b:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
 .fn-card-note { font-size: 12px; color: var(--muted); }
 .fn-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--bg); text-align: center; padding: 20px; }
+
+/* v0.25.6: aviso de actualización (esquina inferior derecha, sigue el tema claro/oscuro) */
+#updNotice { position: fixed; right: 16px; bottom: 16px; z-index: 9000; width: 340px; max-width: calc(100vw - 32px); background: var(--panel); color: var(--text); border: 1px solid var(--border); border-left: 3px solid var(--acento); border-radius: 8px; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.4); font-size: 13px; }
+#updNotice h4 { margin: 0 0 4px; font-size: 14px; }
+#updNotice .u-ver { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+#updNotice .u-notas { max-height: 120px; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; margin-bottom: 10px; }
+#updNotice .u-bar { height: 6px; background: var(--hover); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+#updNotice .u-bar > i { display: block; height: 100%; width: 0; background: var(--acento); transition: width .2s; }
+#updNotice .u-btns { display: flex; gap: 8px; justify-content: flex-end; }

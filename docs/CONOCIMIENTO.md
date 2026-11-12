@@ -7,6 +7,9 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.25.6 — aviso de actualizaciones
+src/updater.js (electron-updater, autoDownload false, sin instalación automática; canales window:update*; copia de configuración antes de instalar) + renderer/js/updatenotice.js (toast #updNotice, tema claro/oscuro). Publica .github/workflows/publicar.yml (rama actualizaciones) en ar-trading-releases con notas = primera sección de LEEME.txt. Sin pruebas reales en Windows.
+
 ## Actualización v0.25.5 — iconos
 build/icon.ico/png generados desde los SVG del usuario (símbolo de renderer/assets/icono.svg sobre #0a102a redondeado). Logos SVG en renderer/assets/logo-{vertical,horizontal}-{oscuro,claro}.svg.
 
