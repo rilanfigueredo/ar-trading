@@ -1,7 +1,7 @@
 {
   "name": "ar-trading",
   "productName": "Ar_Trading",
-  "version": "0.25.1",
+  "version": "0.25.2",
   "description": "Ar_Trading: gráficos en vivo con solo las funciones que uso",
   "main": "main.js",
   "scripts": {
@@ -13,7 +13,8 @@
   },
   "devDependencies": {
     "electron": "^44.7.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "rcedit": "^4.0.1"
   },
   "build": {
     "appId": "com.artrading.app",
@@ -24,16 +25,23 @@
       "servicio.js",
       "src/**/*",
       "renderer/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.ico"
     ],
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
-    }
+      "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "Ar_Trading"
+    },
+    "afterPack": "build/afterPack.js"
   }
 }

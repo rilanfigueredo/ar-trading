@@ -136,6 +136,7 @@ function createWindow() {
     width: 1440, height: 860, minWidth: 900, minHeight: 560,
     backgroundColor: '#0a102a',
     title: 'Ar_Trading',
+    icon: path.join(__dirname, 'build', 'icon.ico'),   // icono de la ventana y de la barra de tareas
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -166,6 +167,7 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
+app.setAppUserModelId('com.artrading.app');   // Windows: agrupa la ventana con su icono en la barra de tareas
 app.whenReady().then(() => {
   // Datos históricos propios: carpeta elegida por el usuario (ej. disco externo) o la de siempre
   const dd = Service.resolveDataDir(app.getPath('userData'));

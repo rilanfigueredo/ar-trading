@@ -1,8 +1,13 @@
-AR_TRADING - VERSION 0.25.1
+AR_TRADING - VERSION 0.25.2
 ========================
 
 NOTA: las velas por volumen estan desactivadas por ahora (no funcionaron bien con datos reales).
 Ver docs/NOTAS_VELAS_VOLUMEN.txt con el plan para hacerlas bien mas adelante.
+
+NOVEDADES DE LA v0.25.2 - ICONO DE AR_TRADING
+- Nuevo icono (tu marca sobre fondo azul oscuro) en: el archivo .exe, el acceso directo del escritorio / menu Inicio y la barra de tareas de Windows.
+- Para verlo en el .exe y en el acceso directo hay que volver a crear el instalador (crear_instalador.bat) e instalarlo de nuevo. Si Windows sigue mostrando el icono viejo, es la memoria de iconos: reinicia el PC o desancla y vuelve a anclar el programa.
+- SIN probar: Windows (aqui solo se verifico la configuracion y la imagen del icono).
 
 NOVEDADES DE LA v0.25.1 - VELAS POR DELANTE Y ORDEN VISUAL DE LOS DIBUJOS
 - El nombre del activo, el intervalo (marca de agua), la leyenda de arriba (nombre, precios) y el logo ahora van al FONDO: las velas y los dibujos quedan por delante y ya no se tapan.
