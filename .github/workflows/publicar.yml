@@ -1,0 +1,49 @@
+name: Probar, crear instalador y publicar actualización
+# Se ejecuta al subir un cambio de package.json (nueva versión) a esta rama.
+on:
+  push:
+    branches: [actualizaciones]
+    paths: ['package.json', '.github/workflows/publicar.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+env:
+  REPO_PUBLICO: rilanfigueredo/ar-trading-releases
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Pruebas automáticas
+        run: npm test
+      - name: Crear instalador de Windows (sin publicar)
+        run: npm run dist
+      - name: Comprobar archivos y versión
+        shell: bash
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          ls -la dist
+          test -f "dist/Ar_Trading-Setup-$VER.exe"
+          test -f "dist/Ar_Trading-Setup-$VER.exe.blockmap"
+          grep -q "version: $VER" dist/latest.yml
+          grep -q "Ar_Trading-Setup-$VER.exe" dist/latest.yml
+      - name: Publicar en el repositorio de actualizaciones
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          # si el repositorio está vacío, GitHub necesita un primer archivo para poder crear versiones
+          if ! gh api "repos/$REPO_PUBLICO/contents/README.md" >/dev/null 2>&1; then
+            gh api -X PUT "repos/$REPO_PUBLICO/contents/README.md" -f message="Inicio" -f content="$(printf '# Ar_Trading - actualizaciones\nSolo instaladores. Sin codigo fuente.\n' | base64 -w0)"
+          fi
+          gh release delete "v$VER" --repo "$REPO_PUBLICO" --cleanup-tag -y || true
+          gh release create "v$VER" "dist/Ar_Trading-Setup-$VER.exe" "dist/Ar_Trading-Setup-$VER.exe.blockmap" dist/latest.yml \
+            --repo "$REPO_PUBLICO" --title "Ar_Trading $VER" --notes "Ar_Trading $VER"

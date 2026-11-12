@@ -41,7 +41,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
-      "shortcutName": "Ar_Trading"
+      "shortcutName": "Ar_Trading",
+      "artifactName": "Ar_Trading-Setup-${version}.${ext}"
     },
     "afterPack": "build/afterPack.js",
     "publish": [
