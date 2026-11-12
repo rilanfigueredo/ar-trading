@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.25.5
+========================
+
+NUEVO ICONO Y LOGOS
+- El icono del .exe, del acceso directo, de la barra de tareas y del instalador se generó de nuevo desde tus logos SVG (solo el símbolo cian sobre cuadrado azul oscuro).
+- Los 4 logos SVG quedan guardados en renderer/assets (vertical/horizontal, para fondo oscuro/claro) y icono.svg (solo símbolo).
+- Probado: generación del icono. NO probado: cómo se ve en tu Windows.
+
 AR_TRADING - VERSION 0.25.2
 ========================
 

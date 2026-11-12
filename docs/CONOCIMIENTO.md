@@ -7,6 +7,9 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.25.5 — iconos
+build/icon.ico/png generados desde los SVG del usuario (símbolo de renderer/assets/icono.svg sobre #0a102a redondeado). Logos SVG en renderer/assets/logo-{vertical,horizontal}-{oscuro,claro}.svg.
+
 ## 1. Qué es
 Programa de escritorio personal tipo TradingView, instalable en Windows (Electron) con modo navegador de respaldo (`server.js`). Datos de Binance (API pública y gratuita, REST con consultas periódicas: 1 s para temporalidades < 1 min, 3 s para el resto). Idioma de la interfaz: español. Usuario: no programador.
 Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.bat` (o `iniciar_navegador.bat`); `crear_instalador.bat` genera el .exe (electron-builder).
