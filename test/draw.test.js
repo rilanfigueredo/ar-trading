@@ -61,6 +61,16 @@ eq(G.humanDur(-90), '1 m');
   assert.ok(G.hitDistance(rect, [{ x: 10, y: 10 }, { x: 110, y: 60 }], 60, 35, 600, env) > 20); // el interior no cuenta
   const ch = { type: 'channel' };
   close(G.hitDistance(ch, [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 40 }], 20, 40, 600, env), 0); // sobre la paralela
+  // Canal de 4 puntos: la paralela va de x=C a x=D y pasa por C con la pendiente de A-B
+  const A = { x: 0, y: 0 }, B = { x: 100, y: 50 }, C = { x: 20, y: 50 }, Dd = { x: 60, y: 999 };
+  const cl = G.channelLines(ch, [A, B, C, Dd], 600);
+  close(cl.s2[0], 20); close(cl.s2[1], 50); close(cl.s2[2], 60); close(cl.s2[3], 70);   // 50 + 0,5*(60-20)
+  close(cl.h3.y, 70);
+  close(G.hitDistance(ch, [A, B, C, Dd], 40, 60, 600, env), 0);                              // sobre la paralela
+  assert.ok(G.hitDistance({ type: 'channel', center: false }, [A, B, C, Dd], 90, 100, 600, env) > 10);   // fuera de su tramo
+  const cl3 = G.channelLines(ch, [A, B, C], 600);
+  close(cl3.s2[0], 0); close(cl3.s2[2], 100);                                                // canal antiguo de 3 puntos: igual que antes
+  assert.strictEqual(G.handlePoints(ch, [A, B, C, Dd], 600)[3].y, 70);
   const poly = { type: 'poly' };
   close(G.hitDistance(poly, [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }], 52, 25, 600, env), 2);
   const txt = { type: 'text', text: 'Hola', size: 10 };

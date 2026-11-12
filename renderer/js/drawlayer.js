@@ -275,22 +275,30 @@
     }
 
     function drawChannel(ctx, d, P, w, color) {
-      if (P.length < 2) return;
-      const s1 = G.lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w);
-      seg(ctx, s1);
-      if (P.length < 3) return;
-      const dy = G.channelOffset(P[0], P[1], P[2]);
-      const s2 = G.lineSegment(P[0].x, P[0].y + dy, P[1].x, P[1].y + dy, d.extL, d.extR, w);
+      const cl = G.channelLines(d, P, w);
+      if (!cl) return;
+      const hov = ctx.lineWidth - (d.width || 1);              // grosor extra al pasar el ratón / seleccionar
+      seg(ctx, cl.s1);
+      if (!cl.s2) return;
+      const { s1, s2 } = cl;
       if (d.fill) {
         ctx.save();
-        ctx.fillStyle = rgba(color, (d.fillOpacity == null ? 12 : d.fillOpacity) / 100);
+        ctx.fillStyle = rgba(themed(d.fColor || d.color), (d.fillOpacity == null ? 12 : d.fillOpacity) / 100);
         ctx.beginPath(); ctx.moveTo(s1[0], s1[1]); ctx.lineTo(s1[2], s1[3]); ctx.lineTo(s2[2], s2[3]); ctx.lineTo(s2[0], s2[1]); ctx.closePath(); ctx.fill();
         ctx.restore();
       }
+      ctx.save();
+      ctx.strokeStyle = themed(d.c2Color || d.color); ctx.lineWidth = (d.c2Width || d.width || 1) + hov;
+      ctx.setLineDash(D.DASHES[d.c2Dash || d.dash] || []);
       seg(ctx, s2);
-      ctx.save(); ctx.globalAlpha = 0.55; ctx.setLineDash([4, 4]);
-      seg(ctx, [(s1[0] + s2[0]) / 2, (s1[1] + s2[1]) / 2, (s1[2] + s2[2]) / 2, (s1[3] + s2[3]) / 2]);
       ctx.restore();
+      if (d.center !== false) {
+        ctx.save();
+        ctx.strokeStyle = themed(d.cColor || d.color); ctx.lineWidth = (d.cWidth || 1) + hov; ctx.globalAlpha = d.cColor ? 1 : 0.55;
+        ctx.setLineDash(D.DASHES[d.cDash || 'dashed'] || [4, 4]);
+        seg(ctx, cl.mid);
+        ctx.restore();
+      }
     }
 
     function drawFib(ctx, d, P, w, o) {
@@ -826,6 +834,15 @@
             const np = dataAt(loc.x, loc.y, e.shiftKey ? handleShiftRef(g.type, orig, g.handle) : null);
             if (!np) return;
             pts = orig.map((p, i) => (i === g.handle ? np : p));
+            if (g.type === 'channel' && g.handle === 3 && orig.length >= 4) {
+              // el 4.º punto también sube o baja la paralela: el 3.º se recoloca para que la recta pase por el nuevo punto
+              const ax = env.xOfTime(orig[0].t), ay = env.yOfPrice(orig[0].p), bx = env.xOfTime(orig[1].t), by = env.yOfPrice(orig[1].p);
+              if (bx !== ax) {
+                const m = (by - ay) / (bx - ax), cx = env.xOfTime(orig[2].t);
+                const cy = env.yOfPrice(np.p) - m * (env.xOfTime(np.t) - cx), cp = env.priceOfY(cy);
+                if (num(cp)) pts[2] = { t: orig[2].t, p: cp };
+              }
+            }
           }
           store.move(sym, id, pts);
         } else {

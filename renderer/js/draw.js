@@ -8,7 +8,7 @@
     trend: { label: 'Línea de tendencia', pts: 2, cat: 'lines', text: true },
     hline: { label: 'Línea horizontal', pts: 1, cat: 'lines', text: true },
     hray: { label: 'Rayo horizontal', pts: 1, cat: 'lines', text: true },
-    channel: { label: 'Canal paralelo', pts: 3, cat: 'lines' },
+    channel: { label: 'Canal paralelo', pts: 4, cat: 'lines' },
     poly: { label: 'Polilínea', pts: 0, cat: 'lines' },
     fib: { label: 'Retroceso de Fibonacci', pts: 2, cat: 'fib' },
     rect: { label: 'Rectángulo', pts: 2, cat: 'shapes', text: true },
@@ -46,7 +46,7 @@
       case 'trend': return Object.assign(base, { extL: false, extR: false, capA: 'none', capB: 'none' }, textOpts('center'));
       case 'hline': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
       case 'hray': return Object.assign(base, { color: '#ff9800', width: 1 }, textOpts('left'));
-      case 'channel': return Object.assign(base, { fill: true, fillOpacity: 12, extL: false, extR: false });
+      case 'channel': return Object.assign(base, { fill: true, fillOpacity: 12, fColor: null, c2Color: null, c2Width: null, c2Dash: null, extL: false, extR: false, center: true, cColor: null, cWidth: 1, cDash: 'dashed' });
       case 'poly': return Object.assign(base, { capA: 'none', capB: 'none', tColor: null, tSize: 12, tBold: false, tItalic: false });
       case 'fib': return {
         color: '#787b86', width: 1, dash: 'solid', bg: true, bgOpacity: 10, extL: false, extR: false, showPrice: true, trendLine: true, logScale: false,
@@ -66,7 +66,7 @@
   }
   // Claves de estilo que se recuerdan como "valor por defecto" para los siguientes dibujos del mismo tipo.
   const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'logScale', 'levels',
-    'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx', 'capA', 'capB', 'measure', 'mColor', 'mSize', 'mBold', 'mItalic'];
+    'fColor', 'c2Color', 'c2Width', 'c2Dash', 'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx', 'capA', 'capB', 'measure', 'mColor', 'mSize', 'mBold', 'mItalic'];
   // Una plantilla guarda el estilo y también el texto (y, en tablas, su forma y el contenido de las celdas).
   const TEMPLATE_KEYS = STYLE_KEYS.concat(['text', 'rows', 'cols', 'cells', 'colStyles']);
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -150,6 +150,22 @@
     if (a.x === b.x) return 0;
     const m = (b.y - a.y) / (b.x - a.x);
     return c.y - (a.y + m * (c.x - a.x));
+  }
+  // Líneas del canal en píxeles. Puntos: 1-2 = recta base, 3 = por dónde pasa la paralela (y dónde empieza),
+  // 4 = dónde termina la paralela (solo cuenta su posición horizontal). Canales antiguos de 3 puntos: la paralela mide lo mismo que la base.
+  function channelLines(d, P, w) {
+    if (P.length < 2) return null;
+    const s1 = lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w);
+    if (P.length < 3) return { s1, s2: null, mid: null, h3: null };
+    const dy = channelOffset(P[0], P[1], P[2]);
+    let s2, h3 = null;
+    if (P.length >= 4 && P[0].x !== P[1].x) {
+      const m = (P[1].y - P[0].y) / (P[1].x - P[0].x);
+      const yb = P[0].y + m * (P[3].x - P[0].x) + dy;
+      s2 = lineSegment(P[2].x, P[2].y, P[3].x, yb, d.extL, d.extR, w);
+      h3 = { x: P[3].x, y: yb };
+    } else s2 = lineSegment(P[0].x, P[0].y + dy, P[1].x, P[1].y + dy, d.extL, d.extR, w);
+    return { s1, s2, mid: [(s1[0] + s2[0]) / 2, (s1[1] + s2[1]) / 2, (s1[2] + s2[2]) / 2, (s1[3] + s2[3]) / 2], h3 };
   }
   // Precio de un nivel de Fibonacci: 0 está en el segundo punto y 1 en el primero (como en TradingView).
   // Con "log" los niveles se reparten en escala logarítmica (proporcional); si algún precio no es positivo, se usa la lineal.
@@ -251,11 +267,12 @@
           distPointSeg(x, y, xr, r.y2, xl, r.y2), distPointSeg(x, y, xl, r.y2, xl, r.y1));
       }
       case 'channel': {
-        if (P.length < 3) return P.length < 2 ? 1e9 : seg(lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w));
-        const dy = channelOffset(P[0], P[1], P[2]);
-        const s1 = lineSegment(P[0].x, P[0].y, P[1].x, P[1].y, d.extL, d.extR, w);
-        const s2 = lineSegment(P[0].x, P[0].y + dy, P[1].x, P[1].y + dy, d.extL, d.extR, w);
-        return Math.min(seg(s1), seg(s2));
+        const cl = channelLines(d, P, w);
+        if (!cl) return 1e9;
+        if (!cl.s2) return seg(cl.s1);
+        let best = Math.min(seg(cl.s1), seg(cl.s2));
+        if (d.center !== false) best = Math.min(best, seg(cl.mid));
+        return best;
       }
       case 'fib': {
         if (P.length < 2) return 1e9;
@@ -285,6 +302,7 @@
   // Dónde se dibujan los tiradores (círculos) de un dibujo seleccionado.
   function handlePoints(d, P, w) {
     if (d.type === 'rect') return P.length > 1 ? rectHandles(P) : P.slice();
+    if (d.type === 'channel' && P.length >= 4) { const c = channelLines(d, P, w); return c && c.h3 ? [P[0], P[1], P[2], c.h3] : P.slice(); }
     if (d.type === 'table' && d.pin && d.pin !== 'none') return [];
     if (d.type === 'hline' || d.type === 'hray') return P.length ? [{ x: Math.max(14, Math.min(w - 14, P[0].x)), y: P[0].y }] : [];
     return P.slice();
@@ -523,7 +541,7 @@
         snap(sym);
         const merged = clone(src[0]);
         merged.id = newId('d'); merged.pts = []; merged.labels = {}; merged.segs = {}; merged.parts = [];
-        const STY = ['color', 'width', 'dash', 'capA', 'capB', 'tColor', 'tSize', 'tBold', 'tItalic'];
+        const STY = ['color', 'width', 'dash', 'capA', 'capB', 'fColor', 'c2Color', 'c2Width', 'c2Dash', 'tColor', 'tSize', 'tBold', 'tItalic'];
         src.forEach((d) => {
           const off = merged.pts.length;
           d.pts.forEach((p) => merged.pts.push(clone(p)));
@@ -743,7 +761,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, channelLines, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;

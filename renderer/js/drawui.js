@@ -1070,6 +1070,7 @@
           tableBlock(d);
         } else {
           sec('style');
+          if (t === 'channel') sub('Línea 1 (la base)');
           field('Color de línea', colorIn(d.color, (v) => patch({ color: v })));
           field('Grosor', numIn(d.width || 1, 1, 8, 1, (v) => patch({ width: v })));
           field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })));
@@ -1077,10 +1078,36 @@
             field('Punta del inicio', selIn(CAP_OPTS, d.capA || 'none', (v) => patch({ capA: v })));
             field('Punta del final', selIn(CAP_OPTS, d.capB || 'none', (v) => patch({ capB: v })));
           }
+          if (t === 'channel') {
+            sub('Línea 2 (la paralela)');
+            const l2 = el('span', 'cwrap');
+            l2.appendChild(colorIn(d.c2Color || d.color, (v) => patch({ c2Color: v })));
+            const s2 = el('button', 'btn secondary small', 'Como la línea 1'); s2.onclick = () => { patch({ c2Color: null, c2Width: null, c2Dash: null }); fill(); };
+            l2.appendChild(s2);
+            field('Color', l2);
+            field('Grosor', numIn(d.c2Width || d.width || 1, 1, 8, 1, (v) => patch({ c2Width: v })));
+            field('Estilo de línea', selIn(DASH_OPTS, d.c2Dash || d.dash || 'solid', (v) => patch({ c2Dash: v })));
+            sub('Línea central');
+            const fC = field('Mostrar línea central', checkIn(d.center !== false, (v) => patch({ center: v })));
+            const cw = el('span', 'cwrap');
+            cw.appendChild(colorIn(d.cColor || d.color, (v) => patch({ cColor: v })));
+            const same = el('button', 'btn secondary small', 'Como la línea 1'); same.onclick = () => { patch({ cColor: null }); fill(); };
+            cw.appendChild(same);
+            gate(fC, [field('Color', cw), field('Tipo de línea', selIn(DASH_OPTS, d.cDash || 'dashed', (v) => patch({ cDash: v }))), field('Grosor', numIn(d.cWidth || 1, 1, 8, 1, (v) => patch({ cWidth: v })))]);
+            sub('Relleno');
+          }
           if (t === 'rect' || t === 'channel') {
             const fF = field('Relleno', checkIn(d.fill, (v) => patch({ fill: v })));
             const fO = field('Opacidad del relleno', rangeIn(d.fillOpacity == null ? 15 : d.fillOpacity, (v) => patch({ fillOpacity: v })));
-            gate(fF, [fO]);
+            const fKids = [fO];
+            if (t === 'channel') {
+              const fw = el('span', 'cwrap');
+              fw.appendChild(colorIn(d.fColor || d.color, (v) => patch({ fColor: v })));
+              const fs = el('button', 'btn secondary small', 'Como la línea 1'); fs.onclick = () => { patch({ fColor: null }); fill(); };
+              fw.appendChild(fs);
+              fKids.push(field('Color del relleno', fw));
+            }
+            gate(fF, fKids);
           }
           if (t === 'rect') {
             sub('Línea central');

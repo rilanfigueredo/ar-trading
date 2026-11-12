@@ -7,6 +7,9 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.25.7 — canal de 4 puntos
+Channel pts:4 (draw.js `channelLines`: paralela de P3 a P4 con la pendiente de P1-P2; canales de 3 puntos se leen como antes). Opciones: center/cColor/cWidth/cDash, c2Color/c2Width/c2Dash, fColor. Arrastrar el punto 4 recoloca el 3.º. Aviso de actualización rediseñado (updatenotice.js + styles.css).
+
 ## Actualización v0.25.6 — aviso de actualizaciones
 src/updater.js (electron-updater, autoDownload false, sin instalación automática; canales window:update*; copia de configuración antes de instalar) + renderer/js/updatenotice.js (toast #updNotice, tema claro/oscuro). Publica .github/workflows/publicar.yml (rama actualizaciones) en ar-trading-releases con notas = primera sección de LEEME.txt. Sin pruebas reales en Windows.
 

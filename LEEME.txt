@@ -1,3 +1,14 @@
+AR_TRADING - VERSION 0.25.7
+========================
+
+CANAL PARALELO DE 4 PUNTOS Y AVISO DE ACTUALIZACION MEJORADO
+- Canal paralelo con 4 puntos de anclaje: puntos 1 y 2 = recta base; punto 3 = por dónde pasa la paralela y dónde empieza; punto 4 = dónde termina. Al mover el punto 4 arriba o abajo, la paralela sube o baja.
+- Los canales guardados de 3 puntos siguen funcionando igual.
+- Línea central: se activa o desactiva, con color, tipo y grosor propios.
+- Color, grosor y tipo de línea independientes para la línea 1 y la línea 2, y color propio para el relleno.
+- Aviso de actualización rediseñado: logo, versiones, lista de cambios con viñetas, barra de descarga y colores del programa (tema claro y oscuro).
+- Probado con datos simulados: dibujo, arrastre del punto 4, estilos y aviso. NO probado: Windows ni la actualización real.
+
 AR_TRADING - VERSION 0.25.6
 ========================
 
