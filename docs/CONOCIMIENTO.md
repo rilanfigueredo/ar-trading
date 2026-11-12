@@ -7,6 +7,10 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.26.0 — versión móvil (nube + PWA de solo ver)
+`server.js`: variables `AR_PASSWORD` (≥8; activa la clave), `AR_HOST` (por defecto 127.0.0.1; si no es local la clave es obligatoria o no arranca), `AR_TRUST_PROXY=1` (proxy Caddy en el mismo equipo: confía en X-Forwarded-*), `AR_SECRET`/`data/secret.key`. Sesión = cookie `ar_sid` (HMAC, 30 días, HttpOnly, SameSite=Strict, Secure tras HTTPS); cambiar la clave invalida sesiones; 5 fallos por IP = 15 min. `/login` y `/logout`; sin sesión: 401 en `/api/*`, 302 a `/login` en páginas. Públicos: login, manifest, sw.js, iconos. Además: cuerpo POST con tope 12 MB (`readBody`, 413), estáticos con ETag/gzip/cabeceras de seguridad (`sendStatic`), ruta segura `ROOT + path.sep`. `/api/service/get` devuelve `cloud`.
+PWA: `renderer/manifest.webmanifest`, `renderer/sw.js` (red primero; `__VERSION__` lo sustituye el servidor), `renderer/js/pwa.js` (solo navegador, https/localhost), iconos en `renderer/assets/`. Táctil: `renderer/mobile.css`; `app.js` `effLayout` fuerza diseño de 1 gráfico si `max-width:700px` SIN tocar `cfg.layout` guardado. `api.js`: 401 → `/login`. Nube: carpeta `nube/` (`GUIA_NUBE.txt`, `instalar_nube.sh` = Node+Caddy+systemd con `/etc/ar-trading.env`, `actualizar_nube.sh`). Probado: curl (401/302/cookie/bloqueo), Playwright 390×844 táctil y 1600×950 sin clave, 0 errores. NO probado: Oracle real, móvil real, Binance real desde la nube.
+
 ## Actualización v0.25.7 — canal de 4 puntos
 Channel pts:4 (draw.js `channelLines`: paralela de P3 a P4 con la pendiente de P1-P2; canales de 3 puntos se leen como antes). Opciones: center/cColor/cWidth/cDash, c2Color/c2Width/c2Dash, fColor. Arrastrar el punto 4 recoloca el 3.º. Aviso de actualización rediseñado (updatenotice.js + styles.css).
 
@@ -175,6 +179,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - El usuario escribe en mayúsculas y por listas numeradas: cada punto es un requisito; hay que cubrirlos todos y reportar uno por uno.
 
 ## 8. Historial de versiones
+- v0.26.0: versión móvil (ver arriba y §9a): clave de acceso, PWA, diseño táctil, scripts de nube.
 - v0.25.1: (vuelta a v0.25.0 como base oficial; se descartaron las v0.26.x). Capas: en `view.js` el DOM del gráfico es `markEl, wmEl, legendEl, chartEl, overlayEl…` y el fondo de lightweight-charts es transparente (el fondo lo pinta la celda con `--bg`), así marca de agua/leyenda/logo quedan DETRÁS de las velas (z-index 1/2 < chart 3); `captureCanvas` pinta fondo, textos y encima el gráfico. Orden visual: `store.reorder(sym, ids, mode, chartId)` en `draw.js` (front/back/up/down; el último de la lista se dibuja encima; un paso salta lo no visible en ese gráfico/panel); icono `layers` en el panel de objetos y submenú «Orden visual» del clic derecho (`drawui.js`). Prueba en `test/draw.test.js`.
 - v0.25.0: Simulador de posiciones y Monitor de blockchain integrados como funciones (tarjetas habilitadas; ver §3). `main.js` pasa `notificar` al puente. Monitor: datos simulados en `test/blockchain.datos.js`.
 - v0.24.1: estilo: tarjetas del inicio (contorno #b734fe permanente, hover turquesa, iconos con degradado en `registro.js`), `tema.css` con letra 15 px, colores más claros en oscuro, márgenes laterales y rellenos; token `--purpura` en `tokens.css`; mcards de Noticias con contorno morado/turquesa alternado.
@@ -228,7 +233,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - v0.17.1: se quitan las plantillas incluidas de tendencia; texto de puntos de polilínea con color/tamaño/negrita/cursiva. Confirmado por el usuario en su PC: Delta/CVD en Binance, polilínea, paneles RSI/Estocástico arriba (resuelto).
 - v0.11: Listas + Bybit + KuCoin. Se probó con datos simulados y con `fetch` falso (test/exchanges.test.js, `npm test`). Sin probar con datos reales: formato de velas/tickers de Bybit y KuCoin (alineación diaria/semanal de KuCoin, límites de peticiones), ni en Windows/Electron. Pendiente ver: las anclas con GENESIS_SEC pueden no coincidir con las de TradingView.
 
-## 9a. Plan acordado: versión móvil (decidido con el usuario, aún NO hecho)
+## 9a. Plan acordado: versión móvil (v0.26 HECHA; v0.27 y v0.28 pendientes)
 Pedido: algo como TradingView móvil, verlo desde cualquier lugar SIN depender del PC encendido, con los mismos dibujos/listas/configuración que el PC. Servidor gratis (preferencia del usuario).
 - v0.26 (nube + PWA de solo ver): ejecutar server.js (modo navegador) en un servidor siempre encendido, con HTTPS y clave de acceso obligatoria (hoy escucha solo 127.0.0.1 y no tiene clave); manifiesto + service worker (instalable en pantalla de inicio); diseño táctil básico (barras y menús grandes, gestos de zoom/desplazar). Decidir y verificar hosting gratis vigente (p. ej. VM gratuita siempre encendida vs. servicio que se duerme); avisar límites reales.
 - v0.27: dibujo táctil (herramientas con toque, tiradores más grandes).

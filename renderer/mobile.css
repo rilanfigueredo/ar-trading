@@ -1,0 +1,29 @@
+/* v0.26: ajustes táctiles y de pantalla pequeña. En el escritorio con ratón no cambia nada. */
+body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); overscroll-behavior: none; }
+#grid, .cell { touch-action: none; }   /* el gráfico gestiona sus propios gestos (zoom con dos dedos, arrastrar) */
+
+/* Dedos: botones y filas más grandes */
+@media (pointer: coarse) {
+  #toolbar button, #toolbar select, #toolbar .btn, .tab-bar .tab, .tab-bar button { min-height: 40px; min-width: 40px; }
+  #toolbar { gap: 6px; padding: 6px 8px; }
+  #drawBar button, #rightBar button { min-width: 44px; min-height: 44px; }
+  .modal-box button, .modal-box .btn, .modal-box select, .modal-box input { min-height: 40px; font-size: 15px; }
+  .modal-box input[type=checkbox], .modal-box input[type=radio] { min-width: 22px; min-height: 22px; }
+  .pl-btns { opacity: 1 !important; }   /* los botones que salen al pasar el ratón, siempre visibles */
+  body { font-size: 14px; }
+}
+
+/* Pantalla estrecha (móvil en vertical) */
+@media (max-width: 700px) {
+  #toolbar { flex-wrap: wrap; }
+  .tb-left { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tb-left::-webkit-scrollbar { display: none; }
+  .tb-left > * { flex: none; }
+  .tab-bar { overflow-x: auto; scrollbar-width: none; }
+  #drawBar { max-height: 100%; overflow-y: auto; }
+  #rightBar { max-height: 100%; overflow-y: auto; }
+  #panel, #objPanel, #watchPanel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 70vh; overflow-y: auto; z-index: 50; border-radius: 12px 12px 0 0; }
+  .modal-box, .modal.floating .modal-box { width: 96vw !important; max-width: 96vw !important; max-height: 90vh; overflow-y: auto; }
+  .modal.floating { left: 2vw !important; right: 2vw !important; top: 4vh !important; }
+  #btPanel { max-height: 45vh; overflow: auto; }
+}

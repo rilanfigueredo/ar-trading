@@ -18,6 +18,7 @@
 
   async function http(path, opts) {
     const res = await fetch(path, opts);
+    if (res.status === 401 && !desktop) { location.href = '/login'; throw new Error('Sesión caducada'); }   // v0.26: servidor con clave
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Error ${res.status}`);
     return body;
