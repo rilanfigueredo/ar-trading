@@ -240,16 +240,12 @@
   }
 
   // ---------- Diseño ----------
-  // v0.26: en pantallas estrechas (móvil) se muestra un solo gráfico; la configuración guardada NO cambia.
-  const NARROW = window.matchMedia ? window.matchMedia('(max-width: 700px)') : { matches: false };
-  const effLayout = (cfg) => (NARROW.matches ? '1' : cfg.layout);
-  const LAYOUT_OF = (cfg) => LAYOUTS[effLayout(cfg)] || LAYOUTS['1'];
-  if (NARROW.addEventListener) NARROW.addEventListener('change', () => { if (A.cfg && A.views && A.views.length) applyLayout(); });
+  const LAYOUT_OF = (cfg) => LAYOUTS[cfg.layout] || LAYOUTS['1'];
   function applyLayout() {
     const def = LAYOUT_OF(A.cfg);
     A.max = def.n > 1 && Number.isInteger(A.cfg.max) && A.cfg.max >= 0 && A.cfg.max < def.n ? A.cfg.max : -1;
     const grid = A.gridEl || $('grid');
-    grid.className = 'layout-' + effLayout(A.cfg) + (def.n > 1 ? ' multi' : '') + (grid.classList.contains('tab-off') ? ' tab-off' : '');
+    grid.className = 'layout-' + A.cfg.layout + (def.n > 1 ? ' multi' : '') + (grid.classList.contains('tab-off') ? ' tab-off' : '');
     while (A.views.length > def.n) {
       const v = A.views.pop();
       v.destroy();
@@ -1254,12 +1250,6 @@
   // Pestaña «Servicio»: rendimiento, caché y reseteo de fábrica
   function fillService(body, mk, field, title, hint) {
     const svc = API.service;
-    // v0.26: servidor con clave (versión móvil/nube): botón para cerrar la sesión
-    svc.get().then((g) => {
-      if (!g || !g.cloud) return;
-      const o = mk('button', { className: 'btn', textContent: 'Cerrar sesión' }); o.onclick = () => { location.href = '/logout'; };
-      body.insertBefore(o, body.firstChild);
-    }).catch(() => {});
     const msg = (parent) => { const m = mk('div', { className: 'svc-msg' }); parent.appendChild(m); return (t, bad) => { m.textContent = t; m.className = 'svc-msg' + (bad ? ' bad' : ''); }; };
 
     title('Rendimiento');

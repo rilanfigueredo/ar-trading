@@ -1,15 +1,3 @@
-AR_TRADING - VERSION 0.26.0
-========================
-
-VERSION MOVIL (PRIMERA PARTE: VER EL GRAFICO DESDE EL TELEFONO)
-- El programa puede funcionar en un servidor siempre encendido y abrirse desde el móvil, con clave de acceso obligatoria y HTTPS. Guía paso a paso en la carpeta «nube» (GUIA_NUBE.txt).
-- Se instala como aplicación en la pantalla de inicio del móvil.
-- Pantalla táctil: botones más grandes, un solo gráfico en pantallas estrechas y zoom/arrastre con los dedos.
-- Ajustes > Servicio: botón «Cerrar sesión» cuando entras con clave.
-- En tu PC no cambia nada: sigue funcionando igual, sin clave.
-- Probado con datos simulados en un navegador de ordenador (modo móvil). NO probado: Oracle Cloud real, un teléfono real, Binance real desde la nube, Windows/Electron.
-- Aún NO incluye dibujar con el dedo (v0.27) ni copiar tus dibujos del PC al móvil (v0.28).
-
 AR_TRADING - VERSION 0.25.7
 ========================
 
