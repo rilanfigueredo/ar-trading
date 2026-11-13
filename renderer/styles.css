@@ -31,7 +31,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 .btn { background: var(--active); color: #fff; border: 0; border-radius: 4px; padding: 7px 14px; font: inherit; cursor: pointer; }
 .btn.secondary { background: var(--hover); color: var(--text); }
 
-#panel { width: 330px; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+#panel { width: 330px; flex: none; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 12px; }
 #panel h3 { margin: 0 0 8px; font-size: 14px; }
 #panel h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .ma-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
@@ -690,3 +690,33 @@ body.fn-mode #toolbar, body.fn-mode #main { display: none; }
 .dz-btns { display: flex; flex-wrap: wrap; gap: 6px; align-self: end; }
 .dz-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; justify-content: flex-end; }
 @media (max-width: 640px) { .dz-item { grid-template-columns: 1fr; } .dz-item .dz-thumb { grid-row: auto; } }
+
+/* v0.26.3: tiradores de tamaño (gráficos y paneles) */
+#grid { position: relative; }
+#grid i.split { position: absolute; z-index: 20; background: transparent; }
+#grid i.split-h { top: 0; bottom: 0; width: 10px; cursor: col-resize; }
+#grid i.split-v { height: 10px; cursor: row-resize; }
+#grid i.split::after { content: ''; position: absolute; background: #00e5ee; opacity: 0; transition: opacity .12s; border-radius: 2px; }
+#grid i.split-h::after { left: 4px; right: 4px; top: 0; bottom: 0; }
+#grid i.split-v::after { top: 4px; bottom: 4px; left: 0; right: 0; }
+#grid i.split:hover::after, #grid i.split.drag::after { opacity: .85; }
+#grid.has-max i.split { display: none; }
+#grid.split-dragging, #grid.split-dragging * { cursor: inherit; user-select: none; }
+body.pn-dragging { cursor: col-resize; user-select: none; }
+.pn-grip { flex: none; width: 5px; margin-right: -5px; position: relative; z-index: 30; cursor: col-resize; background: transparent; }
+.pn-grip::after { content: ''; position: absolute; inset: 0 1px; background: #00e5ee; opacity: 0; transition: opacity .12s; }
+.pn-grip:hover::after, .pn-grip.drag::after { opacity: .85; }
+.pn-grip:has(+ .hidden), body.fs .pn-grip { display: none; }
+/* pestañas arrastrables */
+.tab-bar .tab.dragging { opacity: .45; }
+.tab-bar .tab.drop-l { box-shadow: inset 3px 0 0 #00e5ee; }
+.tab-bar .tab.drop-r { box-shadow: inset -3px 0 0 #00e5ee; }
+/* botones del aviso al cerrar una pestaña: vivos y minimalistas */
+.modal-box[data-kind=closetab] .dz-actions { gap: 10px; margin-top: 16px; }
+.modal-box[data-kind=closetab] .dz-actions .btn { font-size: 15px; font-weight: 700; padding: 10px 18px; border-radius: 10px; border: 2px solid transparent; letter-spacing: .01em; transition: transform .1s, box-shadow .15s, background .15s; }
+.modal-box[data-kind=closetab] .dz-actions .btn:hover { transform: translateY(-1px); }
+.modal-box[data-kind=closetab] .dz-save-btn { background: #00e5ee; color: #021014; box-shadow: 0 0 14px rgba(0,229,238,.45); }
+.modal-box[data-kind=closetab] .dz-drop-btn { background: transparent; color: #ff3b5c; border-color: #ff3b5c; }
+.modal-box[data-kind=closetab] .dz-drop-btn:hover { background: #ff3b5c; color: #fff; box-shadow: 0 0 14px rgba(255,59,92,.45); }
+.modal-box[data-kind=closetab] .dz-cancel-btn { background: transparent; color: var(--muted); border-color: var(--border); }
+.modal-box[data-kind=closetab] .dz-cancel-btn:hover { color: var(--text); border-color: var(--muted); }

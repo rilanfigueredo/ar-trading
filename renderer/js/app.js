@@ -267,12 +267,118 @@
     markActive();
     renderStatus();
     if (window.TVBt) TVBt.render();
+    buildSplits(grid);
     saveCfg();
   }
   // Ampliar un gráfico a pantalla completa (y volver al diseño).
   function applyMax() {
     (A.gridEl || $('grid')).classList.toggle('has-max', A.max >= 0);
     A.views.forEach((v, k) => { v.host.classList.toggle('maxed', k === A.max); v.setMaximized(k === A.max); });
+    applySplit(A.gridEl || $('grid'), A.cfg);
+  }
+
+  // ---------- Tamaño de cada gráfico (v0.26.3) ----------
+  // Con varios gráficos, el borde entre dos gráficos se arrastra para agrandar uno y achicar el otro.
+  // cfg.split = { c: parte que ocupa la 1.ª columna, r: parte que ocupa la 1.ª fila } (entre 0,15 y 0,85).
+  const SPLIT_MIN = 0.15;
+  const splitOf = (cfg) => {
+    const sp = cfg && cfg.split && typeof cfg.split === 'object' ? cfg.split : {};
+    const ok = (v, d) => (typeof v === 'number' && isFinite(v) ? Math.max(SPLIT_MIN, Math.min(1 - SPLIT_MIN, v)) : d);
+    return { c: ok(sp.c, cfg && cfg.layout === '3' ? 0.6 : 0.5), r: ok(sp.r, 0.5) };
+  };
+  function applySplit(grid, cfg) {
+    if (!grid || !cfg) return;
+    const n = LAYOUT_OF(cfg).n;
+    const sp = splitOf(cfg), L2 = cfg.layout;
+    const track = (f) => `minmax(0, ${f}fr) minmax(0, ${1 - f}fr)`;
+    let cols = '', rows = '';
+    if (n > 1 && !grid.classList.contains('has-max')) {
+      if (L2 === '2h' || L2 === '3' || L2 === '4') cols = track(sp.c);
+      if (L2 === '2v' || L2 === '3' || L2 === '4') rows = track(sp.r);
+    }
+    grid.style.gridTemplateColumns = cols;
+    grid.style.gridTemplateRows = rows;
+    // posición de los tiradores (el espacio entre gráficos mide 2 px)
+    const at = (f) => `calc((100% - 2px) * ${f} + 1px - 5px)`;
+    grid.querySelectorAll('i.split').forEach((h) => {
+      if (h.dataset.dir === 'h') { h.style.left = at(sp.c); }
+      else {
+        h.style.top = at(sp.r);
+        h.style.left = L2 === '3' ? `calc((100% - 2px) * ${sp.c} + 2px)` : '0';
+        h.style.width = L2 === '3' ? `calc((100% - 2px) * ${1 - sp.c})` : '100%';
+      }
+    });
+  }
+  function buildSplits(grid) {
+    if (!grid) return;
+    grid.querySelectorAll('i.split').forEach((h) => h.remove());
+    const L2 = A.cfg.layout, n = LAYOUT_OF(A.cfg).n;
+    if (n > 1) {
+      const mk = (dir) => {
+        const h = document.createElement('i');
+        h.className = 'split split-' + dir; h.dataset.dir = dir;
+        h.title = 'Arrastra para agrandar o achicar los gráficos (doble clic: tamaños iguales)';
+        h.onpointerdown = (e) => startSplitDrag(e, h, grid);
+        h.ondblclick = () => { A.cfg.split = null; applySplit(grid, A.cfg); saveCfg(); };
+        grid.appendChild(h);
+      };
+      if (L2 === '2h' || L2 === '3' || L2 === '4') mk('h');
+      if (L2 === '2v' || L2 === '3' || L2 === '4') mk('v');
+    }
+    applySplit(grid, A.cfg);
+  }
+  function startSplitDrag(e, h, grid) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const dir = h.dataset.dir, cfg = A.cfg;
+    const rect = grid.getBoundingClientRect();
+    h.setPointerCapture(e.pointerId);
+    h.classList.add('drag'); grid.classList.add('split-dragging');
+    const move = (m) => {
+      const sp = splitOf(cfg);
+      const f = dir === 'h' ? (m.clientX - rect.left - 1) / Math.max(1, rect.width - 2) : (m.clientY - rect.top - 1) / Math.max(1, rect.height - 2);
+      const v = Math.max(SPLIT_MIN, Math.min(1 - SPLIT_MIN, f));
+      cfg.split = { c: dir === 'h' ? v : sp.c, r: dir === 'v' ? v : sp.r };
+      applySplit(grid, cfg);
+    };
+    const up = () => {
+      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      h.classList.remove('drag'); grid.classList.remove('split-dragging');
+      saveCfg();
+    };
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  }
+
+  // ---------- Ancho de los paneles de la derecha (v0.26.3) ----------
+  // Indicadores, objetos y listas: se arrastra su borde izquierdo para hacerlos más angostos o más anchos. El ancho se recuerda.
+  const PANEL_W = { panel: [330, 240], objPanel: [300, 240], watchPanel: [320, 240] };
+  function setupPanelResize() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('ar_panel_w') || '{}') || {}; } catch (e) { saved = {}; }
+    const maxW = () => Math.max(300, Math.min(900, Math.round(window.innerWidth * 0.65)));
+    Object.keys(PANEL_W).forEach((id) => {
+      const p = $(id); if (!p) return;
+      const [def, min] = PANEL_W[id];
+      const set = (w) => { p.style.width = Math.max(min, Math.min(maxW(), Math.round(w))) + 'px'; };
+      if (typeof saved[id] === 'number') set(saved[id]);
+      const g = document.createElement('div');
+      g.className = 'pn-grip'; g.title = 'Arrastra para cambiar el ancho (doble clic: ancho normal)';
+      p.before(g);
+      const keep = () => { try { saved[id] = p.offsetWidth; localStorage.setItem('ar_panel_w', JSON.stringify(saved)); } catch (e) { /* ok */ } };
+      g.onpointerdown = (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const x0 = e.clientX, w0 = p.offsetWidth;
+        g.setPointerCapture(e.pointerId); g.classList.add('drag'); document.body.classList.add('pn-dragging');
+        const move = (m) => set(w0 + (x0 - m.clientX));
+        const up = () => {
+          g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+          g.classList.remove('drag'); document.body.classList.remove('pn-dragging'); keep();
+        };
+        g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+      };
+      g.ondblclick = () => { p.style.width = def + 'px'; delete saved[id]; try { localStorage.setItem('ar_panel_w', JSON.stringify(saved)); } catch (e) { /* ok */ } };
+    });
   }
   function toggleMax(i) {
     if (A.views.length < 2) return;
@@ -286,6 +392,7 @@
     if (!LAYOUTS[id]) return;
     A.cfg.layout = id;
     A.cfg.max = -1;
+    A.cfg.split = null;              // cada diseño de pantalla parte de sus tamaños normales
     applyLayout();
   }
   function setActive(i) {
@@ -1339,6 +1446,16 @@
 
   // ---------- Ventanas y diseños (v0.22) ----------
   const winNum = (id) => Number(String(id).slice(1));
+  // v0.26.3: orden de las pestañas (se puede cambiar arrastrándolas). Se recuerda en este equipo.
+  const TAB_ORDER_KEY = 'ar_tab_order';
+  const readOrder = () => { try { const o = JSON.parse(localStorage.getItem(TAB_ORDER_KEY) || '[]'); return Array.isArray(o) ? o.filter((x) => typeof x === 'string') : []; } catch (e) { return []; } };
+  const writeOrder = (ids) => { try { localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(ids)); } catch (e) { /* ok */ } };
+  const forgetOrder = (id) => writeOrder(readOrder().filter((x) => x !== id));
+  const sortByOrder = (tabs) => {
+    const ord = readOrder();
+    const pos = (id) => { const i = ord.indexOf(id); return i < 0 ? 1e6 + winNum(id) : i; };
+    return tabs.sort((x, y) => pos(x.id) - pos(y.id));
+  };
   const hh = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   function setupMenu(btnId, listId, build) {
     const btn = $(btnId), list = $(listId);
@@ -1462,7 +1579,7 @@
         let cfg = migrate(saved);
         if (pendingDesign.has(id)) {                  // v0.26.1: pestaña nueva que nace con un diseño guardado
           const d = designs().find((x) => x.id === pendingDesign.get(id)); pendingDesign.delete(id); pendingHome.delete(id);
-          if (d) { cfg = designCfg(cfg, d); saveTab(id, cfg); }
+          if (d) { cfg = designCfg(cfg, d); cfg.designId = d.id; saveTab(id, cfg); }
         }
         if (pendingHome.has(id)) { pendingHome.delete(id); cfg.fn = 'inicio'; saveTab(id, cfg); }   // pestaña nueva: pantalla de tarjetas
         cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
@@ -1482,12 +1599,13 @@
     } finally { switching = false; }
   }
   let tabsCache = [];
+  let dragTabId = null;
   async function renderTabs(reload) {
     const bar = $('tabBar'); if (!bar) return;
     if (reload || !tabsCache.length) { try { tabsCache = await API.listTabs(); } catch (e) { /* se usa lo último */ } }
     const tabs = tabsCache.map((x) => ({ id: x.id, label: x.label }));
     if (!tabs.some((t) => t.id === A.tabId)) tabs.push({ id: A.tabId, label: curTabLabel() });
-    tabs.sort((x, y) => winNum(x.id) - winNum(y.id));
+    sortByOrder(tabs);
     bar.innerHTML = '';
     tabs.forEach((t) => {
       const live = tabsState.get(t.id);
@@ -1497,6 +1615,27 @@
       el.appendChild(nm);
       el.onclick = () => switchTab(t.id);
       if (tabs.length > 1) {
+        // arrastrar y soltar: la pestaña arrastrada toma el lugar de la pestaña sobre la que se suelta
+        el.draggable = true; el.dataset.id = t.id;
+        el.ondragstart = (ev) => { dragTabId = t.id; el.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', t.id); } catch (e) { /* ok */ } };
+        el.ondragend = () => { dragTabId = null; bar.querySelectorAll('.tab').forEach((x) => x.classList.remove('dragging', 'drop-l', 'drop-r')); };
+        el.ondragover = (ev) => {
+          if (!dragTabId || dragTabId === t.id) return;
+          ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+          const ids = tabs.map((o) => o.id);
+          const right = ids.indexOf(dragTabId) < ids.indexOf(t.id);
+          bar.querySelectorAll('.tab').forEach((x) => x.classList.remove('drop-l', 'drop-r'));
+          el.classList.add(right ? 'drop-r' : 'drop-l');
+        };
+        el.ondragleave = () => el.classList.remove('drop-l', 'drop-r');
+        el.ondrop = (ev) => {
+          ev.preventDefault();
+          const from = dragTabId; dragTabId = null;
+          if (!from || from === t.id) return;
+          const ids = tabs.map((o) => o.id).filter((x) => x !== from);
+          ids.splice(tabs.findIndex((o) => o.id === t.id), 0, from);
+          writeOrder(ids); renderTabs(false);
+        };
         const x = hh('button', 'tab-x', '×'); x.title = 'Cerrar esta pestaña (se borra su configuración)';
         x.onclick = async (ev) => {
           ev.stopPropagation();
@@ -1514,7 +1653,7 @@
       nb.disabled = true;
       try {
         const r = await API.openWindow();
-        if (r && r.ok) { pendingHome.add(r.id); await switchTab(r.id); }
+        if (r && r.ok) { forgetOrder(r.id); pendingHome.add(r.id); await switchTab(r.id); }
         else { nb.title = (r && r.error) || 'No se pudo abrir la pestaña.'; nb.disabled = false; }
       } catch (e) { nb.disabled = false; }
     };
@@ -1523,7 +1662,8 @@
   async function closeTab(id, tabs) {
     if (id === A.tabId) {
       const rest = tabs.filter((o) => o.id !== id);
-      const nxt = rest.find((o) => winNum(o.id) > winNum(id)) || rest[rest.length - 1];
+      const at = tabs.findIndex((o) => o.id === id);
+      const nxt = tabs[at + 1] || tabs[at - 1] || rest[rest.length - 1];
       if (!nxt) return;
       await switchTab(nxt.id);
     }
@@ -1532,6 +1672,7 @@
     if (window.TVFunciones) window.TVFunciones.quitar(id);
     if (t) { t.views.forEach((v) => { try { v.destroy(); } catch (err) { /* ok */ } }); t.gridEl.remove(); tabsState.delete(id); }
     try { await API.closeWindow(id); } catch (err) { /* ok */ }
+    forgetOrder(id);
     renderTabs(true);
   }
   // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
@@ -1557,7 +1698,7 @@
   // Un diseño es una copia de TODO lo propio de una pestaña (gráficos, indicadores, dibujos, carpetas, plantillas de dibujo…).
   // Se guarda en lo compartido (cfg.designs): sobrevive al cierre de pestañas y aparece en la pantalla de «+».
   const MAXDESIGNS = 40;
-  const WINDOW_CLIENT = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive'];
+  const WINDOW_CLIENT = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive', 'split'];
   const designs = () => (Array.isArray(A.cfg.designs) ? A.cfg.designs : []);
   const snapshotDesign = (cfg) => { const o = {}; WINDOW_CLIENT.forEach((k) => { if (cfg[k] !== undefined) o[k] = clone(cfg[k]); }); return o; };
   const designCfg = (base, d) => { const m = Object.assign({}, base, clone(d.data)); delete m.fn; delete m.max; return migrate(m); };
@@ -1586,6 +1727,7 @@
     if (!ex && list.length >= MAXDESIGNS) return { ok: false, error: `Ya tienes ${MAXDESIGNS} diseños guardados. Borra alguno para guardar otro.` };
     const d = { id: ex ? ex.id : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: ex && overwriteId ? ex.name : name, at: Date.now(), thumb: thumbUrl || (ex && ex.thumb) || null, data: snapshotDesign(cfg) };
     if (ex) list[list.indexOf(ex)] = d; else list.unshift(d);
+    cfg.designId = d.id;                            // v0.26.3: la pestaña recuerda con qué diseño trabaja
     A.cfg.designs = list; saveCfg(); refreshDesignUi();
     return { ok: true, updated: !!ex, id: d.id };
   }
@@ -1602,7 +1744,7 @@
     if (window.TVFunciones) window.TVFunciones.quitar(t.id);
     while (t.views.length) { const v = t.views.pop(); try { v.destroy(); } catch (e) { /* ok */ } try { v.host.remove(); } catch (e) { /* ok */ } }
     WINDOW_CLIENT.forEach((k) => { A.cfg[k] = fresh[k]; });
-    delete A.cfg.fn; A.cfg.max = -1; t.theme = null;
+    delete A.cfg.fn; A.cfg.max = -1; t.theme = null; A.cfg.designId = id;
     closeModal(); saveTab(t.id, A.cfg);
     showTab(t, null); renderTabs(true);
   }
@@ -1681,26 +1823,36 @@
     }, { onClose: () => { paintDesigns = null; } });
   }
   // Al cerrar una pestaña con gráficos se ofrece guardarla como diseño. Devuelve true si se puede cerrar.
-  function closeDialog(label) {
+  function closeDialog(label, design) {
     return new Promise((resolve) => {
       let done = false; const fin = (v) => { if (done) return; done = true; resolve(v); };
       openModal((box) => {
         box.dataset.kind = 'closetab';
-        box.appendChild(hh('h3', undefined, 'Cerrar la pestaña «' + label + '»'));
-        box.appendChild(hh('div', 'hint', 'Al cerrarla se borra todo lo de esta pestaña: dibujos, plantillas de dibujo, indicadores y ajustes. ¿Quieres guardarlo como un diseño para volver a usarlo después?'));
-        const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 60; inp.className = 'dz-closename'; inp.placeholder = 'Nombre del diseño'; inp.value = label;
-        box.appendChild(inp);
-        const note = hh('div', 'hint small', ''); box.appendChild(note);
-        const upd = () => { note.textContent = designs().some((d) => d.name.toLowerCase() === inp.value.trim().toLowerCase()) ? 'Ya existe un diseño con ese nombre: se actualizará con esta pestaña.' : ''; };
-        inp.oninput = upd; upd();
+        let inp = null;
+        if (design) {
+          // v0.26.3: la pestaña viene de un diseño guardado → se pregunta por ESE diseño (no por el nombre de la pestaña)
+          box.appendChild(hh('h3', undefined, '¿Desea guardar los cambios realizados en el diseño «' + design.name + '»?'));
+          box.appendChild(hh('div', 'hint', 'Si guardas, el diseño «' + design.name + '» se actualiza con lo que hay ahora en esta pestaña. Si cierras sin guardar, el diseño queda como estaba.'));
+        } else {
+          box.appendChild(hh('h3', undefined, 'Cerrar la pestaña «' + label + '»'));
+          box.appendChild(hh('div', 'hint', 'Al cerrarla se borra todo lo de esta pestaña: dibujos, plantillas de dibujo, indicadores y ajustes. ¿Quieres guardarlo como un diseño para volver a usarlo después?'));
+          inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 60; inp.className = 'dz-closename'; inp.placeholder = 'Nombre del diseño'; inp.value = label;
+          box.appendChild(inp);
+          const note = hh('div', 'hint small', ''); box.appendChild(note);
+          const upd = () => { note.textContent = designs().some((d) => d.name.toLowerCase() === inp.value.trim().toLowerCase()) ? 'Ya existe un diseño con ese nombre: se actualizará con esta pestaña.' : ''; };
+          inp.oninput = upd; upd();
+        }
         const row = hh('div', 'dz-actions');
-        const bs = hh('button', 'btn', 'Guardar diseño y cerrar');
-        bs.onclick = () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } fin({ save: true, name: nm }); closeModal(); };
-        const bd = hh('button', 'btn danger', 'Cerrar sin guardar'); bd.onclick = () => { fin({ save: false }); closeModal(); };
-        const bc = hh('button', 'btn secondary', 'Cancelar'); bc.onclick = () => { fin(null); closeModal(); };
+        const bs = hh('button', 'btn dz-save-btn', design ? 'Guardar cambios y cerrar' : 'Guardar diseño y cerrar');
+        bs.onclick = () => {
+          if (design) { fin({ save: true, id: design.id }); closeModal(); return; }
+          const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } fin({ save: true, name: nm }); closeModal();
+        };
+        const bd = hh('button', 'btn danger dz-drop-btn', 'Cerrar sin guardar'); bd.onclick = () => { fin({ save: false }); closeModal(); };
+        const bc = hh('button', 'btn secondary dz-cancel-btn', 'Cancelar'); bc.onclick = () => { fin(null); closeModal(); };
         row.append(bs, bd, bc); box.appendChild(row);
-        inp.onkeydown = (e) => { if (e.key === 'Enter') bs.click(); };
-        setTimeout(() => { inp.focus(); inp.select(); }, 0);
+        if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') bs.click(); };
+        setTimeout(() => { if (inp) { inp.focus(); inp.select(); } else bs.focus(); }, 0);
       }, { onClose: () => fin(null) });
     });
   }
@@ -1708,12 +1860,13 @@
     let cfg = null; const live = tabsState.get(id);
     if (live) cfg = live.cfg; else { try { cfg = migrate(await API.getConfig(id)); } catch (e) { cfg = null; } }
     if (!cfg || isFn(cfg)) return window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.');
-    const r = await closeDialog(label);
+    const dz = cfg.designId ? designs().find((d) => d.id === cfg.designId) : null;
+    const r = await closeDialog(label, dz);
     if (!r) return false;
     if (r.save) {
       let th = null;
       if (id === A.tabId) { const v = activeView(); th = v && v.thumb ? v.thumb(360) : null; }
-      const res = saveDesign(r.name, cfg, th);
+      const res = saveDesign(r.id ? dz.name : r.name, cfg, th, r.id);
       if (!res.ok) { window.alert(res.error); return false; }
       flushTab(A.tabId, true);                         // el diseño queda escrito antes de cerrar nada
     }
@@ -2007,6 +2160,7 @@
     $('btnSymbol').onclick = openSymbolPicker;
     setupDropdown('typeCur', 'typeButtons'); setupDropdown('scaleCur', 'scaleButtons');
     setupWindowUi();
+    setupPanelResize();
     $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
@@ -2149,6 +2303,10 @@
     // v0.24: modo de la pestaña ('' = gráfico, 'inicio' = pantalla de tarjetas, o el id de una función con interfaz propia)
     cfg.fn = window.TVFunciones_registro ? window.TVFunciones_registro.limpiar(cfg.fn) : '';
     if (!cfg.fn) delete cfg.fn;
+    // v0.26.3: tamaño de los gráficos (partes entre 0,15 y 0,85); si no es válido se descarta
+    if (cfg.split && typeof cfg.split === 'object' && isFinite(cfg.split.c) && isFinite(cfg.split.r)) {
+      cfg.split = { c: Math.max(0.15, Math.min(0.85, Number(cfg.split.c))), r: Math.max(0.15, Math.min(0.85, Number(cfg.split.r))) };
+    } else cfg.split = null;
     cfg.version = 11;
     return cfg;
   }
