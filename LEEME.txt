@@ -1,3 +1,13 @@
+AR_TRADING - VERSION 0.26.1
+========================
+
+DISEÑOS GUARDADOS: YA NO SE PIERDE EL TRABAJO AL CERRAR UNA PESTAÑA
+- Nuevo botón «Diseños» (arriba a la derecha): guarda todo lo de la pestaña (gráficos, indicadores, dibujos, plantillas de línea de tendencia, rectángulo, retroceso, etc.) con el nombre que quieras.
+- Al cerrar una pestaña con gráficos aparece una ventana: «Guardar diseño y cerrar», «Cerrar sin guardar» o «Cancelar».
+- Al pulsar «+», los diseños guardados salen en la primera fila (con miniatura). Si todavía no tienes ninguno, se ve la pantalla de siempre.
+- En «Diseños» puedes abrir un diseño en pestaña nueva o en la actual, actualizarlo, cambiarle el nombre (doble clic) o borrarlo. Máximo 40.
+- Probado con datos simulados en el navegador. NO probado: Windows/Electron ni Binance real.
+
 AR_TRADING - VERSION 0.25.7
 ========================
 

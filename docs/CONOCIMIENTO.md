@@ -7,6 +7,9 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.26.1 — diseños guardados
+`cfg.designs` (clave COMPARTIDA en `src/store.js`, máx. 40): `{id,name,at,thumb(JPEG dataURL),data}`; `data` = copia de las claves propias de la pestaña (`WINDOW_CLIENT` en app.js: layout, active, charts, sync, drawings, folders, bt, tfs, draw, listActive). Funciones en app.js (sección «Diseños guardados»): `saveDesign`, `openDesignHere`, `openDesignNewTab` (`pendingDesign` se consume en `switchTab`), `openDesigns` (botón `#btnDesigns`), `closeDialog/confirmClose` (cerrar pestaña con gráficos). La pantalla de «+» (`funciones.js tarjetas()`) muestra «Mis diseños» en la primera fila si hay; `refrescar()` la repinta. `view.thumb(w)` = miniatura. `migrate` limpia `designs`.
+
 ## Actualización v0.25.7 — canal de 4 puntos
 Channel pts:4 (draw.js `channelLines`: paralela de P3 a P4 con la pendiente de P1-P2; canales de 3 puntos se leen como antes). Opciones: center/cColor/cWidth/cDash, c2Color/c2Width/c2Dash, fColor. Arrastrar el punto 4 recoloca el 3.º. Aviso de actualización rediseñado (updatenotice.js + styles.css).
 

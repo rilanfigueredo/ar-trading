@@ -39,6 +39,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'artr-'));
   const a2 = Object.assign({}, a, { templates: [{ id: 't1', name: 'A', data: {} }] });
   const ra = st.setConfig('w1', a2);
   assert.deepStrictEqual(Object.keys(ra.changed), ['templates']);
+  assert.ok(Store.SHARED_KEYS.includes('designs'));   // v0.26.1: los diseños guardados sobreviven al cierre de pestañas
   const b2 = Object.assign({}, b, { theme: 'light' });
   const rb = st.setConfig('w2', b2);
   assert.deepStrictEqual(Object.keys(rb.changed), ['theme']);       // B no vuelve a escribir la lista de plantillas vieja

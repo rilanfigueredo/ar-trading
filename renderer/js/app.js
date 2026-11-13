@@ -77,7 +77,7 @@
     return {
       version: 11, layout: '1', scripts: [], bt: { h: 260, tab: 'report', collapsed: false }, active: 0, charts: defaultCharts(), sync: { cross: true, time: true }, drawings: {}, folders: {}, draw: defaultDraw(),
       tfs: L.DEFAULT_TFS.slice(), theme: 'dark', tz: 'local', timer: true,
-      palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [],
+      palette: ['#2962ff', '#f23645', '#26a69a', '#ef5350', '#ff9800', '#7e57c2', '#787b86', '#ffffff', '#000000'], templates: [], designs: [],
       lists: defaultLists(), listActive: 'l1',
     };
   }
@@ -340,6 +340,7 @@
     percent: svg('<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'),
     replay: svg('<polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/>'),
     scripts: svg('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+    designs: svg('<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M9 21V9"/>'),
     settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
     lay1: svg('<rect x="3" y="4" width="18" height="16" rx="2"/>'),
     lay2h: svg('<rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/>'),
@@ -455,7 +456,7 @@
     const open = !$('modal').classList.contains('hidden');
     const kind = open ? $('modalBox').dataset.kind : '';
     const set = (id, on) => { const b = $(id); if (b) b.classList.toggle('on', !!on); };
-    set('btnSettings', kind === 'settings'); set('btnScripts', kind === 'scripts'); set('btnData', kind === 'data');
+    set('btnSettings', kind === 'settings'); set('btnDesigns', kind === 'designs'); set('btnScripts', kind === 'scripts'); set('btnData', kind === 'data');
   }
   // Menús desplegables de la barra (tipo de gráfico y escala)
   function setupDropdown(curId, listId) {
@@ -1357,7 +1358,7 @@
   // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades, gráfico ampliado…).
   // Todas las pestañas abiertas siguen vivas: cambiar de una a otra solo muestra su grid, sin recargar nada. La que no se ve no pide datos.
   const MAXTABS = 10;
-  const SHARED_CLIENT = ['templates', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer'];   // lo demás es propio de cada pestaña
+  const SHARED_CLIENT = ['templates', 'designs', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer'];   // lo demás es propio de cada pestaña
   const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
   const sig = (x) => { try { return JSON.stringify(x); } catch (e) { return ''; } };
   // Nombre de la pestaña: LISTA-PAR-TEMPORALIDAD (por ejemplo MACRO-BTCUSDT-4H)
@@ -1458,7 +1459,11 @@
       if (!t) {                                       // primera vez en esta pestaña: se carga su configuración y se crea su grid
         let saved = null;
         try { saved = await API.getConfig(id); } catch (e) { /* valores por defecto */ }
-        const cfg = migrate(saved);
+        let cfg = migrate(saved);
+        if (pendingDesign.has(id)) {                  // v0.26.1: pestaña nueva que nace con un diseño guardado
+          const d = designs().find((x) => x.id === pendingDesign.get(id)); pendingDesign.delete(id); pendingHome.delete(id);
+          if (d) { cfg = designCfg(cfg, d); saveTab(id, cfg); }
+        }
         if (pendingHome.has(id)) { pendingHome.delete(id); cfg.fn = 'inicio'; saveTab(id, cfg); }   // pestaña nueva: pantalla de tarjetas
         cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
         (cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
@@ -1495,7 +1500,7 @@
         const x = hh('button', 'tab-x', '×'); x.title = 'Cerrar esta pestaña (se borra su configuración)';
         x.onclick = async (ev) => {
           ev.stopPropagation();
-          if (!window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.')) return;
+          if (!(await confirmClose(t.id, label))) return;
           await closeTab(t.id, tabs);
         };
         el.appendChild(x);
@@ -1532,7 +1537,8 @@
   // Cambios compartidos hechos en otra ventana (plantillas, tema, scripts, listas…)
   function applySharedPatch(p) {
     if (!p || typeof p !== 'object') return;
-    ['templates', 'palette', 'lists', 'scripts', 'timer'].forEach((k) => { if (p[k] !== undefined) A.cfg[k] = clone(p[k]); });
+    ['templates', 'designs', 'palette', 'lists', 'scripts', 'timer'].forEach((k) => { if (p[k] !== undefined) A.cfg[k] = clone(p[k]); });
+    if (p.designs !== undefined) refreshDesignUi();
     if (p.theme !== undefined && p.theme !== A.cfg.theme) { A.cfg.theme = p.theme; applyTheme(); }
     if (p.tz !== undefined && p.tz !== A.cfg.tz) { A.cfg.tz = p.tz; eachView((v) => v.applyTz()); }
     if (p.scripts !== undefined) eachView((v) => v.refreshScripts && v.refreshScripts(true));
@@ -1545,6 +1551,173 @@
     if (window.desktopApi && window.desktopApi.overlay) document.body.classList.add('has-overlay');
     renderTabs(true);
     if (API.onShared) API.onShared(applySharedPatch);
+  }
+
+  // ---------- Diseños guardados (v0.26.1) ----------
+  // Un diseño es una copia de TODO lo propio de una pestaña (gráficos, indicadores, dibujos, carpetas, plantillas de dibujo…).
+  // Se guarda en lo compartido (cfg.designs): sobrevive al cierre de pestañas y aparece en la pantalla de «+».
+  const MAXDESIGNS = 40;
+  const WINDOW_CLIENT = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive'];
+  const designs = () => (Array.isArray(A.cfg.designs) ? A.cfg.designs : []);
+  const snapshotDesign = (cfg) => { const o = {}; WINDOW_CLIENT.forEach((k) => { if (cfg[k] !== undefined) o[k] = clone(cfg[k]); }); return o; };
+  const designCfg = (base, d) => { const m = Object.assign({}, base, clone(d.data)); delete m.fn; delete m.max; return migrate(m); };
+  const dateEs = (t) => { try { return new Date(t).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } };
+  let paintDesigns = null;                            // repinta la ventana «Mis diseños» si está abierta
+  function designMeta(d) {
+    const x = d.data || {};
+    const c = Array.isArray(x.charts) ? (x.charts[x.active] || x.charts[0]) : null;
+    const nCh = LAYOUTS[x.layout] ? LAYOUTS[x.layout].n : 1;
+    const nDr = Object.values(x.drawings || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0);
+    const tp = x.draw && x.draw.templates ? Object.values(x.draw.templates).reduce((a, v) => a + (Array.isArray(v) ? v.length : (v ? 1 : 0)), 0) : 0;
+    return {
+      l1: c ? [c.symbol, tfShort(c.tf)].filter(Boolean).join(' · ') : '',
+      l2: [nCh + (nCh === 1 ? ' gráfico' : ' gráficos'), nDr + (nDr === 1 ? ' dibujo' : ' dibujos'), tp + (tp === 1 ? ' plantilla' : ' plantillas')].join(' · '),
+    };
+  }
+  function refreshDesignUi() {
+    if (window.TVFunciones && window.TVFunciones.refrescar) window.TVFunciones.refrescar();
+    if (paintDesigns) paintDesigns();
+  }
+  // Guarda (o actualiza si ya hay uno con ese nombre o el id indicado) un diseño a partir de la configuración de una pestaña.
+  function saveDesign(name, cfg, thumbUrl, overwriteId) {
+    name = String(name || '').trim().slice(0, 60) || 'Diseño';
+    const list = designs().slice();
+    const ex = overwriteId ? list.find((d) => d.id === overwriteId) : list.find((d) => d.name.toLowerCase() === name.toLowerCase());
+    if (!ex && list.length >= MAXDESIGNS) return { ok: false, error: `Ya tienes ${MAXDESIGNS} diseños guardados. Borra alguno para guardar otro.` };
+    const d = { id: ex ? ex.id : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: ex && overwriteId ? ex.name : name, at: Date.now(), thumb: thumbUrl || (ex && ex.thumb) || null, data: snapshotDesign(cfg) };
+    if (ex) list[list.indexOf(ex)] = d; else list.unshift(d);
+    A.cfg.designs = list; saveCfg(); refreshDesignUi();
+    return { ok: true, updated: !!ex, id: d.id };
+  }
+  function removeDesign(id) { A.cfg.designs = designs().filter((d) => d.id !== id); saveCfg(); refreshDesignUi(); }
+  function renameDesign(id, name) {
+    name = String(name || '').trim().slice(0, 60); if (!name) return;
+    A.cfg.designs = designs().map((d) => (d.id === id ? Object.assign({}, d, { name }) : d)); saveCfg(); refreshDesignUi();
+  }
+  // Reemplaza lo de ESTA pestaña por el diseño
+  function openDesignHere(id) {
+    const d = designs().find((x) => x.id === id), t = tabsState.get(A.tabId);
+    if (!d || !t) return;
+    const fresh = designCfg(A.cfg, d);
+    if (window.TVFunciones) window.TVFunciones.quitar(t.id);
+    while (t.views.length) { const v = t.views.pop(); try { v.destroy(); } catch (e) { /* ok */ } try { v.host.remove(); } catch (e) { /* ok */ } }
+    WINDOW_CLIENT.forEach((k) => { A.cfg[k] = fresh[k]; });
+    delete A.cfg.fn; A.cfg.max = -1; t.theme = null;
+    closeModal(); saveTab(t.id, A.cfg);
+    showTab(t, null); renderTabs(true);
+  }
+  // Abre el diseño en una pestaña nueva
+  const pendingDesign = new Map();
+  async function openDesignNewTab(id) {
+    try {
+      const r = await API.openWindow();
+      if (r && r.ok) { pendingDesign.set(r.id, id); closeModal(); await switchTab(r.id); }
+      else window.alert((r && r.error) || 'No se pudo abrir la pestaña.');
+    } catch (e) { window.alert('No se pudo abrir la pestaña: ' + (e.message || e)); }
+  }
+  function designThumb(d) {
+    const box = hh('div', 'dz-thumb');
+    if (d.thumb) { const im = document.createElement('img'); im.src = d.thumb; im.alt = ''; im.draggable = false; box.appendChild(im); }
+    else { box.classList.add('empty'); box.innerHTML = ICONS.designs.replace(/width="18" height="18"/, 'width="34" height="34"'); }
+    return box;
+  }
+  // Ventana «Mis diseños»
+  function openDesigns() {
+    openModal((box) => {
+      box.dataset.kind = 'designs'; box.classList.add('wide', 'dz-modal');
+      box.appendChild(hh('h3', undefined, 'Mis diseños'));
+      box.appendChild(hh('div', 'hint', 'Un diseño guarda todo lo de esta pestaña: gráficos, indicadores, dibujos, plantillas de dibujo y ajustes. Se queda guardado aunque cierres la pestaña.'));
+      const chartTab = !isFn(A.cfg);
+      const row = hh('div', 'dz-save');
+      const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = 'Nombre del diseño'; inp.value = chartTab ? curTabLabel() : '';
+      const bs = hh('button', 'btn', 'Guardar diseño'); bs.disabled = !chartTab;
+      if (!chartTab) bs.title = 'Abre un gráfico en esta pestaña para guardar su diseño';
+      const doSave = () => {
+        const nm = inp.value.trim(); if (!nm) { inp.focus(); return; }
+        const ex = designs().find((d) => d.name.toLowerCase() === nm.toLowerCase());
+        if (ex && !window.confirm('Ya hay un diseño llamado «' + ex.name + '». ¿Reemplazarlo con lo de esta pestaña?')) return;
+        const v = activeView();
+        const r = saveDesign(nm, A.cfg, v && v.thumb ? v.thumb(360) : null);
+        if (!r.ok) { window.alert(r.error); return; }
+        note.textContent = r.updated ? 'Diseño actualizado.' : 'Diseño guardado.';
+      };
+      bs.onclick = doSave; inp.onkeydown = (e) => { if (e.key === 'Enter') doSave(); };
+      row.append(inp, bs); box.appendChild(row);
+      const note = hh('div', 'hint small dz-note', ''); box.appendChild(note);
+      const list = hh('div', 'dz-list'); box.appendChild(list);
+      paintDesigns = () => {
+        list.innerHTML = '';
+        const ds = designs();
+        if (!ds.length) { list.appendChild(hh('div', 'dz-empty', 'Todavía no hay diseños guardados.')); return; }
+        ds.forEach((d) => {
+          const m = designMeta(d);
+          const card = hh('div', 'dz-item');
+          card.appendChild(designThumb(d));
+          const info = hh('div', 'dz-info');
+          const nm = hh('div', 'dz-name', d.name); nm.title = 'Doble clic para cambiar el nombre';
+          nm.ondblclick = () => {
+            const e = document.createElement('input'); e.type = 'text'; e.value = d.name; e.maxLength = 60; e.className = 'dz-rename';
+            nm.replaceWith(e); e.focus(); e.select();
+            let done = false; const fin = (ok) => { if (done) return; done = true; if (ok) renameDesign(d.id, e.value); else paintDesigns(); };
+            e.onkeydown = (k) => { if (k.key === 'Enter') fin(true); else if (k.key === 'Escape') { k.stopPropagation(); fin(false); } }; e.onblur = () => fin(true);
+          };
+          info.append(nm, hh('div', 'dz-meta', m.l1), hh('div', 'dz-meta', m.l2), hh('div', 'dz-meta dim', dateEs(d.at)));
+          card.appendChild(info);
+          const acts = hh('div', 'dz-btns');
+          const b1 = hh('button', 'btn small', 'Abrir en pestaña nueva'); b1.disabled = tabsCache.length >= MAXTABS; if (b1.disabled) b1.title = `Máximo ${MAXTABS} pestañas`;
+          b1.onclick = () => openDesignNewTab(d.id);
+          const b2 = hh('button', 'btn small secondary', 'Usar en esta pestaña'); b2.title = 'Reemplaza lo de esta pestaña por este diseño';
+          b2.onclick = () => { if (chartTab && !window.confirm('Esto reemplaza lo que hay en esta pestaña por el diseño «' + d.name + '». ¿Continuar?')) return; openDesignHere(d.id); };
+          const b3 = hh('button', 'btn small secondary', 'Actualizar'); b3.title = 'Guarda lo de esta pestaña dentro de este diseño'; b3.disabled = !chartTab;
+          b3.onclick = () => { if (!window.confirm('¿Reemplazar el diseño «' + d.name + '» con lo de esta pestaña?')) return; const v = activeView(); const r = saveDesign(d.name, A.cfg, v && v.thumb ? v.thumb(360) : null, d.id); note.textContent = r.ok ? 'Diseño actualizado.' : r.error; };
+          const b4 = hh('button', 'btn small danger', 'Borrar');
+          b4.onclick = () => { if (window.confirm('¿Borrar el diseño «' + d.name + '»? No se puede deshacer.')) removeDesign(d.id); };
+          acts.append(b1, b2, b3, b4); card.appendChild(acts);
+          list.appendChild(card);
+        });
+      };
+      paintDesigns();
+      setTimeout(() => { if (chartTab) { inp.focus(); inp.select(); } }, 0);
+    }, { onClose: () => { paintDesigns = null; } });
+  }
+  // Al cerrar una pestaña con gráficos se ofrece guardarla como diseño. Devuelve true si se puede cerrar.
+  function closeDialog(label) {
+    return new Promise((resolve) => {
+      let done = false; const fin = (v) => { if (done) return; done = true; resolve(v); };
+      openModal((box) => {
+        box.dataset.kind = 'closetab';
+        box.appendChild(hh('h3', undefined, 'Cerrar la pestaña «' + label + '»'));
+        box.appendChild(hh('div', 'hint', 'Al cerrarla se borra todo lo de esta pestaña: dibujos, plantillas de dibujo, indicadores y ajustes. ¿Quieres guardarlo como un diseño para volver a usarlo después?'));
+        const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 60; inp.className = 'dz-closename'; inp.placeholder = 'Nombre del diseño'; inp.value = label;
+        box.appendChild(inp);
+        const note = hh('div', 'hint small', ''); box.appendChild(note);
+        const upd = () => { note.textContent = designs().some((d) => d.name.toLowerCase() === inp.value.trim().toLowerCase()) ? 'Ya existe un diseño con ese nombre: se actualizará con esta pestaña.' : ''; };
+        inp.oninput = upd; upd();
+        const row = hh('div', 'dz-actions');
+        const bs = hh('button', 'btn', 'Guardar diseño y cerrar');
+        bs.onclick = () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } fin({ save: true, name: nm }); closeModal(); };
+        const bd = hh('button', 'btn danger', 'Cerrar sin guardar'); bd.onclick = () => { fin({ save: false }); closeModal(); };
+        const bc = hh('button', 'btn secondary', 'Cancelar'); bc.onclick = () => { fin(null); closeModal(); };
+        row.append(bs, bd, bc); box.appendChild(row);
+        inp.onkeydown = (e) => { if (e.key === 'Enter') bs.click(); };
+        setTimeout(() => { inp.focus(); inp.select(); }, 0);
+      }, { onClose: () => fin(null) });
+    });
+  }
+  async function confirmClose(id, label) {
+    let cfg = null; const live = tabsState.get(id);
+    if (live) cfg = live.cfg; else { try { cfg = migrate(await API.getConfig(id)); } catch (e) { cfg = null; } }
+    if (!cfg || isFn(cfg)) return window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.');
+    const r = await closeDialog(label);
+    if (!r) return false;
+    if (r.save) {
+      let th = null;
+      if (id === A.tabId) { const v = activeView(); th = v && v.thumb ? v.thumb(360) : null; }
+      const res = saveDesign(r.name, cfg, th);
+      if (!res.ok) { window.alert(res.error); return false; }
+      flushTab(A.tabId, true);                         // el diseño queda escrito antes de cerrar nada
+    }
+    return true;
   }
 
   // ---------- Plantillas ----------
@@ -1847,6 +2020,8 @@
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.innerHTML = ICONS[b.dataset.scale] + '<span>' + b.textContent + '</span>'; });
     $('btnSettings').innerHTML = ICONS.settings; $('btnScripts').innerHTML = ICONS.scripts;
     $('btnSettings').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'settings') closeModal(); else openSettings(); };
+    $('btnDesigns').innerHTML = ICONS.designs + '<span>Diseños</span>';
+    $('btnDesigns').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'designs') closeModal(); else openDesigns(); };
     $('btnIndicators').onclick = togglePanel;
     document.addEventListener('tv-open-panel', () => { const p = $('panel'); if (p.classList.contains('hidden')) togglePanel(); else renderPanel(); });
     $('modal').onmousedown = (e) => { if (e.target === $('modal')) closeModal(); };
@@ -1913,6 +2088,9 @@
     if (!Array.isArray(cfg.palette)) cfg.palette = defaultConfig().palette;
     cfg.palette = cfg.palette.filter((c) => /^#[0-9a-f]{6}$/i.test(c));
     if (!Array.isArray(cfg.templates)) cfg.templates = [];
+    // v0.26.1: diseños guardados (copias de pestañas). Se descarta lo que no tenga la forma esperada.
+    cfg.designs = (Array.isArray(saved.designs) ? saved.designs : []).filter((d) => d && typeof d === 'object' && typeof d.id === 'string' && d.data && typeof d.data === 'object' && !Array.isArray(d.data)).slice(0, MAXDESIGNS)
+      .map((d) => ({ id: d.id, name: String(d.name || 'Diseño').slice(0, 60), at: Number(d.at) || 0, thumb: typeof d.thumb === 'string' && d.thumb.startsWith('data:image/') ? d.thumb : null, data: d.data }));
     if (!LAYOUTS[cfg.layout]) cfg.layout = '1';
     const defInd = defaultInd();
     cfg.charts = cfg.charts.slice(0, 4).map((c, i) => {
@@ -2081,7 +2259,7 @@
     A.drawStore = G.drawStore; // para depuración (F12)
     bindUi();
     { const bl = $('brandLogo'); if (bl) bl.src = 'assets/logo-h-' + effTheme() + '.png'; }
-    window.TVFunciones.init({ host: $('fnHost'), API, tema: effTheme, cambiarTema: toggleTheme, abrir: openFunction, inicio: goHome });
+    window.TVFunciones.init({ host: $('fnHost'), API, tema: effTheme, cambiarTema: toggleTheme, abrir: openFunction, inicio: goHome, disenos: designs, abrirDiseno: openDesignHere, borrarDiseno: removeDesign });
     if (isFn(A.cfg)) { document.body.classList.add('fn-mode'); $('fnHost').classList.remove('hidden'); applyTheme(); }   // la pestaña abierta al cerrar era una función
     else applyLayout();
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });

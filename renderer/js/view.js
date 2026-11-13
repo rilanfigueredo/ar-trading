@@ -1599,6 +1599,17 @@
       ctx.drawImage(base, 0, 0);   // las velas van por delante de los textos
       return out;
     }
+    // v0.26.1: miniatura (JPEG pequeño) para las tarjetas de «Mis diseños». null si no se puede.
+    function thumb(w) {
+      try {
+        const cv = captureCanvas();
+        if (!cv.width || !cv.height) return null;
+        const W = Math.min(w || 320, cv.width), H = Math.max(1, Math.round(cv.height * W / cv.width));
+        const o = document.createElement('canvas'); o.width = W; o.height = H;
+        o.getContext('2d').drawImage(cv, 0, 0, W, H);
+        return o.toDataURL('image/jpeg', 0.6);
+      } catch (e) { return null; }
+    }
     function toast(text) {
       const t = el('div', 'toast', text);
       host.appendChild(t);
@@ -1883,7 +1894,7 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: to - w, to });
       },
       showCrosshairAt(info) { showXh(info); },
-      capture,
+      capture, thumb,
       replayPick() { return rpPickStart(); },
       replayStop() { if (s.rp) return rpStop(); rpReset(true); },
       // Fuente de datos del gráfico: 'candles' (velas del exchange) o 'trades' (velas armadas con operaciones reales)

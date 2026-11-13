@@ -13,7 +13,31 @@
 
   function tarjetas() {
     const pant = h('div', 'fn-home');
-    pant.appendChild(h('h2', 'fn-home-t', 'Elige una función'));
+    // v0.26.1: si hay diseños guardados, van en la primera fila (antes de las funciones)
+    const ds = X.disenos ? X.disenos() : [];
+    if (ds.length) {
+      pant.appendChild(h('h2', 'fn-home-t', 'Mis diseños'));
+      pant.appendChild(h('p', 'fn-home-s', 'Tus pestañas guardadas, con sus dibujos, plantillas e indicadores. Elige una para abrirla aquí.'));
+      const g = h('div', 'fn-cards dz-cards'); g.dataset.disenos = '1';
+      ds.forEach((d) => {
+        const c = h('div', 'fn-card dz-card'); c.dataset.diseno = d.id;
+        const th = h('div', 'dz-thumb');
+        if (d.thumb) { const im = h('img'); im.src = d.thumb; im.alt = ''; im.draggable = false; th.appendChild(im); } else th.classList.add('empty');
+        c.appendChild(th);
+        c.appendChild(h('h3', 'fn-card-n dz-card-n', d.name));
+        const ch = d.data && Array.isArray(d.data.charts) ? (d.data.charts[d.data.active] || d.data.charts[0]) : null;
+        const nDr = Object.values((d.data && d.data.drawings) || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0);
+        c.appendChild(h('p', 'fn-card-d dz-card-d', [ch && ch.symbol, nDr + (nDr === 1 ? ' dibujo' : ' dibujos')].filter(Boolean).join(' · ')));
+        const b = h('button', 'btn fn-card-b', 'Abrir'); b.dataset.abrirDiseno = d.id; b.onclick = () => X.abrirDiseno(d.id);
+        c.appendChild(b);
+        const x = h('button', 'dz-x', '×'); x.title = 'Borrar este diseño';
+        x.onclick = (e) => { e.stopPropagation(); if (window.confirm('¿Borrar el diseño «' + d.name + '»? No se puede deshacer.')) X.borrarDiseno(d.id); };
+        c.appendChild(x);
+        g.appendChild(c);
+      });
+      pant.appendChild(g);
+    }
+    pant.appendChild(h('h2', ds.length ? 'fn-home-t fn-home-t2' : 'fn-home-t', 'Elige una función'));
     pant.appendChild(h('p', 'fn-home-s', 'Se abre en esta misma pestaña. Para volver a esta pantalla usa «Inicio» en la barra de la función.'));
     const grid = h('div', 'fn-cards'); grid.dataset.cards = '1';
     R.LISTA.forEach((f) => {
@@ -53,6 +77,7 @@
   function mostrar(tabId, fnId) {
     panes.forEach((q) => { q.el.classList.add('off'); if (q.fnId && q.fnId !== 'inicio') { q.visible = false; enviar(q, { tipo: 'visible', v: false }); } });
     let p = panes.get(tabId) || crearPane(tabId);
+    if (p.fnId === fnId && fnId === 'inicio') p.body.replaceChildren(tarjetas());   // al volver a la pantalla se ponen al día los diseños
     if (p.fnId !== fnId) {
       limpiarBody(p); p.fnId = fnId;
       if (fnId === 'inicio') p.body.appendChild(tarjetas());
@@ -70,6 +95,11 @@
     pintarTema(p);
     p.el.classList.remove('off');
     p.visible = true; enviar(p, { tipo: 'visible', v: true });
+  }
+  // Vuelve a dibujar la pantalla de tarjetas (por ejemplo cuando cambia la lista de diseños)
+  function refrescar() {
+    if (!X) return;
+    panes.forEach((p) => { if (p.fnId === 'inicio') { const top = p.body.firstChild ? p.body.firstChild.scrollTop : 0; p.body.replaceChildren(tarjetas()); if (p.body.firstChild) p.body.firstChild.scrollTop = top; } });
   }
   function falla(p, texto) {
     const o = h('div', 'fn-error'); o.appendChild(h('p', null, texto + ' El resto del programa sigue funcionando.'));
@@ -104,7 +134,7 @@
   window.TVFunciones = {
     init(o) { X = o; },
     porId: R.porId, titulo: R.titulo, limpiar: R.limpiar, lista: () => R.LISTA,
-    mostrar, ocultar, quitar, setTema,
+    mostrar, ocultar, quitar, setTema, refrescar,
     abierta: (tabId) => { const p = panes.get(tabId); return p ? p.fnId : null; },
   };
 })();
