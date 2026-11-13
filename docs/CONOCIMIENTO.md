@@ -7,6 +7,10 @@
 
 (Sube este archivo a "Conocimiento del proyecto". Resume todo lo aprendido y decidido hasta la v0.6.)
 
+## Actualización v0.26.2 — botones del gráfico (cámara / ampliar / pantalla completa)
+- CSS `.max-btn` (styles.css): 28×26 px, fuente 16, opacidad .95, color `var(--text)`. Hover: relleno y contorno `var(--acento)`, `scale(1.14)` y doble sombra neón sutil. `.max-btn.on`: relleno turquesa fijo.
+- `view.js`: `setMaximized(on)` ahora alterna la clase `on` en `maxBtn`; `setFullscreen` ya lo hacía con `fsBtn`. `.fs-btn` sube a `top: 36px` por el tamaño nuevo.
+
 ## Actualización v0.26.1 — diseños guardados
 `cfg.designs` (clave COMPARTIDA en `src/store.js`, máx. 40): `{id,name,at,thumb(JPEG dataURL),data}`; `data` = copia de las claves propias de la pestaña (`WINDOW_CLIENT` en app.js: layout, active, charts, sync, drawings, folders, bt, tfs, draw, listActive). Funciones en app.js (sección «Diseños guardados»): `saveDesign`, `openDesignHere`, `openDesignNewTab` (`pendingDesign` se consume en `switchTab`), `openDesigns` (botón `#btnDesigns`), `closeDialog/confirmClose` (cerrar pestaña con gráficos). La pantalla de «+» (`funciones.js tarjetas()`) muestra «Mis diseños» en la primera fila si hay; `refrescar()` la repinta. `view.thumb(w)` = miniatura. `migrate` limpia `designs`.
 

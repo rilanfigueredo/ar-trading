@@ -117,8 +117,11 @@ input[type=color]:disabled { cursor: not-allowed; }
 .status { margin-right: 4px; }
 
 /* Ampliar un gráfico a pantalla completa */
-.max-btn { position: absolute; top: 6px; right: 70px; z-index: 7; background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--text); border: 1px solid var(--border); border-radius: 4px; width: 26px; height: 24px; font-size: 14px; line-height: 1; cursor: pointer; opacity: .55; }
-.max-btn:hover { opacity: 1; background: var(--hover); }
+.max-btn { position: absolute; top: 6px; right: 70px; z-index: 7; background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--text); border: 1px solid var(--border); border-radius: 5px; width: 28px; height: 26px; font-size: 16px; line-height: 1; cursor: pointer; opacity: .95; transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease; }
+/* v0.26.1: al pasar el mouse: relleno y contorno turquesa, zoom suave y brillo neón muy sutil */
+.max-btn:hover { opacity: 1; transform: scale(1.14); color: var(--acento); background: color-mix(in srgb, var(--acento) 16%, var(--panel)); border-color: var(--acento); box-shadow: 0 0 5px color-mix(in srgb, var(--acento) 55%, transparent), 0 0 10px color-mix(in srgb, var(--acento) 22%, transparent); }
+/* Función activa (ampliado / pantalla completa): relleno claro permanente */
+.max-btn.on { opacity: 1; color: var(--acento); background: color-mix(in srgb, var(--acento) 22%, var(--panel)); border-color: var(--acento); }
 #grid:not(.multi) .max-btn { display: none; }
 #grid.has-max { grid-template: 1fr / 1fr; }
 #grid.has-max .cell:not(.maxed) { display: none; }
@@ -341,9 +344,8 @@ input[type=color]:disabled { cursor: not-allowed; }
 .cam-btn { right: 104px; }
 #grid:not(.multi) .cam-btn { right: 80px; display: block; }
 /* Pantalla completa (v0.22.2): debajo de la cámara */
-.fs-btn { right: 104px; top: 34px; }
+.fs-btn { right: 104px; top: 36px; }
 #grid:not(.multi) .fs-btn { right: 80px; display: block; }
-.fs-btn.on { opacity: 1; border-color: #00e5ee; color: #00e5ee; }
 .toast { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 12; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.4); max-width: 80%; text-align: center; }
 .rp-bar { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 11; display: flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid #00e5ee; border-radius: 8px; padding: 4px 6px; box-shadow: 0 6px 20px rgba(0,0,0,.4); font-size: 12px; color: var(--text); }
 .rp-bar.hidden { display: none; }

@@ -1,5 +1,11 @@
-AR_TRADING - VERSION 0.26.1
+AR_TRADING - VERSION 0.26.2
 ========================
+
+BOTONES DEL GRAFICO MAS VISIBLES (cámara, ampliar y pantalla completa)
+- Ahora son 2 px más grandes y con el color del texto de las temporalidades (antes casi no se veían).
+- Al pasar el mouse: cambian el relleno y el contorno a turquesa, hacen un pequeño zoom y el contorno tiene un brillo neón muy sutil.
+- Mientras «Ampliar este gráfico» o «Pantalla completa» están activados, su botón queda con relleno turquesa claro fijo; vuelve a lo normal al salir.
+- Probado con datos simulados en el navegador. NO probado: Windows/Electron.
 
 DISEÑOS GUARDADOS: YA NO SE PIERDE EL TRABAJO AL CERRAR UNA PESTAÑA
 - Nuevo botón «Diseños» (arriba a la derecha): guarda todo lo de la pestaña (gráficos, indicadores, dibujos, plantillas de línea de tendencia, rectángulo, retroceso, etc.) con el nombre que quieras.

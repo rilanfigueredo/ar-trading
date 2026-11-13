@@ -1865,7 +1865,7 @@
         }
       },
       setFullscreen(on) { fsBtn.textContent = on ? '⤓' : '⛶'; fsBtn.title = on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (Esc para salir)'; fsBtn.classList.toggle('on', !!on); },
-      setMaximized(on) { maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
+      setMaximized(on) { maxBtn.classList.toggle('on', !!on); maxBtn.textContent = on ? '🗗' : '⛶'; maxBtn.title = on ? 'Volver al diseño (Esc)' : 'Ampliar este gráfico a pantalla completa'; },
       applyTheme() { applyLook(); if (s.scr) s.scr.update(); },
       applyLook,
       applyTimer() { updateTimer(); },
