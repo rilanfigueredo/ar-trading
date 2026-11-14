@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.9
+========================
+
+BARRA DE PRECIOS MAS DELGADA, ALTCOINS BARATAS Y EFECTO LINTERNA
+- Barra de precios: al pasar el mouse por el borde izquierdo de la barra de precios aparece la doble flecha. Arrastra hacia la derecha para hacerla mas delgada (y hacia la izquierda para volver). Doble clic en ese borde: tamano normal. Se guarda en cada grafico.
+- Altcoins con precios muy pequenos (menos de 5 USDT o de 0,01 USDT) en escala logaritmica: al hacer scroll sobre la barra de precios el grafico ya no parpadea; el zoom fluye igual que con BTC. Tambien se corrigieron la lupa y el boton de alejar en esa escala.
+- Efecto linterna: en todos los lugares donde el mouse se vuelve una mano con el dedo indice, una luz morada electrica fluorescente sigue al mouse (botones, pestanas, listas, tarjetas y funciones).
+
 AR_TRADING - VERSION 0.26.8
 ========================
 

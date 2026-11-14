@@ -132,7 +132,8 @@ function symSeed(symbol) {
 }
 function mockPrice(symbol, t) {
   const s = symSeed(symbol);
-  const base = 50 + (s % 900) * (symbol.startsWith('BTC') ? 60 : 1);
+  const tiny = symbol.startsWith('PEPE') ? 1e-6 : symbol.startsWith('GALA') ? 1e-4 : 1; // monedas simuladas de precio muy pequeño
+  const base = (50 + (s % 900) * (symbol.startsWith('BTC') ? 60 : 1)) * tiny;
   const d = 86400000;
   return base * Math.exp(
     0.35 * Math.sin(t / (d * 230) + s) +
@@ -195,7 +196,7 @@ function mockKlines({ symbol, interval, startTime, endTime, limit }) {
   }
   return out;
 }
-const MOCK_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT', 'DOGEUSDT', 'ADAUSDT', 'LINKUSDT'];
+const MOCK_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'TRXUSDT', 'RAYUSDT', 'DOGEUSDT', 'ADAUSDT', 'LINKUSDT', 'PEPEUSDT', 'GALAUSDT'];
 
 // ---------- Operaciones (aggTrades) para velas por volumen ----------
 // Simulación: 5 operaciones por segundo, con ids consecutivos desde una fecha fija.

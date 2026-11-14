@@ -199,12 +199,14 @@
       };
     }
     const themeName = () => (lookVars().isDark ? 'dark' : 'light');
+    // Tamaño del texto de las barras de precios y fechas (de 8 a 12): más pequeño = barra de precios más delgada. Por gráfico.
+    const axisFont = () => Math.max(8, Math.min(12, Math.round(vcfg.axisFs || 12)));
     function themeOptions() {
       const lv = lookVars();
       const dark = lv.isDark;
       return {
         layout: {
-          background: { type: 'solid', color: 'rgba(0,0,0,0)' }, textColor: lv.text,
+          background: { type: 'solid', color: 'rgba(0,0,0,0)' }, textColor: lv.text, fontSize: axisFont(),
           panes: { separatorColor: lv.border, separatorHoverColor: dark ? 'rgba(41,98,255,0.35)' : 'rgba(41,98,255,0.25)' },
         },
         grid: { vertLines: { color: lv.grid, visible: !!vcfg.look.gridV }, horzLines: { color: lv.grid, visible: !!vcfg.look.gridH } },
@@ -537,7 +539,31 @@
     const num = (v) => typeof v === 'number' && isFinite(v);
     // Historial de zooms hechos con la lupa (para poder alejar paso a paso)
     const zoomStack = [];
-    const priceInternal = (v, log) => (log ? Math.log10(Math.pow(10, Math.log10(v)) + 0.0001) + 4 : v);
+    // Escala logarítmica: la librería convierte el precio con log10(precio + d) + L, donde d y L dependen del ANCHO del rango
+    // (rangos menores de 1 usan d = 10^-L y L = 4 + dígitos). Con monedas baratas la fórmula fija anterior fallaba y el eje parpadeaba.
+    function logInternal(v, diff) {
+      let L = 4, d = 1e-4;
+      if (diff < 1 && diff >= 1e-15) { L = 4 + Math.ceil(Math.abs(Math.log10(diff))); d = Math.pow(10, -L); }
+      return Math.log10(Math.abs(v) + d) + L;
+    }
+    // Fija el rango visible del eje (precios reales). La librería puede usar la fórmula del rango anterior justo al cruzar
+    // una potencia de 10 del ancho; por eso se comprueba lo que quedó y se reintenta con la fórmula que ella usa.
+    // Devuelve false si no lo aceptó (se vuelve a escala automática).
+    function setAxisRange(ps, log, lo, hi) {
+      if (!(hi > lo) || !isFinite(lo) || !isFinite(hi)) return false;
+      ps.setAutoScale(false);
+      let diff = hi - lo, chk = null;
+      for (let i = 0; i < 4; i++) {
+        if (log && lo > 0) ps.setVisibleRange({ from: logInternal(lo, diff), to: logInternal(hi, diff) });
+        else ps.setVisibleRange({ from: lo, to: hi });
+        chk = ps.getVisibleRange();
+        if (!chk || !isFinite(chk.from) || !isFinite(chk.to) || !(chk.to > chk.from)) break;
+        if (!log || (Math.abs(chk.from - lo) <= 0.01 * (hi - lo) && Math.abs(chk.to - hi) <= 0.01 * (hi - lo))) return true;
+        diff = chk.to - chk.from; // probar con la fórmula del rango que la librería dejó
+      }
+      ps.applyOptions({ autoScale: true });
+      return false;
+    }
     const drawEnv = {
       host, chartEl,
       series: () => s.series, bars: () => s.bars, symbol: () => vcfg.symbol, chart: () => vcfg.id,
@@ -579,12 +605,7 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: a, to: b });
         const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
         if (!(hi > lo) || lo <= 0 || vcfg.scale === 'percent') return;
-        const ps = mainScale(), log = vcfg.scale === 'log';
-        const toInternal = (v) => (log ? Math.log10(Math.pow(10, v) + 0.0001) + 4 : v);
-        ps.setAutoScale(false);
-        ps.setVisibleRange({ from: toInternal(log ? Math.log10(lo) : lo), to: toInternal(log ? Math.log10(hi) : hi) });
-        const chk = ps.getVisibleRange();
-        if (!chk || !isFinite(chk.from) || !isFinite(chk.to) || !(chk.to > chk.from)) ps.applyOptions({ autoScale: true });
+        setAxisRange(mainScale(), vcfg.scale === 'log', lo, hi);
       },
     };
     // Dibujos también sobre los indicadores (RSI, Estocástico, Delta, CVD): una capa por panel, con su propia escala y el imán sobre la línea.
@@ -1399,9 +1420,9 @@
     // ---------- Eje de precios: zoom con la rueda, menú con clic derecho ----------
     function zoomAxis(ps, log, h, deltaY, y) {
       const r = ps.getVisibleRange();
-      if (!r || !(r.to > r.from)) return;
-      const lo = log ? Math.log10(Math.max(r.from, 1e-12)) : r.from;
-      const hi = log ? Math.log10(Math.max(r.to, 1e-12)) : r.to;
+      if (!r || !(r.to > r.from) || !(r.from > 0 || !log)) return;
+      const lo = log ? Math.log10(r.from) : r.from;
+      const hi = log ? Math.log10(r.to) : r.to;
       const step = Math.max(-3, Math.min(3, deltaY / 100));
       const factor = Math.exp(step * 0.12);
       const frac = Math.max(0, Math.min(1, y / Math.max(1, h)));
@@ -1409,11 +1430,7 @@
       const nlo = pivot - (pivot - lo) * factor;
       const nhi = pivot + (hi - pivot) * factor;
       if (!(nhi > nlo) || !isFinite(nlo) || !isFinite(nhi)) return;
-      const toInternal = (v) => (log ? Math.log10(Math.pow(10, v) + 0.0001) + 4 : v);
-      ps.setAutoScale(false);
-      ps.setVisibleRange({ from: toInternal(nlo), to: toInternal(nhi) });
-      const chk = ps.getVisibleRange();
-      if (!chk || !isFinite(chk.from) || !isFinite(chk.to) || !(chk.to > chk.from)) ps.applyOptions({ autoScale: true });
+      setAxisRange(ps, log, log ? Math.pow(10, nlo) : nlo, log ? Math.pow(10, nhi) : nhi);
     }
     function priceAxisWidth() { try { return mainScale().width(); } catch (e) { return 0; } }
     // Panel (y su serie principal) bajo una posición vertical de la pantalla.
@@ -1459,6 +1476,45 @@
       e.stopPropagation();
       zoomAxis(hit.ser.priceScale(), hit.main && vcfg.scale === 'log', hit.rect.height, e.deltaY, e.clientY - hit.rect.top);
     }, { passive: false, capture: true });
+
+    // ---------- Adelgazar la barra de precios (v0.26.9): doble flecha en el borde izquierdo de la barra; arrastrar a la derecha la achica ----------
+    const GRIP_W = 10;
+    function overAxisGrip(e) {
+      const w = priceAxisWidth();
+      if (!w) return false;
+      const x = e.clientX - (chartEl.getBoundingClientRect().right - w);
+      return x >= 0 && x <= GRIP_W;
+    }
+    function setAxisFont(fs) {
+      fs = Math.max(8, Math.min(12, Math.round(fs)));
+      if (fs === axisFont() && vcfg.axisFs) return;
+      vcfg.axisFs = fs === 12 ? null : fs;
+      s.chart.applyOptions({ layout: { fontSize: fs } });
+      positionLegend();
+      if (view.draw) view.draw.repaint();
+    }
+    let gripDrag = null;
+    chartEl.addEventListener('mousemove', (e) => {
+      if (gripDrag) return;
+      chartEl.classList.toggle('axis-grip-hot', !!s.series && overAxisGrip(e));
+    });
+    chartEl.addEventListener('mouseleave', () => { if (!gripDrag) chartEl.classList.remove('axis-grip-hot'); });
+    chartEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || !s.series || !overAxisGrip(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      gripDrag = { x: e.clientX, fs: axisFont() };
+      const move = (ev) => setAxisFont(gripDrag.fs - (ev.clientX - gripDrag.x) / 14);
+      const up = () => {
+        document.removeEventListener('mousemove', move, true); document.removeEventListener('mouseup', up, true);
+        gripDrag = null; chartEl.classList.remove('axis-grip-hot'); G.save();
+      };
+      document.addEventListener('mousemove', move, true); document.addEventListener('mouseup', up, true);
+    }, true);
+    chartEl.addEventListener('dblclick', (e) => {
+      if (!s.series || !overAxisGrip(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      setAxisFont(12); G.save();
+    }, true);
 
     let axisMenu = null;
     function closeAxisMenu() {
@@ -1845,8 +1901,7 @@
         if (!z) { ps.applyOptions({ autoScale: true }); return; }
         if (z.range) s.chart.timeScale().setVisibleLogicalRange(z.range);
         if (z.auto || !z.prange) { ps.applyOptions({ autoScale: true }); return; }
-        ps.setAutoScale(false);
-        ps.setVisibleRange({ from: priceInternal(z.prange.from, z.log), to: priceInternal(z.prange.to, z.log) });
+        setAxisRange(ps, z.log, z.prange.from, z.prange.to);
       },
       toggleMaxPane(name) { setMaxPane(s.maxPane === name ? null : name); },
       toggleSubs() { s.subsHidden = !s.subsHidden; if (s.bars.length) syncIndicators(true); return s.subsHidden; },

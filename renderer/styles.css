@@ -781,3 +781,6 @@ body.fn-mode #profileBtn, body.fs #profileBtn { display: none; }
 .pf-name { width: 100%; box-sizing: border-box; margin: 2px 0 6px; }
 .pf-msg { color: #ff6b6b; font-size: 12px; min-height: 0; }
 .pf-danger { background: #d9435a; }
+
+/* v0.26.9: borde de la barra de precios (doble flecha para adelgazarla) */
+.axis-grip-hot, .axis-grip-hot * { cursor: ew-resize !important; }
