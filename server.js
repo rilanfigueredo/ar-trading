@@ -63,7 +63,7 @@ const server = http.createServer(async (req, res) => {
       Service.write(d, { assets: JSON.parse(data) }); core.setAssets(Service.read(d).assets); core.restartLiq();
       return send(res, 200, { ok: true });
     }
-    if (url.pathname === '/api/service/get') return send(res, 200, { desktop: false });
+    if (url.pathname === '/api/service/get') return send(res, 200, { desktop: false, version: require('./package.json').version });
     if (url.pathname === '/api/service/factoryreset' && req.method === 'POST') {
       store.reset(); core.resetData({ restart: true });
       return send(res, 200, { ok: true });

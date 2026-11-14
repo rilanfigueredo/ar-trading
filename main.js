@@ -67,6 +67,7 @@ ipcMain.handle('service:get', async () => {
   const hw = Service.read(app.getPath('userData')).hwAccel;
   return { desktop: true, hwAccel: hw, needsRestart: hw !== hwAtStart, version: app.getVersion() };
 });
+ipcMain.handle('window:quit', async () => { setTimeout(() => app.quit(), 150); return { ok: true }; });
 ipcMain.handle('service:setHw', async (_e, on) => {
   try { Service.write(app.getPath('userData'), { hwAccel: !!on }); return { ok: true, needsRestart: !!on !== hwAtStart }; } catch (err) { return { ok: false, error: err.message }; }
 });

@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('desktopApi', {
   klines: (p) => ipcRenderer.invoke('klines', p),
@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('desktopApi', {
   openWindow: () => ipcRenderer.invoke('window:open'),
   closeWindow: (id) => ipcRenderer.invoke('window:close', id),
   serviceGet: () => ipcRenderer.invoke('service:get'),
+  // v0.26.5: zoom de toda la interfaz (1 = 100 %) y cerrar el programa
+  setZoom: (f) => { const n = Number(f); if (isFinite(n)) webFrame.setZoomFactor(Math.max(0.5, Math.min(3, n))); return true; },
+  quitApp: () => ipcRenderer.invoke('window:quit'),
   serviceSetHw: (on) => ipcRenderer.invoke('service:setHw', on),
   serviceRelaunch: () => ipcRenderer.invoke('service:relaunch'),
   serviceClearCache: () => ipcRenderer.invoke('service:clearCache'),

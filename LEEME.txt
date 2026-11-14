@@ -1,3 +1,16 @@
+AR_TRADING - VERSION 0.26.5
+========================
+
+PERFIL DEL USUARIO (ICONO REDONDO ABAJO A LA IZQUIERDA)
+- Nuevo icono redondo con tu imagen de perfil. En reposo tiene borde turquesa; al pasar el mouse cambia a morado eléctrico con un brillo neón suave.
+- Al hacer clic se abre un menú con: Ajustar perfil, Panel de dibujos, Zoom de la interfaz, Versión y Cerrar sesión.
+- Ajustar perfil: elige tu imagen, arrástrala para centrarla, agrándala con el control de tamaño (o la rueda del mouse) y escribe tu nombre o alias.
+- Panel de dibujos: se puede activar o desactivar (al desactivarlo se ocultan las herramientas de dibujo).
+- Zoom de la interfaz: agranda o achica todo el programa (70 % a 200 %). Solo en la app de escritorio.
+- Versión: muestra la versión actual del programa.
+- Cerrar sesión: guarda todo y cierra el programa (no hay cuentas; tus datos quedan guardados).
+- El perfil y los ajustes son iguales en todas las pestañas. El icono se oculta en la pantalla de funciones y en pantalla completa.
+
 AR_TRADING - VERSION 0.26.4
 ========================
 

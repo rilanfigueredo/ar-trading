@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_WINDOWS = 10;
-const SHARED_KEYS = ['version', 'scripts', 'theme', 'tz', 'timer', 'palette', 'templates', 'lists', 'designs'];
+const SHARED_KEYS = ['version', 'scripts', 'theme', 'tz', 'timer', 'palette', 'templates', 'lists', 'designs', 'profile', 'ui'];
 const WINDOW_KEYS = ['layout', 'active', 'charts', 'sync', 'drawings', 'folders', 'bt', 'tfs', 'draw', 'listActive', 'max', 'fn'];
 // v0.22.2: temporalidades y preferencias de dibujo pasaron de compartidas a propias de cada pestaña; la pestaña 1 hereda lo que ya tenía guardado.
 const MOVED_KEYS = ['tfs', 'draw', 'listActive'];

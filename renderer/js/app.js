@@ -1476,7 +1476,7 @@
   // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades, gráfico ampliado…).
   // Todas las pestañas abiertas siguen vivas: cambiar de una a otra solo muestra su grid, sin recargar nada. La que no se ve no pide datos.
   const MAXTABS = 10;
-  const SHARED_CLIENT = ['templates', 'designs', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer'];   // lo demás es propio de cada pestaña
+  const SHARED_CLIENT = ['templates', 'designs', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer', 'profile', 'ui'];   // lo demás es propio de cada pestaña
   const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
   const sig = (x) => { try { return JSON.stringify(x); } catch (e) { return ''; } };
   // Nombre de la pestaña: LISTA-PAR-TEMPORALIDAD (por ejemplo MACRO-BTCUSDT-4H)
@@ -1594,6 +1594,7 @@
       // lo compartido (plantillas, listas, scripts, tema…) pasa de la pestaña que se deja a la que se abre
       if (cur) SHARED_CLIENT.forEach((k) => { if (cur.cfg[k] !== undefined) t.cfg[k] = cur.cfg[k]; });
       showTab(t, cur);
+      if (window.TVProfile) window.TVProfile.refresh();
       try { const u = new URL(location.href); u.searchParams.set('w', id); history.replaceState(null, '', u.toString()); } catch (e) { /* ok */ }
       Promise.resolve(API.setActive(id)).catch(() => {});
       renderTabs(true);
@@ -1686,6 +1687,11 @@
     if (p.scripts !== undefined) eachView((v) => v.refreshScripts && v.refreshScripts(true));
     if (p.timer !== undefined) eachView((v) => v.applyTimer());
     if (p.lists !== undefined && window.TVWatch) window.TVWatch.refresh();
+    if ((p.profile !== undefined || p.ui !== undefined) && window.TVProfile) {
+      if (p.profile !== undefined) A.cfg.profile = clone(p.profile);
+      if (p.ui !== undefined) A.cfg.ui = clone(p.ui);
+      window.TVProfile.refresh();
+    }
   }
   function setupWindowUi() {
     document.title = 'Ar_Trading';
@@ -2318,6 +2324,8 @@
     if (cfg.split && typeof cfg.split === 'object' && isFinite(cfg.split.c) && isFinite(cfg.split.r)) {
       cfg.split = { c: Math.max(0.15, Math.min(0.85, Number(cfg.split.c))), r: Math.max(0.15, Math.min(0.85, Number(cfg.split.r))) };
     } else cfg.split = null;
+    // v0.26.5: perfil del usuario y ajustes de la interfaz (compartidos entre pestañas)
+    if (window.TVProfile) { cfg.profile = window.TVProfile.cleanProfile(cfg.profile); cfg.ui = window.TVProfile.cleanUi(cfg.ui); }
     cfg.version = 11;
     return cfg;
   }
@@ -2434,6 +2442,7 @@
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
     if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
+    if (window.TVProfile) window.TVProfile.init({ A, API, openModal, closeModal, save: saveCfg, flush: () => [...saveTimers.keys()].forEach((id) => flushTab(id, true)), drawStore: () => G.drawStore });
     const used = new Set(['binance']);
     (A.cfg.charts || []).forEach((c) => used.add(c.exchange || 'binance'));
     used.forEach((ex) => loadSymbols(ex).then(() => eachView((v) => v.applyLook())).catch(() => {}));

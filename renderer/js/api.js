@@ -51,6 +51,9 @@
           get: () => desktop.serviceGet(), setHw: (on) => desktop.serviceSetHw(on), relaunch: () => desktop.serviceRelaunch(),
           clearCache: () => desktop.serviceClearCache(), factoryReset: () => desktop.serviceFactoryReset(),
         },
+        // v0.26.5: zoom de la interfaz y cerrar el programa (solo escritorio)
+        setZoom: desktop.setZoom ? (f) => desktop.setZoom(f) : null,
+        quit: () => desktop.quitApp(),
       }
     : {
         klines: (p) => http('/api/klines?' + new URLSearchParams(p).toString()),
@@ -82,6 +85,8 @@
           get: () => http('/api/service/get'), setHw: async () => ({ ok: false }), relaunch: async () => { location.reload(); return { ok: true }; },
           clearCache: async () => ({ ok: true }), factoryReset: () => http('/api/service/factoryreset', { method: 'POST' }),
         },
+        setZoom: null,   // en el navegador el zoom lo hace el propio navegador (Ctrl + / Ctrl −)
+        quit: async () => { try { window.close(); } catch (e) { /* ok */ } return { ok: false, error: 'En el navegador cierra esta pestaña a mano. Tus datos ya están guardados.' }; },
         onShared: (cb) => { if (bc) bc.onmessage = (ev) => { if (ev.data && ev.data.from !== WIN) cb(ev.data.patch); }; },
       };
 })();

@@ -72,6 +72,7 @@
 
   // ---------- Acciones ----------
   function selectTool(type, tplId) {
+    if (type && document.body.classList.contains('no-draw')) return;   // v0.26.5: panel de dibujos desactivado desde el perfil
     if (type && store.state.tool === type && (store.state.template || null) === (tplId || null)) { store.setTool(null); return; }
     if (type) {
       lastTool[catOf(type)] = type;
