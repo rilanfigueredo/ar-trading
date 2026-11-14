@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.8
+========================
+
+RECUPERA EL DISENO DE TUS PESTANAS
+- Al abrir el programa, las pestanas que ya tenias abiertas reconocen solas con que diseno estaban trabajando (comparan sus graficos y dibujos con tus disenos guardados) y el boton "Disenos" muestra su nombre desde el primer momento.
+- Al cerrar una pestana, el programa pregunta si quieres guardar los cambios en ese diseno.
+- Si una pestana no se reconoce, al cerrarla ahora puedes ELEGIR en una lista uno de tus disenos para actualizarlo, sin crear uno nuevo.
+
 AR_TRADING - VERSION 0.26.7
 ========================
 

@@ -1583,6 +1583,7 @@
           if (d) { cfg = designCfg(cfg, d); cfg.designId = d.id; saveTab(id, cfg); }
         }
         if (pendingHome.has(id)) { pendingHome.delete(id); cfg.fn = 'inicio'; saveTab(id, cfg); }   // pestaña nueva: pantalla de tarjetas
+        if (adoptDesign(cfg)) saveTab(id, cfg);
         cfg.tfs = (cfg.tfs || []).filter((x) => !gone(x)); if (!cfg.tfs.length) cfg.tfs = L.DEFAULT_TFS.slice();
         (cfg.charts || []).forEach((c) => { if (gone(c.tf)) c.tf = 'm:60'; });
         const gridEl = document.createElement('div');
@@ -1709,6 +1710,29 @@
   const designs = () => (Array.isArray(A.cfg.designs) ? A.cfg.designs : []);
   const snapshotDesign = (cfg) => { const o = {}; WINDOW_CLIENT.forEach((k) => { if (cfg[k] !== undefined) o[k] = clone(cfg[k]); }); return o; };
   const designCfg = (base, d) => { const m = Object.assign({}, base, clone(d.data)); delete m.fn; delete m.max; return migrate(m); };
+  // v0.26.8: pestañas guardadas antes de recordar su diseño: se averigua cuál era comparando gráficos, temporalidades y dibujos.
+  const chartSig = (x) => {
+    const n = LAYOUTS[x && x.layout] ? LAYOUTS[x.layout].n : 1;
+    return String(x && x.layout) + '|' + (Array.isArray(x && x.charts) ? x.charts.slice(0, n) : []).map((c) => [c.symbol, c.tf, c.chartType].join(':')).join(',');
+  };
+  const drawCount = (x) => Object.values((x && x.drawings) || {}).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0);
+  function guessDesign(cfg) {
+    if (!cfg || isFn(cfg)) return null;
+    const list = designs();
+    if (cfg.designId && list.some((d) => d.id === cfg.designId)) return cfg.designId;
+    const sig = chartSig(cfg), nd = drawCount(cfg);
+    let c = list.filter((d) => chartSig(d.data) === sig);
+    if (c.length > 1) { const e = c.filter((d) => drawCount(d.data) === nd); if (e.length) c = e; }
+    if (c.length > 1) { const e = c.filter((d) => JSON.stringify(d.data.drawings || {}) === JSON.stringify(cfg.drawings || {})); if (e.length) c = e; }
+    return c.length === 1 ? c[0].id : null;
+  }
+  function adoptDesign(cfg) {
+    if (!cfg || isFn(cfg)) return false;
+    const g = guessDesign(cfg);
+    if (g === (cfg.designId || null)) return false;
+    if (g) cfg.designId = g; else delete cfg.designId;
+    return true;
+  }
   const dateEs = (t) => { try { return new Date(t).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } };
   let paintDesigns = null;                            // repinta la ventana «Mis diseños» si está abierta
   function designMeta(d) {
@@ -1845,7 +1869,7 @@
       let done = false; const fin = (v) => { if (done) return; done = true; resolve(v); };
       openModal((box) => {
         box.dataset.kind = 'closetab';
-        let inp = null;
+        let inp = null, sel = null;
         if (design) {
           // v0.26.3: la pestaña viene de un diseño guardado → se pregunta por ESE diseño (no por el nombre de la pestaña)
           box.appendChild(hh('h3', undefined, '¿Desea guardar los cambios realizados en el diseño «' + design.name + '»?'));
@@ -1858,11 +1882,20 @@
           const note = hh('div', 'hint small', ''); box.appendChild(note);
           const upd = () => { note.textContent = designs().some((d) => d.name.toLowerCase() === inp.value.trim().toLowerCase()) ? 'Ya existe un diseño con ese nombre: se actualizará con esta pestaña.' : ''; };
           inp.oninput = upd; upd();
+          if (designs().length) {                       // v0.26.8: se puede elegir un diseño existente para actualizarlo
+            const lab = hh('div', 'hint small', 'O actualiza uno de tus diseños con lo de esta pestaña:'); box.insertBefore(lab, inp);
+            sel = document.createElement('select'); sel.className = 'dz-closename';
+            const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '— Guardar como diseño nuevo —'; sel.appendChild(o0);
+            designs().forEach((d) => { const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; sel.appendChild(o); });
+            box.insertBefore(sel, lab.nextSibling);
+            sel.onchange = () => { inp.disabled = !!sel.value; note.textContent = sel.value ? 'Se actualizará el diseño elegido.' : ''; if (!sel.value) upd(); };
+          }
         }
         const row = hh('div', 'dz-actions');
         const bs = hh('button', 'btn dz-save-btn', design ? 'Guardar cambios y cerrar' : 'Guardar diseño y cerrar');
         bs.onclick = () => {
           if (design) { fin({ save: true, id: design.id }); closeModal(); return; }
+          if (sel && sel.value) { fin({ save: true, id: sel.value }); closeModal(); return; }
           const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } fin({ save: true, name: nm }); closeModal();
         };
         const bd = hh('button', 'btn danger dz-drop-btn', 'Cerrar sin guardar'); bd.onclick = () => { fin({ save: false }); closeModal(); };
@@ -1877,13 +1910,14 @@
     let cfg = null; const live = tabsState.get(id);
     if (live) cfg = live.cfg; else { try { cfg = migrate(await API.getConfig(id)); } catch (e) { cfg = null; } }
     if (!cfg || isFn(cfg)) return window.confirm('¿Cerrar la pestaña «' + label + '»? Se borra su configuración.');
+    adoptDesign(cfg);
     const dz = cfg.designId ? designs().find((d) => d.id === cfg.designId) : null;
     const r = await closeDialog(label, dz);
     if (!r) return false;
     if (r.save) {
       let th = null;
       if (id === A.tabId) { const v = activeView(); th = v && v.thumb ? v.thumb(360) : null; }
-      const res = saveDesign(r.id ? dz.name : r.name, cfg, th, r.id);
+      const res = saveDesign(r.id ? (designs().find((d) => d.id === r.id) || { name: r.name }).name : r.name, cfg, th, r.id);
       if (!res.ok) { window.alert(res.error); return false; }
       flushTab(A.tabId, true);                         // el diseño queda escrito antes de cerrar nada
     }
@@ -2425,6 +2459,7 @@
     try { saved = await API.getConfig(); } catch (e) { /* valores por defecto */ }
     A.cfg = migrate(saved);
     A.tabId = API.windowId || 'w1'; A.gridEl = $('grid');
+    const adopted = adoptDesign(A.cfg);              // v0.26.8: recupera el diseño de pestañas guardadas antes de la 0.26.7
     // Velas por volumen: desactivadas por ahora (ver NOTAS_VELAS_VOLUMEN.txt). Se limpian de configuraciones guardadas.
     // Velas por volumen y velas por bloque: no están disponibles; se limpian de configuraciones guardadas (v0.15/v0.16 guardaban 'b:N' y 'blk').
     const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
@@ -2447,6 +2482,7 @@
     (A.cfg.charts || []).forEach((c) => used.add(c.exchange || 'binance'));
     used.forEach((ex) => loadSymbols(ex).then(() => eachView((v) => v.applyLook())).catch(() => {}));
     if (isFn(A.cfg)) window.TVFunciones.mostrar(A.tabId, A.cfg.fn);
+    updateDesignsBtn(); if (adopted) saveTab(A.tabId, A.cfg);
   }
 
   // Las ventanas flotantes (Ajustes, propiedades de dibujos...) se cierran al hacer clic fuera de ellas
