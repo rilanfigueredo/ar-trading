@@ -1,3 +1,12 @@
+AR_TRADING - VERSION 0.26.6
+========================
+
+MEJORAS DEL PERFIL
+- Al ocultar el Panel de dibujos, la barra lateral desaparece por completo y el grafico ocupa su espacio al instante (antes quedaba un hueco vacio). Al volver a mostrarlo, el grafico se acomoda de nuevo.
+- Menu del perfil con estilo mas minimalista y vibrante: contorno morado de 1 px con efecto neon y esquinas redondeadas.
+- Al pasar el mouse por cada opcion se ilumina en morado con un efecto de linterna que sigue al mouse ("Cerrar sesion" se ilumina en rojo suave).
+- El interruptor del Panel de dibujos, los botones de zoom y las lineas separadoras tambien pasan a tonos morados.
+
 AR_TRADING - VERSION 0.26.5
 ========================
 

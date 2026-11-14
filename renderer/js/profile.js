@@ -83,6 +83,8 @@
       if (st && st.state && st.state.tool) st.setTool(null);   // sin panel no puede quedar una herramienta de dibujo activa
     }
     if (S.ctx.API.setZoom) S.ctx.API.setZoom(u.zoom / 100);
+    // al mostrar/ocultar la barra, los gráficos recalculan su tamaño enseguida
+    window.dispatchEvent(new Event('resize'));
   }
   function commitUi(patch) {
     cfg().ui = Object.assign({}, ui(), patch);
@@ -108,6 +110,14 @@
     S.menu = el('div', 'pf-menu');
     S.menu.setAttribute('role', 'menu');
     document.body.appendChild(S.menu);
+    // efecto linterna: la luz sigue al mouse dentro de cada opción
+    S.menu.addEventListener('mousemove', (e) => {
+      const it = e.target.closest && e.target.closest('.pf-item');
+      if (!it) return;
+      const r = it.getBoundingClientRect();
+      it.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      it.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    });
     S.btn.classList.add('open'); S.btn.setAttribute('aria-expanded', 'true');
     fillMenu();
   }
