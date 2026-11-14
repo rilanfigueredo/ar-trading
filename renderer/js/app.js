@@ -474,6 +474,7 @@
     { const bd = $('btnData'); if (bd) { const on = c.src === 'trades'; bd.textContent = 'Datos: ' + (on ? 'Operaciones' : 'Velas'); bd.classList.toggle('active', on); } }
     $('btnLayout').innerHTML = ICONS['lay' + (LAYOUTS[A.cfg.layout] ? A.cfg.layout : '1')]; $('btnLayout').title = 'Diseño de gráficos: ' + (LAYOUTS[A.cfg.layout] ? LAYOUTS[A.cfg.layout].n : 1) + (LAYOUTS[A.cfg.layout] && LAYOUTS[A.cfg.layout].n > 1 ? ' gráficos' : ' gráfico') + ' (clic para cambiar)';
     renderTfButtons();
+    updateDesignsBtn();
     if (window.TVDrawUI) window.TVDrawUI.refresh();
   }
   function setTimeframe(id) {
@@ -1715,9 +1716,19 @@
       l2: [nCh + (nCh === 1 ? ' gráfico' : ' gráficos'), nDr + (nDr === 1 ? ' dibujo' : ' dibujos'), tp + (tp === 1 ? ' plantilla' : ' plantillas')].join(' · '),
     };
   }
+  // v0.26.4: el botón «Diseños» muestra el nombre del diseño que usa la pestaña actual
+  function updateDesignsBtn() {
+    const b = $('btnDesigns'); if (!b) return;
+    const d = A.cfg && A.cfg.designId ? designs().find((x) => x.id === A.cfg.designId) : null;
+    b.innerHTML = ICONS.designs;
+    const sp = hh('span', 'dz-cur' + (d ? ' on' : ''), d ? d.name : 'Diseños');
+    b.appendChild(sp);
+    b.title = d ? 'Diseño en uso en esta pestaña: «' + d.name + '» (clic para abrir Mis diseños)' : 'Mis diseños: guarda todo lo de esta pestaña (dibujos, plantillas, indicadores…) para no perderlo al cerrarla';
+  }
   function refreshDesignUi() {
     if (window.TVFunciones && window.TVFunciones.refrescar) window.TVFunciones.refrescar();
     if (paintDesigns) paintDesigns();
+    updateDesignsBtn();
   }
   // Guarda (o actualiza si ya hay uno con ese nombre o el id indicado) un diseño a partir de la configuración de una pestaña.
   function saveDesign(name, cfg, thumbUrl, overwriteId) {
@@ -1746,7 +1757,7 @@
     WINDOW_CLIENT.forEach((k) => { A.cfg[k] = fresh[k]; });
     delete A.cfg.fn; A.cfg.max = -1; t.theme = null; A.cfg.designId = id;
     closeModal(); saveTab(t.id, A.cfg);
-    showTab(t, null); renderTabs(true);
+    showTab(t, null); renderTabs(true); updateDesignsBtn();
   }
   // Abre el diseño en una pestaña nueva
   const pendingDesign = new Map();
@@ -1806,13 +1817,13 @@
           info.append(nm, hh('div', 'dz-meta', m.l1), hh('div', 'dz-meta', m.l2), hh('div', 'dz-meta dim', dateEs(d.at)));
           card.appendChild(info);
           const acts = hh('div', 'dz-btns');
-          const b1 = hh('button', 'btn small', 'Abrir en pestaña nueva'); b1.disabled = tabsCache.length >= MAXTABS; if (b1.disabled) b1.title = `Máximo ${MAXTABS} pestañas`;
+          const b1 = hh('button', 'btn small dz-b dz-b-new', 'Abrir en pestaña nueva'); b1.disabled = tabsCache.length >= MAXTABS; if (b1.disabled) b1.title = `Máximo ${MAXTABS} pestañas`;
           b1.onclick = () => openDesignNewTab(d.id);
-          const b2 = hh('button', 'btn small secondary', 'Usar en esta pestaña'); b2.title = 'Reemplaza lo de esta pestaña por este diseño';
+          const b2 = hh('button', 'btn small secondary dz-b dz-b-use', 'Usar en esta pestaña'); b2.title = 'Reemplaza lo de esta pestaña por este diseño';
           b2.onclick = () => { if (chartTab && !window.confirm('Esto reemplaza lo que hay en esta pestaña por el diseño «' + d.name + '». ¿Continuar?')) return; openDesignHere(d.id); };
-          const b3 = hh('button', 'btn small secondary', 'Actualizar'); b3.title = 'Guarda lo de esta pestaña dentro de este diseño'; b3.disabled = !chartTab;
+          const b3 = hh('button', 'btn small secondary dz-b dz-b-upd', 'Actualizar'); b3.title = 'Guarda lo de esta pestaña dentro de este diseño'; b3.disabled = !chartTab;
           b3.onclick = () => { if (!window.confirm('¿Reemplazar el diseño «' + d.name + '» con lo de esta pestaña?')) return; const v = activeView(); const r = saveDesign(d.name, A.cfg, v && v.thumb ? v.thumb(360) : null, d.id); note.textContent = r.ok ? 'Diseño actualizado.' : r.error; };
-          const b4 = hh('button', 'btn small danger', 'Borrar');
+          const b4 = hh('button', 'btn small danger dz-b dz-b-del', 'Borrar');
           b4.onclick = () => { if (window.confirm('¿Borrar el diseño «' + d.name + '»? No se puede deshacer.')) removeDesign(d.id); };
           acts.append(b1, b2, b3, b4); card.appendChild(acts);
           list.appendChild(card);
@@ -2174,7 +2185,7 @@
     document.querySelectorAll('#scaleButtons .tb-btn').forEach((b) => { b.innerHTML = ICONS[b.dataset.scale] + '<span>' + b.textContent + '</span>'; });
     $('btnSettings').innerHTML = ICONS.settings; $('btnScripts').innerHTML = ICONS.scripts;
     $('btnSettings').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'settings') closeModal(); else openSettings(); };
-    $('btnDesigns').innerHTML = ICONS.designs + '<span>Diseños</span>';
+    updateDesignsBtn();
     $('btnDesigns').onclick = () => { const m = $('modal'); if (!m.classList.contains('hidden') && $('modalBox').dataset.kind === 'designs') closeModal(); else openDesigns(); };
     $('btnIndicators').onclick = togglePanel;
     document.addEventListener('tv-open-panel', () => { const p = $('panel'); if (p.classList.contains('hidden')) togglePanel(); else renderPanel(); });

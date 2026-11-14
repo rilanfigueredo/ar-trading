@@ -1,5 +1,12 @@
-AR_TRADING - VERSION 0.26.3
+AR_TRADING - VERSION 0.26.4
 ========================
+
+NOMBRE DEL DISEÑO EN LA BARRA
+- Junto al icono de «Diseños» ahora aparece el nombre del diseño que usa esa pestaña (en turquesa). Si la pestaña no usa ningún diseño, dice «Diseños».
+
+BOTONES DE «MIS DISEÑOS» MAS VIVOS
+- «Abrir en pestaña nueva», «Usar en esta pestaña», «Actualizar» y «Borrar» tienen ahora un color vibrante cada uno.
+- Al pasar el mouse: cambian el relleno y el contorno, se agrandan un poco (mini zoom) y su letra crece ligeramente.
 
 AVISO AL CERRAR UNA PESTAÑA CON UN DISEÑO GUARDADO
 - Si abriste un diseño (por ejemplo «ALTCOINS») en una pestaña y la cierras, ahora pregunta: «¿Desea guardar los cambios realizados en el diseño ALTCOINS?» (antes usaba el nombre de la pestaña).

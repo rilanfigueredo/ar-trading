@@ -671,7 +671,7 @@ body.fn-mode #toolbar, body.fn-mode #main { display: none; }
 .dz-x { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s, background .15s; }
 .dz-card:hover .dz-x, .dz-x:focus-visible { opacity: 1; }
 .dz-x:hover { background: #d32f2f; }
-.modal-box.dz-modal { width: min(720px, 94vw); }
+.modal-box.dz-modal { width: min(820px, 94vw); }
 .dz-save { display: flex; gap: 8px; margin: 10px 0 2px; }
 .dz-save input, .dz-closename { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font: inherit; }
 .dz-closename { width: 100%; box-sizing: border-box; margin: 8px 0 2px; }
@@ -720,3 +720,22 @@ body.pn-dragging { cursor: col-resize; user-select: none; }
 .modal-box[data-kind=closetab] .dz-drop-btn:hover { background: #ff3b5c; color: #fff; box-shadow: 0 0 14px rgba(255,59,92,.45); }
 .modal-box[data-kind=closetab] .dz-cancel-btn { background: transparent; color: var(--muted); border-color: var(--border); }
 .modal-box[data-kind=closetab] .dz-cancel-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* v0.26.4: nombre del diseño en uso junto al icono de «Diseños» */
+#btnDesigns .dz-cur { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#btnDesigns .dz-cur.on { color: var(--acento); font-weight: 700; }
+
+/* v0.26.4: botones de «Mis diseños» vibrantes, con animación al pasar el mouse */
+.dz-btns { gap: 8px; }
+.dz-btns .dz-b { --c: var(--acento); --t: #021014; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 9px; letter-spacing: .01em;
+  background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); border: 2px solid var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 30%, transparent); transform: scale(1); cursor: pointer;
+  transition: transform .16s cubic-bezier(.3,1.6,.5,1), font-size .16s, background .16s, color .16s, border-color .16s, box-shadow .16s; }
+.dz-btns .dz-b:hover:not(:disabled) { transform: scale(1.09); font-size: 13.5px; background: var(--c); color: var(--t); border-color: #fff;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--c) 75%, transparent), 0 4px 14px rgba(0,0,0,.35); }
+.dz-btns .dz-b:active:not(:disabled) { transform: scale(1.02); }
+.dz-btns .dz-b:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+.dz-btns .dz-b-new { --c: #00e5ee; --t: #021014; }
+.dz-btns .dz-b-use { --c: #b734fe; --t: #ffffff; }
+.dz-btns .dz-b-upd { --c: #2ee59d; --t: #02140c; }
+.dz-btns .dz-b-del { --c: #ff3b5c; --t: #ffffff; }
