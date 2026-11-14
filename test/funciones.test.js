@@ -79,6 +79,9 @@ const cif = { disponible: () => true, cifrar: (s) => Buffer.from(Buffer.from(s).
   st.setConfig(id, { fn: 'basura', charts: [] });
   ok(st.tabs().find((t) => t.id === id).label !== 'basura', 'modo desconocido no se usa de etiqueta');
   ok(Store.WINDOW_KEYS.includes('fn'), 'fn es clave propia de cada pestaña');
+  // v0.26.7: la pestaña recuerda con qué diseño trabaja aunque se apague el programa
+  st.setConfig(id, { charts: [], designId: 'dabc' });
+  ok(Store.create(dir).getConfig(id).designId === 'dabc', 'designId sobrevive al reinicio (se lee de disco)');
 
   // v0.25: Simulador de posiciones (guarda lo del usuario en su carpeta) y Monitor de blockchain (red simulada de mempool.space y Bitstamp)
   ok(Registro.LISTA.filter((f) => f.tipo === 'modulo').every((f) => f.listo), 'las 3 funciones con módulo están listas');

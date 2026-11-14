@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.7
+========================
+
+CORRECCION DE DISENOS
+- Al apagar la PC y volver a abrir el programa, cada pestana ahora recuerda con que diseno estaba trabajando: el boton "Disenos" muestra su nombre.
+- Al cerrar una de esas pestanas, el programa pregunta si quieres guardar los cambios EN ESE DISENO (ya no pide un nombre nuevo).
+- Nota: las pestanas que ya estaban abiertas antes de esta version no recuerdan su diseno. Abre el diseno otra vez con "Usar en esta pestana" una sola vez y desde ahi queda recordado.
+
 AR_TRADING - VERSION 0.26.6
 ========================
 
