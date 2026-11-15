@@ -1,3 +1,9 @@
+AR_TRADING - VERSION 0.26.11
+========================
+
+LINTERNA MAS SUAVE EN ELEMENTOS RECTANGULARES
+- Se quito el cambio de color del texto (se veia peor). En su lugar, la linterna es menos intensa en los elementos rectangulares, para que el texto se lea bien.
+
 AR_TRADING - VERSION 0.26.10
 ========================
 
