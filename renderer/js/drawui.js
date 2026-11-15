@@ -41,7 +41,7 @@
   };
   const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
   const SHORTCUT = { trend: 'Alt+T', hline: 'Alt+H', fib: 'Alt+F', rect: 'Alt+R' };
-  const MAGNET = { off: 'Imán apagado', weak: 'Imán débil', strong: 'Imán fuerte' };
+  const MAGNET = { off: 'Imán apagado', strong: 'Imán fuerte' };
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -68,11 +68,10 @@
   const layerNow = () => { const v = X.activeView(); return v && v.draw; };
   const catOf = (type) => D.TYPES[type].cat;
   const parseFav = (f) => { const i = String(f).indexOf(':'); return i < 0 ? { type: f, tpl: null } : { type: f.slice(0, i), tpl: f.slice(i + 1) }; };
-  const magnetMode = () => { const m = prefs().magnet; return m === 'weak' || m === 'strong' ? m : 'off'; };
+  const magnetMode = () => { const m = prefs().magnet; return m === 'weak' || m === 'strong' || m === true ? 'strong' : 'off'; };
 
   // ---------- Acciones ----------
   function selectTool(type, tplId) {
-    if (type && document.body.classList.contains('no-draw')) return;   // v0.26.5: panel de dibujos desactivado desde el perfil
     if (type && store.state.tool === type && (store.state.template || null) === (tplId || null)) { store.setTool(null); return; }
     if (type) {
       lastTool[catOf(type)] = type;
@@ -231,19 +230,8 @@
     placeMenu(m, anchor, 'right');
     flyout = m;
   }
-  function openMagnetMenu(anchor) {
-    closeFly();
-    const m = el('div', 'ctx-menu');
-    ['off', 'weak', 'strong'].forEach((k) => {
-      const b = el('button', 'ctx-item');
-      b.append(el('span', 'ctx-check', magnetMode() === k ? '✓' : ''), el('span', '', MAGNET[k]));
-      b.title = k === 'weak' ? 'Se pega a máximo/mínimo/apertura/cierre solo si el cursor está cerca' : k === 'strong' ? 'Se pega siempre al valor más cercano de la vela' : 'Los puntos quedan donde haces clic';
-      b.onclick = () => { closeFly(); setPref('magnet', k); };
-      m.appendChild(b);
-    });
-    placeMenu(m, anchor, 'right');
-    ctxMenu = m;
-  }
+  // Imán: un clic lo activa (fuerte) y otro clic lo apaga; sin menú.
+  function toggleMagnet() { closeFly(); setPref('magnet', magnetMode() === 'off' ? 'strong' : 'off'); }
 
   // v0.25.1: orden visual de los dibujos (por delante / por detrás de los demás)
   function orderMenuItems(m, sym, ids) {
@@ -392,9 +380,7 @@
     zo.classList.add('hidden');
     bar.appendChild(zo);
     bar.appendChild(el('span', 'db-sep'));
-    const mg = bigBtn('magnet', 'Imán (clic para elegir: apagado, débil o fuerte)', () => openMagnetMenu(mg), 'magnet');
-    mg.appendChild(el('i', 'db-tri'));
-    bar.appendChild(mg);
+    bar.appendChild(bigBtn('magnet', 'Imán fuerte (clic para activar o apagar)', toggleMagnet, 'magnet'));
     bar.appendChild(bigBtn('keep', 'Mantener la herramienta activa después de dibujar', () => setPref('keep', !prefs().keep), 'keep'));
     bar.appendChild(bigBtn('share', 'Los dibujos NUEVOS también se ven en los demás gráficos del mismo activo (apagado: cada dibujo queda solo en su gráfico)', () => setPref('shareNew', !prefs().shareNew), 'shareNew'));
     bar.appendChild(bigBtn('eye', 'Ocultar / mostrar todos los dibujos del gráfico', () => setPref('hideAll', !prefs().hideAll), 'hideAll'));
@@ -430,7 +416,7 @@
     on(bar, 'tool:ruler', t === 'ruler'); on(bar, 'tool:zoom', t === 'zoom');
     on(bar, 'magnet', magnetMode() !== 'off');
     const mb = bar.querySelector('[data-k="magnet"]');
-    if (mb) mb.title = `${MAGNET[magnetMode()]} (clic para cambiar)`;
+    if (mb) mb.title = `${MAGNET[magnetMode()]} (clic para ${magnetMode() === 'off' ? 'activar' : 'apagar'})`;
     on(bar, 'keep', prefs().keep); on(bar, 'shareNew', prefs().shareNew); on(bar, 'hideAll', prefs().hideAll); on(bar, 'favBar', prefs().favBar);
     on(rb, 'objects', !X.$('objPanel').classList.contains('hidden'));
     const eyeBtn = bar.querySelector('[data-k="hideAll"]');

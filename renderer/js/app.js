@@ -2408,7 +2408,7 @@
     });
     d.favs = favs;
     // Imán: antes sí/no; ahora apagado / débil / fuerte
-    d.magnet = d.magnet === 'weak' || d.magnet === 'strong' ? d.magnet : d.magnet === true || d.magnet === 1 ? 'weak' : 'off';
+    d.magnet = d.magnet === 'weak' || d.magnet === 'strong' || d.magnet === true || d.magnet === 1 ? 'strong' : 'off';   // v0.26.10: solo apagado / fuerte
     ['keep', 'favBar', 'hideAll', 'shareNew'].forEach((k) => { d[k] = !!d[k]; });
     d.styles = isObj(d.styles) ? d.styles : {};
     if (d.styles.ray) { if (!d.styles.hray) d.styles.hray = d.styles.ray; delete d.styles.ray; }

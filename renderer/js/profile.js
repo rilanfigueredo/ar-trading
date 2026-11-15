@@ -78,10 +78,6 @@
   function applyUi() {
     const u = ui();
     document.body.classList.toggle('no-draw', u.drawPanel === false);
-    if (u.drawPanel === false) {
-      const st = S.ctx.drawStore && S.ctx.drawStore();
-      if (st && st.state && st.state.tool) st.setTool(null);   // sin panel no puede quedar una herramienta de dibujo activa
-    }
     if (S.ctx.API.setZoom) S.ctx.API.setZoom(u.zoom / 100);
     // al mostrar/ocultar la barra, los gráficos recalculan su tamaño enseguida
     window.dispatchEvent(new Event('resize'));

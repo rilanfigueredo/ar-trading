@@ -743,7 +743,7 @@ body.pn-dragging { cursor: col-resize; user-select: none; }
 /* ---------- Perfil (v0.26.5): icono redondo abajo a la izquierda y su menú ---------- */
 #drawBar { padding-bottom: 50px; }
 body.no-draw #drawBar { display: none !important; }   /* v0.26.6: la barra entera desaparece y el gráfico ocupa su lugar */
-body.no-draw #favBar { display: none !important; }
+/* v0.26.10: la barra de favoritos de dibujo se queda visible aunque se oculte el panel de dibujos */
 body.fn-mode #profileBtn, body.fs #profileBtn { display: none; }
 #profileBtn { position: fixed; left: 4px; bottom: 6px; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 2px solid #00f8ff; background: var(--bg); cursor: pointer; z-index: 15; overflow: hidden; display: flex; align-items: center; justify-content: center; transition: border-color .18s, box-shadow .18s; }
 #profileBtn img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }

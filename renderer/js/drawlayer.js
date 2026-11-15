@@ -43,7 +43,7 @@
     const host = env.host;
     const repaint = () => { if (request) request(); };
     const themed = (c) => (root.TVLib ? root.TVLib.themedColor(c, env.theme()) : c);
-    const magnetMode = () => { const m = store.prefs().magnet; return m === true ? 'weak' : (m === 'weak' || m === 'strong' ? m : 'off'); };
+    const magnetMode = () => { const m = store.prefs().magnet; return m === true || m === 'weak' || m === 'strong' ? 'strong' : 'off'; };
 
     function toPx(d) {
       // Tabla fijada a un borde: su posición horizontal no depende del tiempo (queda pegada a la izquierda o derecha);

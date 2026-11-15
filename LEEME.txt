@@ -1,3 +1,13 @@
+AR_TRADING - VERSION 0.26.10
+========================
+
+EFECTO LINTERNA MEJORADO, FAVORITOS DE DIBUJO E IMAN SIMPLE
+- Linterna: en iconos cuadrados y botones pequenos (por ejemplo las temporalidades) ahora solo se ilumina el contorno, no el relleno.
+- Linterna: en los elementos rectangulares con texto claro, el texto pasa a oscuro mientras la luz esta encima, para que se lea.
+- Linterna: ya no aparece sobre el grafico de velas ni sobre los indicadores; solo en los elementos de fuera.
+- Panel de dibujos: si lo ocultas desde el perfil, la barra de dibujos favoritos sigue visible y se puede usar.
+- Iman: solo hay dos estados, apagado y fuerte. Un clic lo activa, otro clic lo apaga, sin menu desplegable. Si tenias el iman debil, pasa a fuerte.
+
 AR_TRADING - VERSION 0.26.9
 ========================
 
