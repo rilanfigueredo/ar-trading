@@ -1,3 +1,12 @@
+AR_TRADING - VERSION 0.26.14
+========================
+
+PLANTILLAS DE LINEA DE TENDENCIA: FAVORITAS, ORDEN Y BOTONES RAPIDOS
+- Cada plantilla GUARDADA tiene ahora una estrella: marca con ella tus favoritas. Al guardar encima de una plantilla (reemplazar) la estrella se conserva.
+- En la lista de plantillas puedes mantener pulsado el asa (los puntitos de la izquierda) o la fila y arrastrar para cambiarla de lugar, por ejemplo del puesto 15 al 3. El orden queda guardado. Arrastrar no aplica la plantilla.
+- Al terminar de dibujar una linea de tendencia (punto A a punto B) aparecen al instante, junto al punto B, tus plantillas favoritas como botones redondeados con animacion al pasar el mouse. Un clic aplica la plantilla. Se cierran con Escape, con un clic fuera o al seleccionar otra cosa. Sin favoritas no aparece nada.
+- Funciona igual en la lista del clic derecho (Plantillas) y en la ventana de propiedades.
+
 AR_TRADING - VERSION 0.26.13
 ========================
 

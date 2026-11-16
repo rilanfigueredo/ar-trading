@@ -710,10 +710,30 @@
         TEMPLATE_KEYS.forEach((k) => { if (d[k] !== undefined) style[k] = clone(d[k]); });
         const nm = String(name).trim() || 'Plantilla';
         const old = (pr.templates[type] || []).find((x) => x.name.toLowerCase() === nm.toLowerCase());
-        const tpl = old ? { id: old.id, name: old.name, style } : { id: newId('t'), name: nm, style };
+        const tpl = old ? { id: old.id, name: old.name, style, fav: !!old.fav } : { id: newId('t'), name: nm, style };
         pr.templates[type] = old ? pr.templates[type].map((x) => (x === old ? tpl : x)) : (pr.templates[type] || []).concat([tpl]);
         save(); emit('templates');
         return tpl;
+      },
+      // Plantillas favoritas (v0.26.14): son las que aparecen junto al dibujo recién terminado
+      favTemplates(type) { return store.templates(type).filter((t) => t.fav); },
+      toggleTemplateFav(type, id) {
+        const t = store.userTemplates(type).find((x) => x.id === id);
+        if (!t) return false;
+        if (t.fav) delete t.fav; else t.fav = true;
+        save(); emit('templates');
+        return !!t.fav;
+      },
+      // Reordena las plantillas del usuario según la lista de ids dada (las que no estén en la lista quedan al final).
+      reorderTemplates(type, ids) {
+        const pr = getPrefs();
+        const cur = pr.templates && pr.templates[type];
+        if (!Array.isArray(cur)) return;
+        const pos = (t) => { const i = ids.indexOf(t.id); return i < 0 ? 1e9 : i; };
+        const sorted = cur.map((t, i) => ({ t, i })).sort((a, b) => pos(a.t) - pos(b.t) || a.i - b.i).map((x) => x.t);
+        if (sorted.every((t, i) => t === cur[i])) return;
+        pr.templates[type] = sorted;
+        save(); emit('templates');
       },
       hasTemplate(type, name) { const n = String(name).trim().toLowerCase(); return (store.userTemplates(type) || []).some((x) => x.name.toLowerCase() === n); },
       deleteTemplate(type, id) {

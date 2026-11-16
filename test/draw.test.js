@@ -341,3 +341,29 @@ console.log('draw.test.js v0.9 OK');
   assert.strictEqual(st.reorder('X', ['zz'], 'front', 'g1'), false);
   console.log('draw.test.js v0.25.1 orden OK');
 }
+
+// v0.26.14: plantillas favoritas, orden y aviso al terminar la línea
+{
+  const prefs = { templates: {}, favs: [], styles: {} }, root = {};
+  const st = D.createStore(() => root, () => prefs, () => {}, () => ({}));
+  const base = Object.assign({ type: 'trend' }, D.defaults('trend'));
+  const a = st.saveTemplate('trend', 'A', base), b = st.saveTemplate('trend', 'B', base), c = st.saveTemplate('trend', 'C', base);
+  const names = () => st.templates('trend').map((t) => t.name).join('');
+  assert.strictEqual(names(), 'ABC');
+  assert.strictEqual(st.favTemplates('trend').length, 0);
+  assert.strictEqual(st.toggleTemplateFav('trend', c.id), true);
+  assert.strictEqual(st.toggleTemplateFav('trend', a.id), true);
+  assert.strictEqual(st.favTemplates('trend').map((t) => t.name).join(''), 'AC', 'las favoritas siguen el orden de la lista');
+  st.reorderTemplates('trend', [c.id, a.id, b.id]);
+  assert.strictEqual(names(), 'CAB');
+  assert.strictEqual(st.favTemplates('trend').map((t) => t.name).join(''), 'CA');
+  st.saveTemplate('trend', 'a', Object.assign({}, base, { color: '#ff0000' }));
+  assert.strictEqual(st.templates('trend').find((t) => t.id === a.id).fav, true, 'reemplazar una plantilla conserva su estrella');
+  assert.strictEqual(names(), 'CAB', 'y su lugar');
+  st.reorderTemplates('trend', [b.id]);
+  assert.strictEqual(names(), 'BCA', 'las que no están en la lista quedan al final, en su orden');
+  assert.strictEqual(st.toggleTemplateFav('trend', 'nada'), false);
+  st.deleteTemplate('trend', c.id);
+  assert.strictEqual(names(), 'BA');
+  console.log('draw.test.js v0.26.14 plantillas favoritas OK');
+}

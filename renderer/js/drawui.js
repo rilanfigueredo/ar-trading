@@ -188,6 +188,122 @@
     if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
     closeTpl();
   }
+
+  // ---------- Lista de plantillas: favorita (estrella), orden por arrastre (clic sostenido) y borrado ----------
+  // o: { onPick(tp), onDelete(tp) (opcional) }
+  function fillTplList(box, type, o) {
+    box.innerHTML = '';
+    box.classList.add('tpl-list');
+    const rows = () => Array.from(box.children).filter((n) => n.dataset && n.dataset.id);
+    store.templates(type).forEach((tp) => {
+      const row = el('div', 'ctx-item db-row tpl-row');
+      row.dataset.id = tp.id;
+      const user = !tp.builtin;
+      if (user) { const g = el('span', 'tpl-grip'); g.innerHTML = svg('grip', 14); g.title = 'Mantén pulsado y arrastra para cambiar de lugar'; row.appendChild(g); }
+      row.appendChild(el('span', 'db-label', tp.name));
+      if (user) {
+        const star = el('button', 'fav-star' + (tp.fav ? ' on' : ''));
+        star.innerHTML = svg('star', 15);
+        star.title = 'Favorita: aparece al terminar de dibujar';
+        star.onclick = (e) => { e.stopPropagation(); star.classList.toggle('on', store.toggleTemplateFav(type, tp.id)); };
+        row.appendChild(star);
+        if (o.onDelete) {
+          const del = el('button', 'fav-star'); del.innerHTML = svg('trash', 14); del.title = 'Borrar esta plantilla';
+          del.onclick = (e) => { e.stopPropagation(); o.onDelete(tp); };
+          row.appendChild(del);
+        }
+        enableTplDrag(row, box, rows, type, () => fillTplList(box, type, o));
+      }
+      row.onclick = () => { if (box._noClick) return; o.onPick(tp); };
+      box.appendChild(row);
+    });
+  }
+  function enableTplDrag(row, box, rows, type, refill) {
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || (e.target.closest && e.target.closest('button'))) return;
+      const sx = e.clientX, sy = e.clientY;
+      let dragging = false, lastY = sy, timer = null, scroller = null;
+      const sc = box.closest('.tpl-menu, .ctx-sub');
+      const start = () => {
+        if (dragging) return;
+        dragging = true; clearTimeout(timer);
+        row.classList.add('tpl-dragging'); box.classList.add('tpl-sorting');
+        scroller = setInterval(() => {
+          if (!sc) return;
+          const r = sc.getBoundingClientRect();
+          if (lastY < r.top + 26) sc.scrollTop -= 14; else if (lastY > r.bottom - 26) sc.scrollTop += 14;
+          place();
+        }, 30);
+      };
+      const place = () => {
+        const others = rows().filter((n) => n !== row);
+        const next = others.find((n) => { const r = n.getBoundingClientRect(); return lastY < r.top + r.height / 2; });
+        if (next) { if (row.nextSibling !== next) box.insertBefore(row, next); } else if (box.lastChild !== row) box.appendChild(row);
+      };
+      const move = (m) => {
+        lastY = m.clientY;
+        if (!dragging) { if (Math.abs(m.clientY - sy) > 8 || Math.abs(m.clientX - sx) > 8) start(); else return; }
+        m.preventDefault();
+        place();
+      };
+      const end = (up) => {
+        clearTimeout(timer); clearInterval(scroller);
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', onUp, true);
+        window.removeEventListener('pointercancel', onCancel, true);
+        row.classList.remove('tpl-dragging'); box.classList.remove('tpl-sorting');
+        if (dragging) {
+          box._noClick = true; setTimeout(() => { box._noClick = false; }, 80);
+          if (up) store.reorderTemplates(type, rows().map((n) => n.dataset.id));
+          refill();
+        }
+      };
+      const onUp = () => end(true);
+      const onCancel = () => end(false);
+      timer = setTimeout(start, 280);
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
+    });
+  }
+
+  // ---------- Botones de plantillas favoritas al terminar una línea de tendencia ----------
+  let quick = null;
+  function closeQuick() {
+    if (!quick) return;
+    quick.el.remove();
+    document.removeEventListener('mousedown', quick.down, true);
+    document.removeEventListener('keydown', quick.key, true);
+    quick = null;
+  }
+  function showQuick(info) {
+    closeQuick();
+    const favs = store.favTemplates(info.type);
+    if (!favs.length) return;
+    const m = el('div', 'tpl-quick');
+    favs.forEach((tp, i) => {
+      const b = el('button', 'tpl-pill');
+      const c = tp.style && /^#[0-9a-f]{6}$/i.test(tp.style.color || '') ? tp.style.color : null;
+      if (c) { const dot = el('span', 'tpl-dot'); dot.style.background = c; b.appendChild(dot); }
+      b.appendChild(el('span', '', tp.name));
+      b.title = `Aplicar la plantilla "${tp.name}" a esta línea`;
+      b.style.animationDelay = (i * 45) + 'ms';
+      b.onclick = () => { store.applyTemplate(info.sym, info.id, tp.id); closeQuick(); };
+      m.appendChild(b);
+    });
+    document.body.appendChild(m);
+    const w = m.offsetWidth, h = m.offsetHeight;
+    let left = info.x + 14, top = info.y + 16;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+    if (top + h > window.innerHeight - 8) top = Math.max(8, info.y - h - 16);
+    m.style.left = left + 'px'; m.style.top = top + 'px';
+    const down = (e) => { if (!m.contains(e.target)) closeQuick(); };
+    const key = (e) => { if (e.key === 'Escape') closeQuick(); };
+    document.addEventListener('mousedown', down, true);
+    document.addEventListener('keydown', key, true);
+    quick = { el: m, sym: info.sym, id: info.id, down, key };
+  }
+
   function closeTpl() { if (tplMenu) { tplMenu.remove(); tplMenu = null; } }
   document.addEventListener('mousedown', (e) => {
     if ((flyout && !flyout.contains(e.target)) || (ctxMenu && !ctxMenu.contains(e.target))) {
@@ -303,19 +419,15 @@
       head.append(el('span', 'ctx-check', ''), el('span', '', 'Plantillas'), el('span', 'ctx-arrow', '▸'));
       wrap.appendChild(head);
       const sub = el('div', 'ctx-menu ctx-sub');
-      const tpls = store.templates(d.type);
-      if (!tpls.length) { const e0 = el('div', 'ctx-item ctx-empty', 'Aún no hay plantillas de esta herramienta'); sub.appendChild(e0); }
-      tpls.forEach((tp) => {
-        const b = el('button', 'ctx-item');
-        b.append(el('span', 'ctx-check', ''), el('span', '', tp.name));
-        b.onclick = () => {
-          closeFly();
-          store.begin(sym);
-          ids.filter((i) => { const q = store.get(sym, i); return q && q.type === d.type; }).forEach((i) => store.applyTemplate(sym, i, tp.id));
-          store.end();
-        };
-        sub.appendChild(b);
-      });
+      if (!store.templates(d.type).length) { const e0 = el('div', 'ctx-item ctx-empty', 'Aún no hay plantillas de esta herramienta'); sub.appendChild(e0); }
+      const listBox = el('div');
+      fillTplList(listBox, d.type, { onPick: (tp) => {
+        closeFly();
+        store.begin(sym);
+        ids.filter((i) => { const q = store.get(sym, i); return q && q.type === d.type; }).forEach((i) => store.applyTemplate(sym, i, tp.id));
+        store.end();
+      } });
+      sub.appendChild(listBox);
       const sv = el('button', 'ctx-item ctx-save');
       sv.append(el('span', 'ctx-check', ''), el('span', '', 'Guardar el estilo de este dibujo como plantilla…'));
       sv.onclick = () => { closeFly(); askName('Guardar como plantilla', 'Mi plantilla', { ok: 'Guardar' }, (name) => { const cur = store.get(sym, id); if (cur) store.saveTemplate(cur.type, name, cur); }); };
@@ -780,17 +892,13 @@
     m.appendChild(saveRow);
     const tpls = store.templates(type);
     m.appendChild(el('div', 'tpl-title', tpls.length ? 'Aplicar una plantilla' : 'Aún no hay plantillas de esta herramienta'));
-    tpls.forEach((tp) => {
-      const row = el('div', 'ctx-item db-row');
-      row.append(el('span', 'db-label', tp.name));
-      if (!tp.builtin) {
-        const del = el('button', 'fav-star'); del.innerHTML = svg('trash', 14); del.title = 'Borrar esta plantilla';
-        del.onclick = (e) => { e.stopPropagation(); store.deleteTemplate(type, tp.id); openTplMenu(anchor, sym, id, refill); };
-        row.appendChild(del);
-      }
-      row.onclick = () => { store.applyTemplate(sym, id, tp.id); closeTpl(); refill(); };
-      m.appendChild(row);
+    if (tpls.length) m.appendChild(el('div', 'tpl-hint', '★ = favorita (sale al terminar de dibujar) · mantén pulsado y arrastra para ordenar'));
+    const listBox = el('div');
+    fillTplList(listBox, type, {
+      onPick: (tp) => { store.applyTemplate(sym, id, tp.id); closeTpl(); refill(); },
+      onDelete: (tp) => { store.deleteTemplate(type, tp.id); openTplMenu(anchor, sym, id, refill); },
     });
+    m.appendChild(listBox);
     placeMenu(m, anchor, 'under');
     tplMenu = m;
     setTimeout(() => inp.focus(), 0);
@@ -1308,6 +1416,8 @@
       if (kind === 'props') { openProps(info.sym, info.id); return; }
       if (kind === 'ctx') { showCtx(info.x, info.y, info.sym, info.id, info.seg); return; }
       if (kind === 'zoom') { updateZoomOut(); return; }
+      if (kind === 'drawn') { showQuick(info); return; }
+      if (kind === 'select' && quick && !store.isSelected(quick.sym, quick.id)) closeQuick();
       if (kind === 'tool' || kind === 'templates') { renderBar(); renderFav(); return; }
       renderSel(); renderTree();
     });
