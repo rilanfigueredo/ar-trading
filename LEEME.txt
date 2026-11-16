@@ -1,3 +1,14 @@
+AR_TRADING - VERSION 0.26.12
+========================
+
+NUEVO: INDICADOR "FRACTAL" (PRIMERA FASE)
+- Boton nuevo "Fractal" en la barra derecha: abre un panel propio.
+- 1) Dibuja un rectangulo que encierre la estructura (con tus lineas y textos dentro), haz clic en el para seleccionarlo y pulsa "Tomar rectangulo seleccionado". Se guarda con su forma y sus medidas (se pueden guardar varias, con nombre).
+- 2) Medidas (tipo ICT/SMC): numero de velas, donde queda el maximo y el minimo, movimiento neto, mecha superior/inferior sobre el maximo/minimo protegido, barridos de maximo y de minimo, desplazamiento, % de velas alcistas, cuerpo medio y rango. Cada una se activa o apaga, tiene peso (1-10) y puede ser obligatoria.
+- 3) Busqueda en el mismo activo, en las temporalidades que elijas (de 3 minutos a 1 mes) con el historial descargado. Parecido minimo de 50 a 100 %, peso de forma/medidas, variacion de velas permitida y opcion de buscar la version invertida (espejo).
+- La lista de coincidencias muestra el % de parecido; clic = ir a esa zona (cambia la temporalidad si hace falta); el boton rectangulo la marca en el grafico.
+- Por ahora las lineas y textos dibujados dentro del rectangulo solo se guardan como notas; no cambian la busqueda (fase 2).
+
 AR_TRADING - VERSION 0.26.11
 ========================
 

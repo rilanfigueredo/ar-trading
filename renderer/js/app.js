@@ -351,7 +351,7 @@
 
   // ---------- Ancho de los paneles de la derecha (v0.26.3) ----------
   // Indicadores, objetos y listas: se arrastra su borde izquierdo para hacerlos más angostos o más anchos. El ancho se recuerda.
-  const PANEL_W = { panel: [330, 240], objPanel: [300, 240], watchPanel: [320, 240] };
+  const PANEL_W = { panel: [330, 240], objPanel: [300, 240], watchPanel: [320, 240], fractalPanel: [360, 280] };
   function setupPanelResize() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('ar_panel_w') || '{}') || {}; } catch (e) { saved = {}; }
@@ -1476,7 +1476,7 @@
   // Pestañas (como un navegador): cada una es una configuración propia (gráficos, activos, temporalidades, gráfico ampliado…).
   // Todas las pestañas abiertas siguen vivas: cambiar de una a otra solo muestra su grid, sin recargar nada. La que no se ve no pide datos.
   const MAXTABS = 10;
-  const SHARED_CLIENT = ['templates', 'designs', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer', 'profile', 'ui'];   // lo demás es propio de cada pestaña
+  const SHARED_CLIENT = ['templates', 'designs', 'palette', 'lists', 'scripts', 'theme', 'tz', 'timer', 'profile', 'ui', 'fractal'];   // lo demás es propio de cada pestaña
   const gone = (id) => /^(v:|b:)/.test(String(id)) || id === 'blk';
   const sig = (x) => { try { return JSON.stringify(x); } catch (e) { return ''; } };
   // Nombre de la pestaña: LISTA-PAR-TEMPORALIDAD (por ejemplo MACRO-BTCUSDT-4H)
@@ -1688,6 +1688,7 @@
     if (p.scripts !== undefined) eachView((v) => v.refreshScripts && v.refreshScripts(true));
     if (p.timer !== undefined) eachView((v) => v.applyTimer());
     if (p.lists !== undefined && window.TVWatch) window.TVWatch.refresh();
+    if (p.fractal !== undefined) { A.cfg.fractal = clone(p.fractal); if (window.TVFractalUI) window.TVFractalUI.refresh(); }
     if ((p.profile !== undefined || p.ui !== undefined) && window.TVProfile) {
       if (p.profile !== undefined) A.cfg.profile = clone(p.profile);
       if (p.ui !== undefined) A.cfg.ui = clone(p.ui);
@@ -2199,7 +2200,7 @@
   }
   function togglePanel() {
     const p = $('panel');
-    if (p.classList.contains('hidden')) { renderPanel(); $('objPanel').classList.add('hidden'); if (window.TVWatch) window.TVWatch.close(); if (window.TVDrawUI) window.TVDrawUI.refresh(); }
+    if (p.classList.contains('hidden')) { renderPanel(); $('objPanel').classList.add('hidden'); if (window.TVWatch) window.TVWatch.close(); if (window.TVFractalUI) window.TVFractalUI.close(); if (window.TVDrawUI) window.TVDrawUI.refresh(); }
     p.classList.toggle('hidden');
     $('btnIndicators').classList.toggle('active', !p.classList.contains('hidden'));
   }
@@ -2213,6 +2214,7 @@
     setupWindowUi();
     setupPanelResize();
     $('btnWatch').onclick = () => { if (window.TVWatch) window.TVWatch.toggle(); };
+    $('btnFractal').onclick = () => { if (window.TVFractalUI) window.TVFractalUI.toggle(); };
     $('btnAuto').onclick = () => { activeView().autoScale(); if (window.TVDrawUI) window.TVDrawUI.refresh(); };
     $('btnLayout').onclick = openLayoutPicker;
     $('btnReplay').onclick = () => { const v = activeView(); if (v.replayState === 'off') v.replayPick(); else v.replayStop(); markActive(); };
@@ -2360,6 +2362,8 @@
     } else cfg.split = null;
     // v0.26.5: perfil del usuario y ajustes de la interfaz (compartidos entre pestañas)
     if (window.TVProfile) { cfg.profile = window.TVProfile.cleanProfile(cfg.profile); cfg.ui = window.TVProfile.cleanUi(cfg.ui); }
+    // v0.26.12: Fractal (patrones guardados y ajustes de búsqueda; compartido entre pestañas)
+    if (window.TVFractalUI) cfg.fractal = window.TVFractalUI.clean(cfg.fractal);
     cfg.version = 11;
     return cfg;
   }
@@ -2476,6 +2480,7 @@
     else applyLayout();
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
+    if (window.TVFractalUI) window.TVFractalUI.init({ A, $, L, API, activeCfg, activeView, saveCfg, openModal, closeModal });
     if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
     if (window.TVProfile) window.TVProfile.init({ A, API, openModal, closeModal, save: saveCfg, flush: () => [...saveTimers.keys()].forEach((id) => flushTab(id, true)), drawStore: () => G.drawStore });
     const used = new Set(['binance']);

@@ -1878,7 +1878,7 @@
         vcfg.tf = id;
         refreshFormatters();
         renderWatermark();
-        load();
+        return load();
       },
       setChartType(t) {
         if (t === vcfg.chartType) return;
@@ -1949,6 +1949,20 @@
         s.chart.timeScale().setVisibleLogicalRange({ from: to - w, to });
       },
       showCrosshairAt(info) { showXh(info); },
+      // Fractal (v0.26.12): centra el gráfico en [t0, t1] (segundos); si es más antiguo que lo cargado, baja más historial
+      async goToRange(t0, t1) {
+        if (isVol()) return false;
+        for (let k = 0; k < 40 && s.bars.length && s.bars[0].time > t0 && !s.reachedStart; k++) {
+          while (s.loading || s.loadingMore) await new Promise((r) => setTimeout(r, 100));
+          if (!(await loadMore(30))) break;
+        }
+        if (!s.bars.length) return false;
+        const sec = tfNow().sec;
+        const a = L.timeToLogical(s.bars, sec, t0), b = L.timeToLogical(s.bars, sec, t1);
+        const pad = Math.max(6, (b - a) * 0.6);
+        s.chart.timeScale().setVisibleLogicalRange({ from: a - pad, to: b + pad });
+        return true;
+      },
       capture, thumb,
       replayPick() { return rpPickStart(); },
       replayStop() { if (s.rp) return rpStop(); rpReset(true); },

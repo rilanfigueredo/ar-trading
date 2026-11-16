@@ -471,7 +471,7 @@ input[type=color]:disabled { cursor: not-allowed; }
 .tab-bar .tab, .tab-bar .tab-new { -webkit-app-region: no-drag; }
 body.has-overlay .tab-bar { padding-right: 150px; }
 /* Pantalla completa: solo el gráfico (y las pestañas) */
-body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #objPanel, body.fs #watchPanel { display: none !important; }
+body.fs #toolbar, body.fs #drawBar, body.fs #rightBar, body.fs #panel, body.fs #objPanel, body.fs #watchPanel, body.fs #fractalPanel { display: none !important; }
 /* Icono del programa (en lugar de la marca de TradingView) abajo a la izquierda de cada gráfico */
 .brand-mark { position: absolute; left: 10px; bottom: 36px; width: 28px; height: 28px; z-index: 1; opacity: .9; pointer-events: none; user-select: none; }
 
@@ -784,3 +784,32 @@ body.fn-mode #profileBtn, body.fs #profileBtn { display: none; }
 
 /* v0.26.9: borde de la barra de precios (doble flecha para adelgazarla) */
 .axis-grip-hot, .axis-grip-hot * { cursor: ew-resize !important; }
+
+/* Fractal (v0.26.12) */
+#fractalPanel { width: 360px; flex: none; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+#fractalPanel.hidden { display: none; }
+#fractalPanel h3 { margin: 0 0 8px; font-size: 14px; }
+#fractalPanel .fr-h { margin: 14px 0 6px; font-weight: 600; font-size: 13px; border-top: 1px solid var(--border); padding-top: 10px; }
+#fractalPanel .fr-msg.err, #fractalPanel .hint.err { color: #f23645; }
+#fractalPanel .fr-pat { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; margin-top: 6px; cursor: pointer; }
+#fractalPanel .fr-pat.sel { border-color: #2962ff; background: rgba(41,98,255,.08); }
+#fractalPanel .fr-pinfo { flex: 1; min-width: 0; }
+#fractalPanel .fr-name { width: 100%; background: transparent; border: 0; color: inherit; font-size: 13px; padding: 0; }
+#fractalPanel .btn-x { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+#fractalPanel .btn-x:hover { color: inherit; }
+#fractalPanel .fr-meas { width: 100%; border-collapse: collapse; font-size: 12px; }
+#fractalPanel .fr-meas th { text-align: left; color: var(--muted); font-weight: 500; padding: 2px 4px; }
+#fractalPanel .fr-meas td { padding: 3px 4px; vertical-align: top; }
+#fractalPanel .fr-meas tr.off td { opacity: .5; }
+#fractalPanel .fr-num { width: 42px; }
+#fractalPanel .fr-sl { margin: 8px 0; font-size: 12px; }
+#fractalPanel .fr-sl input[type=range] { width: 100%; }
+#fractalPanel .fr-chk { display: block; margin: 8px 0; font-size: 12px; }
+#fractalPanel .fr-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 10px; }
+#fractalPanel .fr-chip { background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 12px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
+#fractalPanel .fr-chip.on { background: #2962ff; border-color: #2962ff; color: #fff; }
+#fractalPanel .fr-res { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-bottom: 1px solid var(--border); cursor: pointer; }
+#fractalPanel .fr-res:hover { background: rgba(120,123,134,.12); }
+#fractalPanel .fr-score { width: 44px; }
+#fractalPanel .fr-rinfo { flex: 1; font-size: 12px; }
+#fractalPanel .btn.primary { width: 100%; margin-top: 4px; }

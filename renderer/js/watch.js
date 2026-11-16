@@ -155,6 +155,7 @@
   function open() {
     X.$('panel').classList.add('hidden'); X.$('btnIndicators').classList.remove('active');
     X.$('objPanel').classList.add('hidden');
+    if (window.TVFractalUI) window.TVFractalUI.close();
     if (window.TVDrawUI) window.TVDrawUI.refresh();
     $p().classList.remove('hidden');
     X.$('btnWatch').classList.add('active');
