@@ -2422,8 +2422,11 @@
       const arr = Array.isArray(d.templates[t]) ? d.templates[t].filter((x) => x && typeof x.id === 'string' && isObj(x.style)) : [];
       if (types[t] && arr.length) d.templates[t] = arr.map((x) => ({ id: x.id, name: String(x.name || 'Plantilla'), style: x.style })); else delete d.templates[t];
     });
-    const okPos = (fp, def) => (isObj(fp) && ['left', 'right', 'top', 'bottom'].includes(fp.edge) && typeof fp.off === 'number' && isFinite(fp.off)
-      ? { edge: fp.edge, off: Math.max(0, Math.min(1, fp.off)) } : def);
+    // posición libre { cx, cy, horiz } (v0.26.16) o la antigua { edge, off }
+    const okPos = (fp, def) => (isObj(fp) && typeof fp.cx === 'number' && typeof fp.cy === 'number' && isFinite(fp.cx) && isFinite(fp.cy)
+      ? { cx: Math.max(0, Math.min(1, fp.cx)), cy: Math.max(0, Math.min(1, fp.cy)), horiz: !!fp.horiz }
+      : isObj(fp) && ['left', 'right', 'top', 'bottom'].includes(fp.edge) && typeof fp.off === 'number' && isFinite(fp.off)
+        ? { edge: fp.edge, off: Math.max(0, Math.min(1, fp.off)) } : def);
     d.favPos = okPos(d.favPos, { edge: 'left', off: 0.2 });
     d.selPos = okPos(d.selPos, { edge: 'top', off: 0.5 });
     return d;

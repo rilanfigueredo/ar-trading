@@ -287,10 +287,19 @@ input[type=color]:disabled { cursor: not-allowed; }
 /* barra de propiedades del dibujo: más grande y con un contorno sutil del color del logo */
 #selBar { border: 1px solid #00e5ee; box-shadow: 0 0 0 1px rgba(0,229,238,.18), 0 4px 18px rgba(0,0,0,.35); font-size: 14px; gap: 5px; padding: 5px 7px; }
 #selBar .db-btn.small { width: 38px; height: 36px; }
-#selBar input[type=color] { width: 36px; height: 30px; }
+#selBar input[type=color] { width: 30px; height: 30px; padding: 2px; }
+#selBar input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+#selBar input[type=color]::-webkit-color-swatch { border: 0; border-radius: 3px; }
 #selBar select { font-size: 14px; padding: 5px 8px; }
 #selBar .sb-title { font-size: 14px; font-weight: 600; }
-#selBar .pal-btn { height: 30px; width: 32px; }
+#selBar .pal-btn { height: 30px; width: 30px; padding: 0; }
+#selBar .sb-text { display: inline-flex; align-items: center; gap: 5px; }
+#selBar.horiz .sb-text { flex-direction: row; }
+#selBar:not(.horiz) .sb-text { flex-direction: column; }
+#selBar .sb-size { width: 54px; font-size: 14px; padding: 5px 4px; }
+#selBar .sb-fmt { font-size: 15px; }
+#selBar .sb-bold { font-weight: 800; }
+#selBar .sb-italic { font-style: italic; font-family: serif; }
 #selBar .fav-grip svg { width: 20px; height: 20px; }
 
 /* ---- Listas de seguimiento (v0.11) ---- */

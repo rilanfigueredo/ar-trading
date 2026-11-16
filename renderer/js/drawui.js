@@ -628,49 +628,69 @@
   }
 
   // ---------- Barras movibles (favoritos y propiedades del dibujo) ----------
-  // Se arrastran desde el punto de agarre a cualquier borde: arriba/abajo = horizontal, izquierda/derecha = vertical.
+  // Se arrastran desde el punto de agarre y quedan EXACTAMENTE donde se sueltan (sin imán a los bordes).
+  // Doble clic en el punto de agarre: cambia entre barra vertical y horizontal.
+  // Se guarda { cx, cy, horiz } = centro de la barra como fracción del gráfico. Las posiciones antiguas { edge, off } se siguen entendiendo.
   const BARS = { favBar: { key: 'favPos', def: { edge: 'left', off: 0.2 } }, selBar: { key: 'selPos', def: { edge: 'top', off: 0.5 } } };
-  function nearestEdge(x, y, W, H) {
-    const d = { left: x, right: W - x, top: y, bottom: H - y };
-    return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
-  }
   function placeBar(id, free) {
     const fb = X.$(id), wrap = X.$('gridWrap'), cfg = BARS[id];
     if (fb.classList.contains('hidden')) return;
     const pos = prefs()[cfg.key] || cfg.def;
     const W = wrap.clientWidth, H = wrap.clientHeight, M = 8;
-    let edge = pos.edge;
-    if (free) edge = nearestEdge(free.x, free.y, W, H);
-    fb.classList.toggle('horiz', edge === 'top' || edge === 'bottom');
+    const horiz = free ? fb.classList.contains('horiz') : (pos.horiz !== undefined ? !!pos.horiz : (pos.edge === 'top' || pos.edge === 'bottom'));
+    fb.classList.toggle('horiz', horiz);
     fb.style.transform = 'none'; fb.style.right = fb.style.bottom = '';
     const w = fb.offsetWidth, h = fb.offsetHeight;
     let x, y;
     if (free) { x = free.x - w / 2; y = free.y - h / 2; }
-    else if (edge === 'left') { x = M; y = pos.off * H - h / 2; }
-    else if (edge === 'right') { x = W - w - M; y = pos.off * H - h / 2; }
-    else if (edge === 'top') { y = M; x = pos.off * W - w / 2; }
+    else if (typeof pos.cx === 'number' && typeof pos.cy === 'number') { x = pos.cx * W - w / 2; y = pos.cy * H - h / 2; }
+    else if (pos.edge === 'left') { x = M; y = pos.off * H - h / 2; }
+    else if (pos.edge === 'right') { x = W - w - M; y = pos.off * H - h / 2; }
+    else if (pos.edge === 'top') { y = M; x = pos.off * W - w / 2; }
     else { y = H - h - M; x = pos.off * W - w / 2; }
-    fb.style.left = Math.max(4, Math.min(W - w - 4, x)) + 'px';
-    fb.style.top = Math.max(4, Math.min(H - h - 4, y)) + 'px';
+    // solo se evita que la barra salga del gráfico y se pierda
+    fb.style.left = Math.max(2, Math.min(W - w - 2, x)) + 'px';
+    fb.style.top = Math.max(2, Math.min(H - h - 2, y)) + 'px';
+  }
+  function saveBarPos(id, cx, cy, horiz) {
+    const f = (v) => Math.max(0, Math.min(1, Math.round(v * 10000) / 10000));
+    prefs()[BARS[id].key] = { cx: f(cx), cy: f(cy), horiz: !!horiz };
+    X.saveCfg();
   }
   function makeGrip(id) {
-    const grip = el('span', 'fav-grip'); grip.innerHTML = svg('grip', 16); grip.title = 'Arrastra para mover la barra a cualquier borde del gráfico';
+    const grip = el('span', 'fav-grip'); grip.innerHTML = svg('grip', 16);
+    grip.title = 'Arrastra para mover la barra donde quieras · Doble clic: cambiar entre vertical y horizontal';
     grip.onpointerdown = (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      const wrap = X.$('gridWrap');
-      const move = (m) => { const r = wrap.getBoundingClientRect(); placeBar(id, { x: m.clientX - r.left, y: m.clientY - r.top }); };
-      const up = (m) => {
+      const wrap = X.$('gridWrap'), fb = X.$(id);
+      // el punto de agarre queda bajo el cursor, tal como se tomó (la barra no salta al centro del cursor)
+      const r0 = fb.getBoundingClientRect();
+      const offX = e.clientX - (r0.left + r0.width / 2), offY = e.clientY - (r0.top + r0.height / 2);
+      let last = null;
+      const move = (m) => {
+        const r = wrap.getBoundingClientRect();
+        last = { x: m.clientX - offX - r.left, y: m.clientY - offY - r.top };
+        placeBar(id, last);
+      };
+      const up = () => {
         window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerup', up, true);
-        const r = wrap.getBoundingClientRect(), W = wrap.clientWidth, H = wrap.clientHeight;
-        const x = m.clientX - r.left, y = m.clientY - r.top;
-        const edge = nearestEdge(x, y, W, H);
-        const off = edge === 'left' || edge === 'right' ? y / H : x / W;
-        prefs()[BARS[id].key] = { edge, off: Math.max(0.03, Math.min(0.97, Math.round(off * 1000) / 1000)) };
-        X.saveCfg();
+        if (!last) return;   // solo fue un clic
+        placeBar(id, last);
+        const W = wrap.clientWidth, H = wrap.clientHeight;
+        const b = fb.getBoundingClientRect(), r = wrap.getBoundingClientRect();
+        saveBarPos(id, (b.left + b.width / 2 - r.left) / W, (b.top + b.height / 2 - r.top) / H, fb.classList.contains('horiz'));
         placeBar(id);
       };
       window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
+    };
+    grip.ondblclick = (e) => {
+      e.preventDefault();
+      const wrap = X.$('gridWrap'), fb = X.$(id);
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      const b = fb.getBoundingClientRect(), r = wrap.getBoundingClientRect();
+      saveBarPos(id, (b.left + b.width / 2 - r.left) / W, (b.top + b.height / 2 - r.top) / H, !fb.classList.contains('horiz'));
+      placeBar(id);
     };
     return grip;
   }
@@ -699,6 +719,26 @@
     b.innerHTML = svg(icon, 20); b.title = title; b.onclick = fn;
     return b;
   }
+  // Propiedad de texto de un dibujo: 'text' y 'table' usan size/bold/italic; líneas y figuras usan tSize/tBold/tItalic.
+  function textKey(d, k) {
+    if (!d) return null;
+    if (d.type === 'text' || d.type === 'table') return k;
+    const t = 't' + k[0].toUpperCase() + k.slice(1);
+    return d[t] !== undefined ? t : null;
+  }
+  function textVal(d, k) {
+    const key = textKey(d, k);
+    if (key === null) return k === 'size' ? 14 : false;
+    return k === 'size' ? (d[key] || (d.type === 'table' ? 13 : d.type === 'text' ? 14 : 12)) : d[key];
+  }
+  function patchText(k, v) {
+    const sym = symNow();
+    selIds().forEach((id) => {
+      const d = store.get(sym, id);
+      const key = textKey(d, k);
+      if (key) store.patchMany(sym, [id], { [key]: v });
+    });
+  }
   function renderSel() {
     const bar = X.$('selBar');
     const sym = symNow();
@@ -711,15 +751,11 @@
       sel.key = key; bar.innerHTML = '';
       bar.appendChild(makeGrip('selBar'));
       const r = {};
-      r.title = el('span', 'sb-title');
       r.color = el('input'); r.color.type = 'color';
       r.color.oninput = () => store.patchMany(sym, selIds(), { color: r.color.value });
       r.width = el('select');
       [1, 2, 3, 4, 5].forEach((n) => { const o = el('option', '', n + ' px'); o.value = String(n); r.width.appendChild(o); });
       r.width.onchange = () => store.patchMany(sym, selIds(), { width: Number(r.width.value) });
-      r.dash = el('select');
-      [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; r.dash.appendChild(o); });
-      r.dash.onchange = () => store.patchMany(sym, selIds(), { dash: r.dash.value });
       r.lock = iconBtn('lock', 'Bloquear / desbloquear', () => { const all = selIds().every((id) => (store.get(sym, id) || {}).locked); store.patchMany(sym, selIds(), { locked: !all }); });
       r.share = iconBtn('share', 'Mostrar este dibujo también en los demás gráficos del mismo activo', () => toggleShare(sym, selIds()));
       r.eye = iconBtn('eyeoff', 'Ocultar (se vuelve a mostrar desde el panel de objetos)', () => store.patchMany(sym, selIds(), { hidden: true }));
@@ -727,9 +763,20 @@
       const grp = iconBtn('folderadd', 'Agrupar en una carpeta', () => newFolder(selIds(), null));
       r.cfg = iconBtn('gear', 'Propiedades (doble clic sobre el dibujo)', () => { const i = selIds(); if (i.length === 1) openProps(sym, i[0]); });
       r.del = iconBtn('trash', 'Eliminar (Supr)', deleteSel);
-      r.txt = iconBtn('text', 'Editar el texto aquí mismo (Enter)', editSelText);
-      bar.append(r.title, r.color, r.width, r.dash, r.lock, r.share, r.eye, dup, grp);
-      if (!many) bar.appendChild(r.txt);
+      // texto: tamaño, negrita y cursiva (para el texto suelto, las tablas y el texto de las líneas y figuras)
+      r.tsize = el('input', 'sb-size'); r.tsize.type = 'number'; r.tsize.min = 8; r.tsize.max = 80; r.tsize.title = 'Tamaño del texto (px)';
+      r.tsize.onchange = () => {
+        const v = Math.max(8, Math.min(80, parseInt(r.tsize.value, 10) || 0));
+        if (!v) return;
+        r.tsize.value = v; patchText('size', v);
+      };
+      r.tsize.onkeydown = (k) => k.stopPropagation();
+      r.tbold = el('button', 'db-btn small sb-fmt sb-bold', 'N'); r.tbold.title = 'Negrita';
+      r.tbold.onclick = () => patchText('bold', !textVal(store.get(sym, selIds()[0]), 'bold'));
+      r.titalic = el('button', 'db-btn small sb-fmt sb-italic', 'K'); r.titalic.title = 'Cursiva';
+      r.titalic.onclick = () => patchText('italic', !textVal(store.get(sym, selIds()[0]), 'italic'));
+      r.tgroup = el('span', 'sb-text'); r.tgroup.append(r.tsize, r.tbold, r.titalic);
+      bar.append(r.color, r.width, r.lock, r.share, r.eye, dup, grp, r.tgroup);
       if (!many) bar.appendChild(r.cfg);
       bar.appendChild(r.del);
       sel.refs = r;
@@ -737,19 +784,22 @@
     }
     const r = sel.refs;
     const ds = ids.map((id) => store.get(sym, id));
-    r.title.textContent = many ? `${ids.length} dibujos` : D.TYPES[ds[0].type].label;
     if (document.activeElement !== r.color) r.color.value = hexOk(ds[0].color);
     r.width.value = String(Math.max(1, Math.min(5, Math.round(ds[0].width || 1))));
-    r.dash.value = ds[0].dash || 'solid';
     const onlyText = ds.every((d) => d.type === 'text' || d.type === 'table');
     r.width.classList.toggle('hidden', onlyText);
-    r.dash.classList.toggle('hidden', onlyText);
+    const canText = ds.every((d) => textKey(d, 'size') !== null);
+    r.tgroup.classList.toggle('hidden', !canText);
+    if (canText) {
+      if (document.activeElement !== r.tsize) r.tsize.value = String(textVal(ds[0], 'size'));
+      r.tbold.classList.toggle('active', !!textVal(ds[0], 'bold'));
+      r.titalic.classList.toggle('active', !!textVal(ds[0], 'italic'));
+    }
     const allLocked = ds.every((d) => store.isLocked(sym, d));
     r.lock.classList.toggle('active', allLocked);
     r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 20);
     r.share.classList.toggle('active', ds.every((d) => d.shared));
     r.del.disabled = allLocked;
-    r.txt.classList.toggle('hidden', many || !(ds[0].type === 'text' || (D.TYPES[ds[0].type] && D.TYPES[ds[0].type].text)));
     placeBar('selBar');
   }
 

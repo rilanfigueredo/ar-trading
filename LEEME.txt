@@ -1,3 +1,12 @@
+AR_TRADING - VERSION 0.26.16
+========================
+
+BARRAS DE DIBUJO: SE MUEVEN LIBREMENTE Y LA BARRA DE AJUSTES MAS SIMPLE
+- Barra de herramientas FAVORITAS y barra de AJUSTES del dibujo: se acabo el iman. Arrastra desde los puntitos y la barra se queda EXACTAMENTE donde la sueltes, en cualquier parte del grafico (solo no sale del grafico para que no se pierda). Doble clic en los puntitos: cambia entre barra vertical y horizontal.
+- Barra de ajustes del dibujo: se quito el nombre de la herramienta y el selector de tipo de linea (continua / guiones / puntos).
+- En lugar de "editar texto aqui mismo" ahora hay TAMANO del texto, N (negrita) y K (cursiva). Aparecen cuando el dibujo tiene texto: texto suelto, tablas y el texto de lineas y figuras. (Para escribir el texto se sigue usando Enter o doble clic.)
+- El cuadro de color ahora es un cuadrado del mismo tamano que el icono de la paleta.
+
 AR_TRADING - VERSION 0.26.15
 ========================
 
