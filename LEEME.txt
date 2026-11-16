@@ -1,3 +1,10 @@
+AR_TRADING - VERSION 0.26.13
+========================
+
+FRACTAL: QUITAR MARCAS Y TEMPORALIDADES DE LA BARRA SUPERIOR
+- Las coincidencias marcadas en el grafico se pueden quitar: el boton de cada resultado (cuadro lleno) quita su marca, y hay un boton "Quitar todas las marcas de Fractal del grafico".
+- Las temporalidades donde buscar son ahora las mismas de la barra superior del programa. Agrega las que quieras con el "+" de la barra (o con "+ agregar" en el panel) y marca cuales estudiar. Las que queden fuera de 3 min a 1 mes salen apagadas.
+
 AR_TRADING - VERSION 0.26.12
 ========================
 

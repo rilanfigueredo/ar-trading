@@ -245,6 +245,7 @@ Instalación del usuario: instalar Node.js LTS → `instalar.bat` → `iniciar.b
 - `renderer/js/fractal.js` (UMD, puro): `buildPattern(bars,t0,t1,tfSec)` → `featOf` = forma (máx/mín/cierre normalizados 0–1 y remuestreados a 24 puntos) + medidas ICT/SMC (`MEASURES`: n, hiPos, loPos, net, wickHi/Lo sobre cuerpo protegido, sweepHi/Lo, disp, bull, body, range). Parecido = peso_forma·sim_forma + (1−peso)·media ponderada de sim_medidas; sim_forma = 1−4·MAE; cada medida tiene tolerancia (0 % al llegar a ella) y puede ser obligatoria. `search`: ventanas deslizantes con 7 largos (±lenTol), afinado local, supresión de solapes (>30 %), opción espejo (`mirrorFeat`).
 - `fractalui.js`: panel lateral, botón `#btnFractal`. Historial por temporalidad vía `TVHistory.fetchBack` (1s–1d) o `API.klines` paginado (1w/1M), agregado con `L.aggregate`; caché en memoria. `view.goToRange(t0,t1)` (nuevo en view.js) centra y carga historial antiguo; `view.setTf` ahora devuelve la promesa de `load()`.
 - Config: `cfg.fractal = { patterns[], sel, search }` (clave compartida: `SHARED_KEYS`, `SHARED_CLIENT`, `applySharedPatch`; `migrate` la sanea con `TVFractalUI.clean`).
+- v0.26.13: temporalidades = `cfg.tfs` (barra superior; `renderTfButtons` llama a `TVFractalUI.refresh()`; botón «+ agregar» abre `openTfManager`); las marcas ▭ son rectángulos con texto «Fractal NN %» (`marks`, `clearMarks`).
 - Pendiente fase 2: usar las líneas/textos del rectángulo como puntos clave; otros activos; mercado real sin probar (calibrar el 80 % con datos reales).
 
 ## 9. Pendientes conocidos

@@ -7,6 +7,7 @@
   let X = null;
   let busy = null;           // { cancel: bool } mientras se busca
   let results = null;        // { patId, items: [{ tf, label, score, ... }], info: [texto por temporalidad], at }
+  const marks = new Map();   // marcas puestas en el gráfico: 'tf|t0' -> { sym, id }
   const cache = new Map();   // 'ex|sym|tf|depth' -> { bars, reached, anchor }
 
   const $p = () => X.$('fractalPanel');
@@ -16,18 +17,19 @@
   const fx = () => X.A.cfg.fractal;
   const save = () => { X.saveCfg(); };
 
-  // Temporalidades que se ofrecen: de 3 minutos a 1 mes (más las propias del usuario que caigan en ese rango).
-  const BASE_TFS = ['m:3', 'm:5', 'm:15', 'm:30', 'm:60', 'm:120', 'm:240', 'm:360', 'm:480', 'm:720', 'd:1', 'd:3', 'w:1', 'M:1'];
+  // Temporalidades: las mismas de la barra superior del programa (se agregan con el «+» de esa barra).
+  // Fractal admite de 3 minutos a 1 mes; las que queden fuera se muestran apagadas.
   const MIN_SEC = 180, MAX_SEC = 31 * 86400;
   function tfChoices() {
-    const ids = BASE_TFS.slice();
+    const seen = new Set(), out = [];
     (X.A.cfg.tfs || []).forEach((id) => {
       let t; try { t = X.L.tfById(id); } catch (e) { return; }
-      if (t.kind === 'vol' || t.sec < MIN_SEC || t.sec > MAX_SEC) return;
-      if (!ids.includes(t.id)) ids.push(t.id);
+      if (t.kind === 'vol' || seen.has(t.id)) return;
+      seen.add(t.id); out.push(t);
     });
-    return ids.map((id) => X.L.tfById(id)).sort((a, b) => a.sec - b.sec);
+    return out.sort((a, b) => a.sec - b.sec);
   }
+  const tfOk = (t) => t.sec >= MIN_SEC && t.sec <= MAX_SEC;
 
   // ---------- Configuración guardada ----------
   function clean(src) {
@@ -141,7 +143,9 @@
     const pat = curPat();
     if (!pat) return say('Primero guarda una estructura.', true);
     const s = fx().search;
-    if (!s.tfs.length) return say('Elige al menos una temporalidad donde buscar.', true);
+    const avail = new Set(tfChoices().filter(tfOk).map((t) => t.id));
+    const chosen = s.tfs.filter((id) => avail.has(id));
+    if (!chosen.length) return say('Elige al menos una temporalidad donde buscar (de la barra superior).', true);
     const vc = X.activeCfg();
     const sym = pat.symbol || vc.symbol, ex = vc.exchange || 'binance';
     const job = { cancel: false };
@@ -149,7 +153,7 @@
     results = { patId: pat.id, items: [], info: [], at: Date.now(), running: true };
     render();
     const isCancel = () => job.cancel;
-    const tfs = s.tfs.map((id) => X.L.tfById(id)).sort((a, b) => a.sec - b.sec);
+    const tfs = chosen.map((id) => X.L.tfById(id)).sort((a, b) => a.sec - b.sec);
     for (let i = 0; i < tfs.length; i++) {
       if (job.cancel) break;
       const tf = tfs[i];
@@ -191,9 +195,26 @@
       const st = A.drawStore;
       const d = Object.assign({ type: 'rect', pts: [{ t: it.t0, p: it.pLow }, { t: it.t1, p: it.pHigh }], chart: vc.id, shared: false },
         st.typeDefaults('rect'), { text: `Fractal ${Math.round(it.score)} %${it.mirrored ? ' (espejo)' : ''}`, color: '#ff9800' });
-      st.add(vc.symbol, d);
+      const nd = st.add(vc.symbol, d);
+      marks.set(markKey(it), { sym: vc.symbol, id: nd.id });
     }
   }
+  const markKey = (it) => it.tfId + '|' + it.t0;
+  const FR_TXT = /^Fractal \d+ %/;
+  function unmark(it) {
+    const m = marks.get(markKey(it)); if (!m) return;
+    X.A.drawStore.remove(m.sym, m.id); marks.delete(markKey(it));
+  }
+  // Quita todas las marcas de Fractal del activo actual (también las que quedaron de otra sesión)
+  function clearMarks() {
+    const sym = X.activeCfg().symbol, st = X.A.drawStore;
+    const ids = (X.A.cfg.drawings[sym] || []).filter((d) => d.type === 'rect' && FR_TXT.test(d.text || '')).map((d) => d.id);
+    if (ids.length) st.removeMany(sym, ids);
+    marks.clear();
+    say(ids.length ? `Se quitaron ${ids.length} marca${ids.length === 1 ? '' : 's'} de Fractal.` : 'No había marcas de Fractal en este gráfico.');
+    render();
+  }
+  const isMarked = (it) => { const m = marks.get(markKey(it)); return !!m && (X.A.cfg.drawings[m.sym] || []).some((d) => d.id === m.id); };
 
   // ---------- Dibujo del panel ----------
   let msg = null;
@@ -298,19 +319,24 @@
     dl.appendChild(ds); dw.appendChild(dl); p.appendChild(dw);
     p.appendChild(el('div', 'hint small', 'Más velas = más historial, pero tarda más la primera vez (se guarda en tu equipo).'));
 
-    p.appendChild(el('div', 'hint small', 'Temporalidades donde buscar (de 3 min a 1 mes):'));
+    p.appendChild(el('div', 'hint small', 'Temporalidades donde buscar: son las de la barra superior del programa. Agrega las que quieras con el «+» de esa barra (o con el botón de abajo) y aquí marca cuáles estudiar. Fractal admite de 3 min a 1 mes.'));
     const chips = el('div', 'fr-chips');
     tfChoices().forEach((tf) => {
-      const on = s.tfs.includes(tf.id);
+      const ok = tfOk(tf), on = ok && s.tfs.includes(tf.id);
       const b = el('button', 'fr-chip' + (on ? ' on' : ''), tf.label);
+      if (!ok) { b.disabled = true; b.style.opacity = '.4'; b.title = 'Fuera del rango de Fractal (3 min a 1 mes)'; }
       b.onclick = () => { s.tfs = on ? s.tfs.filter((x) => x !== tf.id) : s.tfs.concat([tf.id]); save(); render(); };
       chips.appendChild(b);
     });
+    const addb = el('button', 'fr-chip', '+ agregar'); addb.title = 'Abre el administrador de temporalidades del programa';
+    addb.onclick = () => { if (X.openTfManager) X.openTfManager(); };
+    chips.appendChild(addb);
     p.appendChild(chips);
     const bs = el('button', 'btn primary', busy ? 'Detener' : 'Buscar parecidas');
     bs.onclick = () => { if (busy) { busy.cancel = true; } else runSearch(); };
     p.appendChild(bs);
     p.appendChild(el('div', 'fr-prog hint', ''));
+    const cl = el('button', 'btn secondary', 'Quitar todas las marcas de Fractal del gráfico'); cl.onclick = clearMarks; cl.style.cssText = 'width:100%;margin:0 0 6px'; p.appendChild(cl);
 
     // resultados
     if (results && results.patId === (pat && pat.id)) {
@@ -326,8 +352,9 @@
         info.appendChild(el('div', '', `${it.tf} · ${it.n} velas${it.mirrored ? ' · espejo' : ''}`));
         info.appendChild(el('div', 'hint small', fmtDate(it.t0) + ' · forma ' + it.shape + ' %'));
         row.appendChild(info);
-        const mk = el('button', 'btn-x', '▭'); mk.title = 'Ir y marcar con un rectángulo en el gráfico';
-        mk.onclick = (e) => { e.stopPropagation(); goTo(it, true); };
+        const on = isMarked(it);
+        const mk = el('button', 'btn-x', on ? '▣' : '▭'); mk.title = on ? 'Quitar la marca de este gráfico' : 'Ir y marcar con un rectángulo en el gráfico';
+        mk.onclick = (e) => { e.stopPropagation(); if (on) { unmark(it); render(); } else { goTo(it, true).then(render); } };
         row.appendChild(mk);
         row.title = 'Clic: ir a esta zona del gráfico';
         row.onclick = () => goTo(it, false);

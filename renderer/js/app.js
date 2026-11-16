@@ -435,6 +435,7 @@
     add.title = 'Agregar o quitar temporalidades';
     add.onclick = openTfManager;
     box.appendChild(add);
+    if (window.TVFractalUI) window.TVFractalUI.refresh();
   }
   // ---------- Iconos de la barra (v0.22.6): en vez de texto, para ahorrar espacio ----------
   const svg = (inner, size) => `<svg viewBox="0 0 24 24" width="${size || 18}" height="${size || 18}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -2480,7 +2481,7 @@
     else applyLayout();
     tabsState.set(A.tabId, { id: A.tabId, cfg: A.cfg, views: A.views, gridEl: A.gridEl, theme: A.cfg.theme, tz: A.cfg.tz, scriptsSig: sig(A.cfg.scripts) });
     window.TVDrawUI.init({ store: G.drawStore, A, $, openModal, closeModal, decoratePalette, activeView, activeCfg, eachView, saveCfg, refreshInd, refreshMas, renderPanel });
-    if (window.TVFractalUI) window.TVFractalUI.init({ A, $, L, API, activeCfg, activeView, saveCfg, openModal, closeModal });
+    if (window.TVFractalUI) window.TVFractalUI.init({ A, $, L, API, activeCfg, activeView, saveCfg, openModal, closeModal, openTfManager });
     if (window.TVWatch) window.TVWatch.init({ A, $, L, API, activeCfg, activeView, setSymbol, loadSymbols, saveCfg, openModal, closeModal });
     if (window.TVProfile) window.TVProfile.init({ A, API, openModal, closeModal, save: saveCfg, flush: () => [...saveTimers.keys()].forEach((id) => flushTab(id, true)), drawStore: () => G.drawStore });
     const used = new Set(['binance']);
