@@ -403,7 +403,7 @@
         const d = defaults(type);
         const apply = (src) => TEMPLATE_KEYS.forEach((k) => { if (src[k] !== undefined && d[k] !== undefined) d[k] = clone(src[k]); });
         apply((getPrefs().styles || {})[type] || {});
-        if (st.template) { const t = store.templates(type).find((x) => x.id === st.template); if (t) apply(t.style); }
+        if (st.template) { const t = store.templates(type).find((x) => x.id === st.template); if (t) { apply(t.style); d.tpl = t.id; } }
         return d;
       },
       label(d) {
@@ -735,6 +735,45 @@
         pr.templates[type] = sorted;
         save(); emit('templates');
       },
+      // Cambia el nombre de una plantilla propia. Devuelve true, 'dup' (ya existe ese nombre) o false.
+      renameTemplate(type, id, name) {
+        const nm = String(name).trim();
+        const list = store.userTemplates(type);
+        const t = list.find((x) => x.id === id);
+        if (!t || !nm) return false;
+        if (nm === t.name) return true;
+        if (list.some((x) => x !== t && x.name.toLowerCase() === nm.toLowerCase())) return 'dup';
+        t.name = nm;
+        save(); emit('templates');
+        return true;
+      },
+      // Reemplaza el estilo guardado de una plantilla por el del dibujo dado (conserva nombre, orden y favorita).
+      updateTemplate(type, id, d) {
+        const t = store.userTemplates(type).find((x) => x.id === id);
+        if (!t || !d) return false;
+        const style = {};
+        TEMPLATE_KEYS.forEach((k) => { if (d[k] !== undefined) style[k] = clone(d[k]); });
+        t.style = style;
+        save(); emit('templates');
+        return true;
+      },
+      // Plantilla con la que se aplicó/creó el dibujo, solo si su estilo ya no coincide con ella (si no, null).
+      tplChanged(sym, id) {
+        const d = find(sym, id);
+        if (!d || !d.tpl) return null;
+        const t = store.userTemplates(d.type).find((x) => x.id === d.tpl);
+        if (!t) return null;
+        const df = defaults(d.type);
+        const diff = STYLE_KEYS.some((k) => t.style[k] !== undefined && df[k] !== undefined && d[k] !== undefined && JSON.stringify(d[k]) !== JSON.stringify(t.style[k]));
+        return diff ? t : null;
+      },
+      // Enlaza o desenlaza un dibujo de su plantilla (sin crear un paso de "deshacer").
+      linkTemplate(sym, id, tplId) {
+        const d = find(sym, id);
+        if (!d) return;
+        if (tplId) d.tpl = tplId; else delete d.tpl;
+        changed();
+      },
       hasTemplate(type, name) { const n = String(name).trim().toLowerCase(); return (store.userTemplates(type) || []).some((x) => x.name.toLowerCase() === n); },
       deleteTemplate(type, id) {
         const pr = getPrefs();
@@ -750,6 +789,7 @@
         if (!t) return false;
         const patch = {};
         Object.keys(t.style).forEach((k) => { if (TEMPLATE_KEYS.includes(k) && defaults(d.type)[k] !== undefined) patch[k] = t.style[k]; });
+        patch.tpl = t.builtin ? undefined : t.id; // recuerda de qué plantilla viene, para ofrecer actualizarla si se modifica
         store.patch(sym, id, patch);
         return true;
       },

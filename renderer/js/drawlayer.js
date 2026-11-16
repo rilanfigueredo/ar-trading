@@ -629,7 +629,7 @@
       // Aviso para que la interfaz ofrezca las plantillas favoritas junto al punto final del dibujo
       if (obj.type === 'trend' && added && obj.pts.length > 1) {
         const P = toPx(added), pr = env.paneRect(), cr = env.chartEl.getBoundingClientRect();
-        if (P && P[1] && pr) store.emit('drawn', { sym, id: added.id, type: added.type, x: cr.left + P[1].x, y: pr.top + P[1].y });
+        if (P && P[1] && pr) store.emit('drawn', { sym, id: added.id, type: added.type, x: cr.left + P[1].x, y: pr.top + P[1].y, ax: cr.left + P[0].x, ay: pr.top + P[0].y });
       }
     }
 

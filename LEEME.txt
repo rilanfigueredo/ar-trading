@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.15
+========================
+
+PLANTILLAS DE LINEA: BOTONES NEON ENCIMA DE LA LINEA, RENOMBRAR Y ACTUALIZAR
+- Los botones de tus plantillas favoritas ahora aparecen ENCIMA de la linea de tendencia, empezando en el punto A, a unos 12 px de la linea (siguen su inclinacion). Tienen contorno morado vibrante de 1 px con efecto de luz de neon.
+- En la lista de plantillas hay un lapiz para cambiar el nombre (Enter acepta, Escape cancela) y un boton de flechas para ACTUALIZAR la plantilla con el estilo de la linea actual.
+- Si aplicas una plantilla y luego cambias la linea (color, punta de inicio, etc.), al cerrar la ventana de propiedades o al hacer clic fuera de la linea aparece "Actualizar plantilla?": Aceptar (la plantilla guarda el nuevo estilo), No actualizar (la linea queda como esta y ya no pregunta mas) o Cancelar (la linea vuelve al estilo de la plantilla).
+
 AR_TRADING - VERSION 0.26.14
 ========================
 

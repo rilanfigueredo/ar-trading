@@ -38,6 +38,8 @@
     ind: '<path d="M3 17l5-6 4 3 5-8 4 5"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
     out: '<path d="M14 4h6v6M20 4l-9 9M10 6H5a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-5"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    refresh: '<path d="M20 12a8 8 0 11-2.6-5.9"/><path d="M20 4v5h-5"/>',
   };
   const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
   const SHORTCUT = { trend: 'Alt+T', hline: 'Alt+H', fib: 'Alt+F', rect: 'Alt+R' };
@@ -207,6 +209,31 @@
         star.title = 'Favorita: aparece al terminar de dibujar';
         star.onclick = (e) => { e.stopPropagation(); star.classList.toggle('on', store.toggleTemplateFav(type, tp.id)); };
         row.appendChild(star);
+        const ren = el('button', 'fav-star'); ren.innerHTML = svg('edit', 14); ren.title = 'Cambiar el nombre';
+        ren.onclick = (e) => {
+          e.stopPropagation();
+          const lab = row.querySelector('.db-label');
+          const inp = el('input', 'tpl-rename'); inp.type = 'text'; inp.value = tp.name; inp.maxLength = 40;
+          lab.replaceWith(inp); inp.focus(); inp.select();
+          let fin = false;
+          const done = (commit) => {
+            if (fin) return; fin = true;
+            if (commit) {
+              const r = store.renameTemplate(type, tp.id, inp.value);
+              if (r === 'dup') toast('Ya existe una plantilla con ese nombre');
+            }
+            fillTplList(box, type, o);
+          };
+          inp.onkeydown = (k) => { k.stopPropagation(); if (k.key === 'Enter') done(true); else if (k.key === 'Escape') done(false); };
+          inp.onblur = () => done(true);
+          inp.onclick = (k) => k.stopPropagation();
+        };
+        row.appendChild(ren);
+        if (o.onUpdate) {
+          const up = el('button', 'fav-star'); up.innerHTML = svg('refresh', 14); up.title = 'Actualizar la plantilla con el estilo de la línea actual';
+          up.onclick = (e) => { e.stopPropagation(); o.onUpdate(tp); };
+          row.appendChild(up);
+        }
         if (o.onDelete) {
           const del = el('button', 'fav-star'); del.innerHTML = svg('trash', 14); del.title = 'Borrar esta plantilla';
           del.onclick = (e) => { e.stopPropagation(); o.onDelete(tp); };
@@ -220,7 +247,7 @@
   }
   function enableTplDrag(row, box, rows, type, refill) {
     row.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || (e.target.closest && e.target.closest('button'))) return;
+      if (e.button !== 0 || (e.target.closest && e.target.closest('button, input'))) return;
       const sx = e.clientX, sy = e.clientY;
       let dragging = false, lastY = sy, timer = null, scroller = null;
       const sc = box.closest('.tpl-menu, .ctx-sub');
@@ -292,16 +319,78 @@
       m.appendChild(b);
     });
     document.body.appendChild(m);
-    const w = m.offsetWidth, h = m.offsetHeight;
-    let left = info.x + 14, top = info.y + 16;
-    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
-    if (top + h > window.innerHeight - 8) top = Math.max(8, info.y - h - 16);
-    m.style.left = left + 'px'; m.style.top = top + 'px';
+    // Cada botón va encima de la línea, empezando en el punto A, a 12 px de ella (se ajusta botón a botón si la línea es inclinada).
+    const GAP = 12, SEP = 6;
+    const ax = info.ax !== undefined ? info.ax : info.x, ay = info.ay !== undefined ? info.ay : info.y;
+    const slope = info.x !== ax ? (info.y - ay) / (info.x - ax) : 0;
+    const lineY = (x) => ay + slope * (x - ax);
+    const pills = Array.from(m.children);
+    const total = pills.reduce((n, b) => n + b.offsetWidth + SEP, -SEP);
+    let x = Math.max(8, Math.min(ax, window.innerWidth - total - 8));
+    pills.forEach((b) => {
+      const w = b.offsetWidth, h = b.offsetHeight;
+      const top = Math.min(lineY(x), lineY(x + w)) - GAP - h;
+      b.style.position = 'fixed'; b.style.left = x + 'px';
+      // sin sitio arriba: debajo de la línea
+      b.style.top = (top < 8 ? Math.min(window.innerHeight - h - 8, Math.max(lineY(x), lineY(x + w)) + GAP) : top) + 'px';
+      x += w + SEP;
+    });
     const down = (e) => { if (!m.contains(e.target)) closeQuick(); };
     const key = (e) => { if (e.key === 'Escape') closeQuick(); };
     document.addEventListener('mousedown', down, true);
     document.addEventListener('keydown', key, true);
     quick = { el: m, sym: info.sym, id: info.id, down, key };
+  }
+
+  // ---------- Aviso breve y pregunta "¿Actualizar plantilla?" ----------
+  let toastEl = null, toastT = null, ask = null, watchSel = null;
+  const mouse = { x: 300, y: 200 };
+  document.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, true);
+  function toast(msg) {
+    if (toastEl) toastEl.remove();
+    clearTimeout(toastT);
+    toastEl = el('div', 'tpl-toast', msg);
+    document.body.appendChild(toastEl);
+    toastT = setTimeout(() => { if (toastEl) { toastEl.remove(); toastEl = null; } }, 2200);
+  }
+  function closeAsk() {
+    if (!ask) return;
+    document.removeEventListener('mousedown', ask.down, true);
+    document.removeEventListener('keydown', ask.key, true);
+    ask.el.remove(); ask = null;
+  }
+  // Si el dibujo viene de una plantilla y su estilo cambió, pregunta qué hacer.
+  function askTplUpdate(sym, id) {
+    if (ask) return;
+    const tp = store.tplChanged(sym, id);
+    if (!tp) return;
+    const m = el('div', 'tpl-ask');
+    m.appendChild(el('div', 'tpl-ask-t', '¿Actualizar plantilla?'));
+    m.appendChild(el('div', 'tpl-ask-s', `Cambiaste el estilo de esta línea respecto a "${tp.name}".`));
+    const row = el('div', 'tpl-ask-r');
+    const yes = el('button', 'btn', 'Aceptar');
+    yes.onclick = () => { const d = store.get(sym, id); if (d) { store.updateTemplate(d.type, tp.id, d); toast(`Plantilla "${tp.name}" actualizada`); } closeAsk(); };
+    const no = el('button', 'btn secondary', 'No actualizar');
+    no.onclick = () => { store.linkTemplate(sym, id, null); closeAsk(); };
+    const cancel = el('button', 'btn secondary', 'Cancelar');
+    cancel.onclick = () => { store.applyTemplate(sym, id, tp.id); closeAsk(); }; // vuelve al estilo de la plantilla
+    row.append(yes, no, cancel); m.appendChild(row);
+    document.body.appendChild(m);
+    const w = m.offsetWidth, h = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(mouse.x + 12, window.innerWidth - w - 8)) + 'px';
+    m.style.top = Math.max(8, Math.min(mouse.y + 12, window.innerHeight - h - 8)) + 'px';
+    const down = (e) => { if (!m.contains(e.target)) closeAsk(); };
+    const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeAsk(); } };
+    document.addEventListener('mousedown', down, true);
+    document.addEventListener('keydown', key, true);
+    ask = { el: m, down, key };
+  }
+  // Al dejar de estar seleccionado un dibujo (clic en otro sitio), se pregunta si cambió respecto a su plantilla.
+  function trackSelection() {
+    const st = store.state;
+    const cur = st.sel && st.multi.length === 1 ? { sym: st.sel.sym, id: st.multi[0] } : null;
+    if (watchSel && !props && !(cur && cur.sym === watchSel.sym && cur.id === watchSel.id)) askTplUpdate(watchSel.sym, watchSel.id);
+    watchSel = cur;
   }
 
   function closeTpl() { if (tplMenu) { tplMenu.remove(); tplMenu = null; } }
@@ -426,6 +515,9 @@
         store.begin(sym);
         ids.filter((i) => { const q = store.get(sym, i); return q && q.type === d.type; }).forEach((i) => store.applyTemplate(sym, i, tp.id));
         store.end();
+      }, onUpdate: (tp) => {
+        const cur = store.get(sym, id);
+        if (cur && store.updateTemplate(d.type, tp.id, cur)) { store.linkTemplate(sym, id, tp.id); toast(`Plantilla "${tp.name}" actualizada`); }
       } });
       sub.appendChild(listBox);
       const sv = el('button', 'ctx-item ctx-save');
@@ -897,6 +989,10 @@
     fillTplList(listBox, type, {
       onPick: (tp) => { store.applyTemplate(sym, id, tp.id); closeTpl(); refill(); },
       onDelete: (tp) => { store.deleteTemplate(type, tp.id); openTplMenu(anchor, sym, id, refill); },
+      onUpdate: (tp) => {
+        const cur = store.get(sym, id);
+        if (cur && store.updateTemplate(type, tp.id, cur)) { store.linkTemplate(sym, id, tp.id); toast(`Plantilla "${tp.name}" actualizada`); }
+      },
     });
     m.appendChild(listBox);
     placeMenu(m, anchor, 'under');
@@ -914,7 +1010,7 @@
       state.done = true;
       if (props === state) props = null;
       closeTpl();
-      if (ok) store.end(); else store.abort();
+      if (ok) { store.end(); setTimeout(() => askTplUpdate(sym, id), 0); } else store.abort();
     };
     props = state;
     X.openModal((box) => {
@@ -1417,7 +1513,7 @@
       if (kind === 'ctx') { showCtx(info.x, info.y, info.sym, info.id, info.seg); return; }
       if (kind === 'zoom') { updateZoomOut(); return; }
       if (kind === 'drawn') { showQuick(info); return; }
-      if (kind === 'select' && quick && !store.isSelected(quick.sym, quick.id)) closeQuick();
+      if (kind === 'select') { if (quick && !store.isSelected(quick.sym, quick.id)) closeQuick(); trackSelection(); }
       if (kind === 'tool' || kind === 'templates') { renderBar(); renderFav(); return; }
       renderSel(); renderTree();
     });
