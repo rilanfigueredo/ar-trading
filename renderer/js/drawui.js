@@ -366,7 +366,7 @@
     const m = el('div', 'tpl-quick');
     const pills = favs.map((tp, i) => {
       const b = makePill(tp);
-      b.style.animationDelay = (i * 45) + 'ms';
+      b.style.animationDelay = (i * 15) + 'ms';
       b.onclick = () => { store.applyTemplate(info.sym, info.id, tp.id); closeQuick(); };
       return b;
     });

@@ -1,3 +1,9 @@
+AR_TRADING - VERSION 0.26.19
+========================
+
+PLANTILLAS FAVORITAS: APARECEN 3 VECES MAS RAPIDO
+- La animacion con la que salen los botones de plantillas favoritas al terminar de dibujar una herramienta ahora es unas 3 veces mas rapida (aparecen casi al instante, y entre un boton y otro la espera es 3 veces menor).
+
 AR_TRADING - VERSION 0.26.18
 ========================
 
