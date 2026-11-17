@@ -694,6 +694,42 @@
     };
     return grip;
   }
+  // Barra de ajustes del dibujo: siempre horizontal, centrada en el ancho del gráfico y SEL_GAP px por encima
+  // del borde superior del dibujo seleccionado. Acompaña al dibujo al mover o ampliar el gráfico; si el dibujo sube
+  // más allá del borde superior, la barra se queda en ese límite (y vuelve a seguirlo al bajar).
+  const SEL_GAP = 90;
+  const selTops = new WeakMap();   // gráfico (celda) -> { panel: borde superior del dibujo en pantalla }
+  let selLast = '';
+  function autoPlaceSel() {
+    const bar = X.$('selBar');
+    if (bar.classList.contains('hidden')) { selLast = ''; return; }
+    const v = X.activeView(), wrap = X.$('gridWrap');
+    if (!v || !v.host || !wrap) return;
+    const m = selTops.get(v.host) || {};
+    let top = null;
+    Object.keys(m).forEach((k) => { if (m[k] !== null && (top === null || m[k] < top)) top = m[k]; });
+    const hr = v.host.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    const sig = [top === null ? 'n' : Math.round(top), Math.round(hr.left), Math.round(hr.top), Math.round(hr.width), Math.round(hr.height), Math.round(wr.left), Math.round(wr.top), bar.offsetWidth, bar.offsetHeight].join('|');
+    if (sig === selLast) return;
+    selLast = sig;
+    bar.classList.add('horiz');
+    bar.style.transform = 'none'; bar.style.right = bar.style.bottom = '';
+    const w = bar.offsetWidth, h = bar.offsetHeight;
+    const minY = hr.top - wr.top + 2, maxY = hr.bottom - wr.top - h - 2;
+    let y = top === null ? minY + 6 : top - wr.top - SEL_GAP - h;
+    y = Math.max(minY, Math.min(Math.max(minY, maxY), y));
+    const x = hr.left - wr.left + hr.width / 2 - w / 2;
+    bar.style.left = Math.max(2, Math.round(x)) + 'px';
+    bar.style.top = Math.round(y) + 'px';
+  }
+  if (window.TVDraw) {
+    window.TVDraw.paintHook = (host, pane, top) => {
+      let m = selTops.get(host);
+      if (!m) { m = {}; selTops.set(host, m); }
+      m[pane] = top;
+      if (X && X.activeView() && X.activeView().host === host) autoPlaceSel();
+    };
+  }
   function renderFav() {
     const fb = X.$('favBar');
     const favs = prefs().favs.map(parseFav).filter((f) => D.TYPES[f.type]);
@@ -749,7 +785,6 @@
     const key = many ? 'multi' : ids[0];
     if (sel.key !== key) {
       sel.key = key; bar.innerHTML = '';
-      bar.appendChild(makeGrip('selBar'));
       const r = {};
       r.color = el('input'); r.color.type = 'color';
       r.color.oninput = () => store.patchMany(sym, selIds(), { color: r.color.value });
@@ -800,7 +835,8 @@
     r.lock.innerHTML = svg(allLocked ? 'lock' : 'unlock', 20);
     r.share.classList.toggle('active', ds.every((d) => d.shared));
     r.del.disabled = allLocked;
-    placeBar('selBar');
+    selLast = '';
+    autoPlaceSel();
   }
 
   // ---------- Panel "Objetos" ----------
@@ -1568,7 +1604,7 @@
       renderSel(); renderTree();
     });
     document.addEventListener('keydown', onKey, true);
-    window.addEventListener('resize', () => { placeBar('favBar'); placeBar('selBar'); });
+    window.addEventListener('resize', () => { placeBar('favBar'); selLast = ''; autoPlaceSel(); });
     setInterval(updateZoomOut, 500);
     renderAll();
   }

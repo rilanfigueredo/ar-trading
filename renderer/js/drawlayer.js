@@ -421,8 +421,26 @@
     const cid = () => (env.chart ? env.chart() : null);
     const myPane = env.pane || 'main';                       // 'main' = panel del precio; si no, el indicador donde vive esta capa
     const mine = (sym) => store.listFor(sym, cid(), myPane);
+    // Borde superior (en píxeles de la pantalla) de los dibujos seleccionados de esta capa; null si no hay.
+    // La barra de ajustes del dibujo se coloca a una distancia fija por encima de este punto.
+    function selTopClient() {
+      if (store.prefs().hideAll) return null;
+      const sym = env.symbol(), pr = env.paneRect();
+      if (!pr) return null;
+      let best = null;
+      mine(sym).forEach((d) => {
+        if (store.isHidden(sym, d) || !store.isSelected(sym, d.id)) return;
+        const P = toPx(d);
+        if (!P || !P.length) return;
+        let y = Math.min.apply(null, P.map((q) => q.y));
+        if (d.type === 'text') y -= (d.size || 14);   // el texto crece hacia arriba
+        const t = pr.top + y;
+        if (best === null || t < best) best = t;
+      });
+      return best;
+    }
     function paint(ctx, w, h) {
-      if (!env.active()) return;
+      if (!env.active()) { if (D.paintHook) D.paintHook(host, myPane, null); return; }
       const sym = env.symbol();
       const single = store.state.multi.length === 1;
       ctx.save();
@@ -454,6 +472,7 @@
         ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(m.x2 - m.x1), Math.abs(m.y2 - m.y1));
       }
       ctx.restore();
+      if (D.paintHook) D.paintHook(host, myPane, selTopClient());
     }
 
     // ---------- Primitiva de la serie ----------

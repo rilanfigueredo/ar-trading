@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.17
+========================
+
+BARRA DE AJUSTES DEL DIBUJO: SIGUE A SU DIBUJO
+- Al seleccionar un dibujo, su barra de ajustes aparece SIEMPRE por encima de el, a 90 px de distancia, y centrada en el ancho del grafico.
+- Es dinamica: si el dibujo esta abajo, la barra aparece a 90 px sobre el. Al mover el grafico (arriba, abajo, izquierda, derecha, zoom) la barra acompana al dibujo manteniendo esa distancia. Si el dibujo sigue subiendo, la barra se queda en el limite superior del grafico y, al volver a bajar, vuelve a acompanarlo.
+- La barra de ajustes ya no se arrastra ni cambia a vertical (queda siempre horizontal). La barra de FAVORITAS se sigue moviendo libremente.
+
 AR_TRADING - VERSION 0.26.16
 ========================
 
