@@ -207,7 +207,15 @@
         const star = el('button', 'fav-star' + (tp.fav ? ' on' : ''));
         star.innerHTML = svg('star', 15);
         star.title = 'Favorita: aparece al terminar de dibujar';
-        star.onclick = (e) => { e.stopPropagation(); star.classList.toggle('on', store.toggleTemplateFav(type, tp.id)); };
+        star.onclick = (e) => {
+          e.stopPropagation();
+          const cur = store.userTemplates(type).find((x) => x.id === tp.id);
+          if (!(cur && cur.fav) && !favFit(type, tp.id).fits) {
+            toast('No puedes marcar más favoritas: ya ocupan las dos filas del ancho de la barra de ajustes. Desmarca alguna para agregar otra.', 5000);
+            return;
+          }
+          star.classList.toggle('on', store.toggleTemplateFav(type, tp.id));
+        };
         row.appendChild(star);
         const ren = el('button', 'fav-star'); ren.innerHTML = svg('edit', 14); ren.title = 'Cambiar el nombre';
         ren.onclick = (e) => {
@@ -295,7 +303,55 @@
   }
 
   // ---------- Botones de plantillas favoritas al terminar una línea de tendencia ----------
+  // Los botones se ajustan al ancho de la barra de ajustes del dibujo; si no caben en una fila se reparten en dos filas
+  // equilibradas, y no se pueden marcar más favoritas de las que caben en dos filas (ver favFit).
   let quick = null;
+  const QSEP = 6;
+  let lastSelW = 0;   // último ancho conocido de la barra de ajustes
+  function quickWidth() {
+    const b = X.$('selBar');
+    const w = b && !b.classList.contains('hidden') ? b.offsetWidth : 0;
+    if (w) lastSelW = w;
+    return Math.max(260, Math.min(lastSelW || 380, window.innerWidth - 16));
+  }
+  function makePill(tp) {
+    const b = el('button', 'tpl-pill');
+    const c = tp.style && /^#[0-9a-f]{6}$/i.test(tp.style.color || '') ? tp.style.color : null;
+    if (c) { const dot = el('span', 'tpl-dot'); dot.style.background = c; b.appendChild(dot); }
+    b.appendChild(el('span', 'tpl-pill-t', tp.name));
+    b.title = `Aplicar la plantilla "${tp.name}" a esta línea`;
+    return b;
+  }
+  // Mide el ancho de cada botón (fuera de pantalla).
+  function measurePills(pills) {
+    const m = el('div', 'tpl-quick');
+    m.style.cssText = 'visibility:hidden;left:-9999px;top:0;flex-wrap:nowrap;max-width:none';
+    pills.forEach((p) => m.appendChild(p));
+    document.body.appendChild(m);
+    const ws = pills.map((p) => p.offsetWidth);
+    m.remove();
+    return ws;
+  }
+  // Reparte los botones: una fila si caben en el ancho W; si no, dos filas lo más parejas posible. fits=false si ni así caben.
+  function quickLayout(widths, W) {
+    const n = widths.length;
+    const rowW = (a, b) => widths.slice(a, b).reduce((t, w) => t + w, 0) + QSEP * Math.max(0, b - a - 1);
+    if (rowW(0, n) <= W) return { rows: [[0, n]], width: rowW(0, n), fits: true };
+    let best = null;
+    for (let k = 1; k < n; k++) {
+      const w = Math.max(rowW(0, k), rowW(k, n));
+      if (!best || w < best.width) best = { rows: [[0, k], [k, n]], width: w };
+    }
+    if (!best) return { rows: [[0, n]], width: rowW(0, n), fits: false };
+    best.fits = best.width <= W;
+    return best;
+  }
+  // ¿Caben en dos filas las favoritas de este tipo si se agrega la plantilla addId?
+  function favFit(type, addId) {
+    const list = store.templates(type).filter((t) => t.fav || t.id === addId);
+    if (!list.length) return { fits: true };
+    return quickLayout(measurePills(list.map(makePill)), quickWidth());
+  }
   function closeQuick() {
     if (!quick) return;
     quick.el.remove();
@@ -308,33 +364,33 @@
     const favs = store.favTemplates(info.type);
     if (!favs.length) return;
     const m = el('div', 'tpl-quick');
-    favs.forEach((tp, i) => {
-      const b = el('button', 'tpl-pill');
-      const c = tp.style && /^#[0-9a-f]{6}$/i.test(tp.style.color || '') ? tp.style.color : null;
-      if (c) { const dot = el('span', 'tpl-dot'); dot.style.background = c; b.appendChild(dot); }
-      b.appendChild(el('span', '', tp.name));
-      b.title = `Aplicar la plantilla "${tp.name}" a esta línea`;
+    const pills = favs.map((tp, i) => {
+      const b = makePill(tp);
       b.style.animationDelay = (i * 45) + 'ms';
       b.onclick = () => { store.applyTemplate(info.sym, info.id, tp.id); closeQuick(); };
-      m.appendChild(b);
+      return b;
     });
+    const lay = quickLayout(measurePills(pills), quickWidth());
+    m.style.visibility = 'hidden'; m.style.left = '-9999px'; m.style.top = '0';
+    m.style.flexDirection = 'column'; m.style.flexWrap = 'nowrap'; m.style.alignItems = 'center'; m.style.gap = QSEP + 'px';
+    lay.rows.forEach(([a, b]) => {
+      const row = el('div', 'tpl-quick-row');
+      pills.slice(a, b).forEach((p) => row.appendChild(p));
+      m.appendChild(row);
+    });
+    m.style.width = Math.round(lay.width) + 'px';
     document.body.appendChild(m);
-    // Cada botón va encima de la línea, empezando en el punto A, a 12 px de ella (se ajusta botón a botón si la línea es inclinada).
-    const GAP = 12, SEP = 6;
+    // El bloque va encima de la línea, empezando en el punto A, a 12 px de ella (debajo si arriba no hay sitio).
+    const GAP = 12;
     const ax = info.ax !== undefined ? info.ax : info.x, ay = info.ay !== undefined ? info.ay : info.y;
     const slope = info.x !== ax ? (info.y - ay) / (info.x - ax) : 0;
     const lineY = (x) => ay + slope * (x - ax);
-    const pills = Array.from(m.children);
-    const total = pills.reduce((n, b) => n + b.offsetWidth + SEP, -SEP);
-    let x = Math.max(8, Math.min(ax, window.innerWidth - total - 8));
-    pills.forEach((b) => {
-      const w = b.offsetWidth, h = b.offsetHeight;
-      const top = Math.min(lineY(x), lineY(x + w)) - GAP - h;
-      b.style.position = 'fixed'; b.style.left = x + 'px';
-      // sin sitio arriba: debajo de la línea
-      b.style.top = (top < 8 ? Math.min(window.innerHeight - h - 8, Math.max(lineY(x), lineY(x + w)) + GAP) : top) + 'px';
-      x += w + SEP;
-    });
+    const w = m.offsetWidth, h = m.offsetHeight;
+    const x = Math.max(8, Math.min(ax, window.innerWidth - w - 8));
+    const top = Math.min(lineY(x), lineY(x + w)) - GAP - h;
+    m.style.left = x + 'px';
+    m.style.top = (top < 8 ? Math.min(window.innerHeight - h - 8, Math.max(lineY(x), lineY(x + w)) + GAP) : top) + 'px';
+    m.style.visibility = '';
     const down = (e) => { if (!m.contains(e.target)) closeQuick(); };
     const key = (e) => { if (e.key === 'Escape') closeQuick(); };
     document.addEventListener('mousedown', down, true);
@@ -346,12 +402,12 @@
   let toastEl = null, toastT = null, ask = null, watchSel = null;
   const mouse = { x: 300, y: 200 };
   document.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, true);
-  function toast(msg) {
+  function toast(msg, ms) {
     if (toastEl) toastEl.remove();
     clearTimeout(toastT);
     toastEl = el('div', 'tpl-toast', msg);
     document.body.appendChild(toastEl);
-    toastT = setTimeout(() => { if (toastEl) { toastEl.remove(); toastEl = null; } }, 2200);
+    toastT = setTimeout(() => { if (toastEl) { toastEl.remove(); toastEl = null; } }, ms || 2200);
   }
   function closeAsk() {
     if (!ask) return;

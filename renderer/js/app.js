@@ -2420,7 +2420,7 @@
     d.templates = isObj(d.templates) ? d.templates : {};
     Object.keys(d.templates).forEach((t) => {
       const arr = Array.isArray(d.templates[t]) ? d.templates[t].filter((x) => x && typeof x.id === 'string' && isObj(x.style)) : [];
-      if (types[t] && arr.length) d.templates[t] = arr.map((x) => ({ id: x.id, name: String(x.name || 'Plantilla'), style: x.style })); else delete d.templates[t];
+      if (types[t] && arr.length) d.templates[t] = arr.map((x) => (x.fav ? { id: x.id, name: String(x.name || 'Plantilla'), style: x.style, fav: true } : { id: x.id, name: String(x.name || 'Plantilla'), style: x.style })); else delete d.templates[t];
     });
     // posición libre { cx, cy, horiz } (v0.26.16) o la antigua { edge, off }
     const okPos = (fp, def) => (isObj(fp) && typeof fp.cx === 'number' && typeof fp.cy === 'number' && isFinite(fp.cx) && isFinite(fp.cy)

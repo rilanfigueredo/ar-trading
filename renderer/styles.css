@@ -842,3 +842,9 @@ body.fn-mode #profileBtn, body.fs #profileBtn { display: none; }
 .tpl-ask-s { font-size: 12px; color: var(--muted); margin-bottom: 9px; }
 .tpl-ask-r { display: flex; gap: 6px; flex-wrap: wrap; }
 .tpl-toast { position: fixed; z-index: 130; left: 50%; bottom: 40px; transform: translateX(-50%); background: var(--panel); color: var(--text); border: 1px solid #b026ff; border-radius: 999px; padding: 7px 16px; font-size: 13px; box-shadow: 0 0 10px rgba(176,38,255,.55); }
+
+/* plantillas favoritas: filas ajustadas al ancho de la barra de ajustes */
+.tpl-quick-row { display: flex; justify-content: center; gap: 6px; }
+.tpl-pill { max-width: 220px; }
+.tpl-pill .tpl-pill-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-toast { max-width: min(520px, calc(100vw - 24px)); text-align: center; border-radius: 14px; }

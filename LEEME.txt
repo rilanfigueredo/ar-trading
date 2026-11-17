@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.18
+========================
+
+PLANTILLAS FAVORITAS: YA NO SE DESMARCAN Y SE ORDENAN EN DOS FILAS
+- Arreglo: al publicarse una version nueva, las plantillas que marcaste como favoritas (estrella) se desmarcaban. Ahora se conservan. Las que ya perdiste en la version anterior hay que marcarlas una ultima vez.
+- Los botones de plantillas favoritas que salen al terminar una linea ya no se estiran en una sola fila horizontal: se ajustan al ancho de la barra de ajustes del dibujo y, si no caben, se reparten en dos filas parejas y centradas.
+- Limite: solo se pueden marcar tantas favoritas como quepan en esas dos filas. Si intentas marcar una mas, el programa avisa y debes desmarcar otra para agregarla.
+
 AR_TRADING - VERSION 0.26.17
 ========================
 
