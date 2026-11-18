@@ -663,6 +663,10 @@
       undoPoint() { return allLayers().some((l) => l.undoPoint()); },
       editText(id) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); if (l) l.editText(id); },
       clearRuler() { allLayers().forEach((l) => l.clearRuler()); },
+      // v0.26.20: ancla y radio del círculo (cada dibujo vive en la capa de su panel)
+      setAnchor(id, on) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); return l ? l.setAnchor(id, on) : false; },
+      radiusOf(id) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); return l ? l.radiusOf(id) : null; },
+      setRadius(id, px) { const d = G.drawStore.get(vcfg.symbol, id); const l = layerOf(d && d.pane); if (l) l.setRadius(id, px); },
       offsetPoint(pt, dx, dy, pane, fine) { const l = layerOf(pane) || mainLayer; return l.offsetPoint(pt, dx, dy, fine); },
       destroy() { allLayers().forEach((l) => l.destroy()); Object.keys(subLayers).forEach((k) => delete subLayers[k]); },
     } : null;

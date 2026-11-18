@@ -8,6 +8,9 @@
   const HANDLE_HIT = 9;     // distancia (px) para agarrar un tirador
   const MAGNET_WEAK_PX = 30; // imán débil: solo actúa si el precio de la vela está a menos de esto
   const ACCENT = '#2962ff';
+  const ANCHOR_R = 16;       // radio (px) de un círculo anclado si no se ha elegido otro
+  const BRUSH_MIN = 0.7;     // distancia mínima (px) entre dos puntos del pincel: cuanto menor, más fiel el trazo
+  const BRUSH_MAX_PTS = 6000;
   // tiradores del rectángulo: 0 arriba-izq., 1 arriba-der., 2 abajo-der., 3 abajo-izq., 4 arriba, 5 derecha, 6 abajo, 7 izquierda
   const RECT_CURSORS = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize', 'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize'];
   // Con Shift, el nuevo punto queda a la misma altura que el anterior (línea horizontal exacta).
@@ -59,6 +62,11 @@
         const x = env.xOfTime(pt.t), y = env.yOfPrice(pt.p);
         if (!num(x) || !num(y)) return null;
         out.push({ x, y });
+      }
+      // círculo anclado: el 3.er punto en píxeles es el ancla (el punto de la vela)
+      if (d.type === 'circle' && d.anchor && d.anch && out.length > 1) {
+        const ax = env.xOfTime(d.anch.t), ay = env.yOfPrice(d.anch.p);
+        if (num(ax) && num(ay)) out.push({ x: ax, y: ay });
       }
       return out;
     }
@@ -181,6 +189,8 @@
           }
           break;
         case 'rect': if (P.length > 1) drawRect(ctx, d, P, w, color); break;
+        case 'circle': if (P.length > 1) drawCircle(ctx, d, P, color); break;
+        case 'brush': drawBrush(ctx, d, P, o); break;
         case 'channel': drawChannel(ctx, d, P, w, color); break;
         case 'fib': if (P.length > 1) drawFib(ctx, d, P, w, o); break;
         case 'text': drawText(ctx, d, P); break;
@@ -211,6 +221,70 @@
         ctx.strokeStyle = themed(d.cColor || d.color); ctx.lineWidth = d.cWidth || 1; ctx.setLineDash(D.DASHES[d.cDash] || []);
         const my = (r.y1 + r.y2) / 2;
         seg(ctx, [xl, my, xr, my]);
+        ctx.restore();
+      }
+    }
+
+    // Círculo (v0.26.20): relleno y contorno independientes, texto en el centro y, si está anclado, una línea hasta el punto de la vela.
+    function drawCircle(ctx, d, P, color) {
+      const c = G.circleOf(P);
+      if (!c || c.r < 0.5) return;
+      if (d.anchor && P[2]) {
+        const as = G.anchorSegment(P);
+        if (as && d.anchorLine !== false) seg(ctx, as);
+        ctx.save(); ctx.setLineDash([]); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(P[2].x, P[2].y, 3 + Math.min(2, (d.width || 1) / 2), 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, Math.PI * 2);
+      if (d.fill) {
+        ctx.save();
+        ctx.fillStyle = rgba(themed(d.fColor || d.color), (d.fillOpacity == null ? 20 : d.fillOpacity) / 100);
+        ctx.fill();
+        ctx.restore();
+      }
+      if (d.border !== false) ctx.stroke();
+      if (d.text) {
+        const size = d.tSize || 14;
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.font = font(size, d.tBold, d.tItalic);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = themed(d.tColor || d.color);
+        if (d.fill && (d.fillOpacity == null ? 20 : d.fillOpacity) >= 25) ctx.fillText(d.text, c.cx, c.cy + 1);
+        else haloText(ctx, d.text, c.cx, c.cy + 1, env.bg());
+        ctx.restore();
+      }
+    }
+
+    // Pincel (v0.26.20): el trazo pasa por todos los puntos capturados; las esquinas se suavizan con curvas por los puntos medios.
+    function drawBrush(ctx, d, P, o) {
+      if (!P.length) return;
+      ctx.save();
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.globalAlpha = (d.opacity == null ? 100 : d.opacity) / 100;
+      const n = P.length;
+      const same = P.every((p) => p.x === P[0].x && p.y === P[0].y);
+      if (same) { ctx.fillStyle = themed(d.color); ctx.beginPath(); ctx.arc(P[0].x, P[0].y, Math.max(1, (d.width || 3) / 2), 0, Math.PI * 2); ctx.fill(); }
+      else {
+        ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y);
+        if (n < 3) ctx.lineTo(P[n - 1].x, P[n - 1].y);
+        else {
+          // Se suaviza solo donde el trazo es denso (tramos cortos); un giro brusco entre tramos largos queda como esquina, igual que se dibujó.
+          for (let i = 1; i < n - 1; i++) {
+            const a = Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y), b = Math.hypot(P[i + 1].x - P[i].x, P[i + 1].y - P[i].y);
+            if (a > 16 || b > 16) ctx.lineTo(P[i].x, P[i].y);
+            else ctx.quadraticCurveTo(P[i].x, P[i].y, (P[i].x + P[i + 1].x) / 2, (P[i].y + P[i + 1].y) / 2);
+          }
+          ctx.lineTo(P[n - 1].x, P[n - 1].y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      if (o && o.selected && !o.draft) {            // trazo seleccionado: recuadro tenue para saber que está elegido
+        let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
+        P.forEach((p) => { x1 = Math.min(x1, p.x); x2 = Math.max(x2, p.x); y1 = Math.min(y1, p.y); y2 = Math.max(y2, p.y); });
+        const pad = (d.width || 3) / 2 + 4;
+        ctx.save(); ctx.strokeStyle = ACCENT; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+        ctx.strokeRect(x1 - pad, y1 - pad, x2 - x1 + pad * 2, y2 - y1 + pad * 2);
         ctx.restore();
       }
     }
@@ -434,10 +508,21 @@
         if (!P || !P.length) return;
         let y = Math.min.apply(null, P.map((q) => q.y));
         if (d.type === 'text') y -= (d.size || 14);   // el texto crece hacia arriba
+        if (d.type === 'circle') { const c = G.circleOf(P); if (c) y = Math.min(c.cy - c.r, P[2] ? P[2].y : 1e9); }
+        if (d.type === 'brush') y -= (d.width || 3) / 2;
         const t = pr.top + y;
         if (best === null || t < best) best = t;
       });
       return best;
+    }
+    // Cómo se ve el dibujo en curso. Círculo anclado: el 1.er punto es el ancla y el último, donde irá el círculo (con el radio por defecto).
+    function draftView(dr) {
+      const pts = dr.pts.concat(dr.cur ? [dr.cur] : []);
+      if (dr.type === 'circle' && dr.anchor && pts.length >= 1) {
+        const c = pts[pts.length - 1];
+        return Object.assign({}, dr, { anch: pts[0], pts: [c, shiftPt(c, dr.rPx || ANCHOR_R, 0, true)] });
+      }
+      return Object.assign({}, dr, { pts });
     }
     function paint(ctx, w, h) {
       if (!env.active()) { if (D.paintHook) D.paintHook(host, myPane, null); return; }
@@ -449,7 +534,7 @@
         if (store.isHidden(sym, d) || store.prefs().hideAll) return;
         drawOne(ctx, d, w, h, { selected: store.isSelected(sym, d.id), single, hover: L.hoverId === d.id });
       });
-      if (L.draft) drawOne(ctx, Object.assign({}, L.draft, { pts: L.draft.pts.concat(L.draft.cur ? [L.draft.cur] : []) }), w, h, { draft: true });
+      if (L.draft) drawOne(ctx, draftView(L.draft), w, h, { draft: true });
       if (L.ruler) drawOne(ctx, L.ruler, w, h, {});
       if (L.snap && myPane !== 'main' && (L.draft || L.drag || store.state.tool)) {
         const sx = env.xOfTime(L.snap.t), sy = env.yOfPrice(L.snap.p);
@@ -508,19 +593,24 @@
     }
     // Punto (tiempo, precio) bajo el ratón. shiftRef: con Shift el precio es el del punto anterior (horizontal exacta, sin imán).
     // Imán: débil = se pega si el precio de la vela (A/M/m/C) está cerca; fuerte = se pega siempre al más cercano de la vela que está debajo.
-    function dataAt(x, y, shiftRef) {
-      let t = env.timeOfX(x), p = env.priceOfY(y), snapped = false;
+    // mode: 'force' = pegarse siempre al máximo/mínimo de la vela (ancla) · 'off' = sin imán (pincel, centro de un círculo anclado)
+    function dataAt(x, y, shiftRef, only) {
+      // Pincel y círculo: el tiempo es el exacto del píxel (sin redondear a la vela), para que el trazo no salga en escalones.
+      const free = !!env.timeOfXFine && (only === 'off' || store.state.tool === 'circle' || (L.draft && L.draft.type === 'circle'));
+      let t = free ? env.timeOfXFine(x) : env.timeOfX(x), p = env.priceOfY(y), snapped = false;
       L.snap = null;
       if (!num(t) || !num(p)) return null;
       if (shiftRef) return { t, p: shiftRef.p };
-      const mode = store.state.tool === 'zoom' || (L.draft && L.draft.type === 'zoom') ? 'off' : magnetMode();
+      if (only === 'off') return { t, p };
+      const mode = only === 'force' ? 'strong' : only === 'off' ? 'off' : store.state.tool === 'zoom' || (L.draft && L.draft.type === 'zoom') ? 'off' : magnetMode();
       if (mode !== 'off') {
         const bars = env.bars(), lg = env.logicalOfX(x);
         if (num(lg)) {
           const i = Math.round(lg);
           if (i >= 0 && i < bars.length) {
             const b = bars[i];
-            const vals = env.snapValues ? env.snapValues(i) : (env.chartType() === 'candles' ? [b.open, b.high, b.low, b.close] : [b.close]);
+            let vals = env.snapValues ? env.snapValues(i) : (env.chartType() === 'candles' ? [b.open, b.high, b.low, b.close] : [b.close]);
+            if (only === 'force' && !env.snapValues && env.chartType() === 'candles') vals = [b.high, b.low];   // ancla: solo la punta de la mecha
             let best = null, bd = 1e9;
             vals.forEach((v) => { const yy = env.yOfPrice(v); if (num(yy) && Math.abs(yy - y) < bd) { bd = Math.abs(yy - y); best = v; } });
             if (best !== null && (mode === 'strong' || bd <= MAGNET_WEAK_PX)) { p = best; t = env.centerTime(i); snapped = true; }
@@ -585,6 +675,7 @@
       f.call(window, 'mouseup', onWinUp, true);
     }
     function cancel() {
+      if (brush) brushOff();
       if (L.draft) { L.draft = null; L.press = null; if (!L.drag && !L.marquee) winOn(false); repaint(); }
       closeEditor();
     }
@@ -619,6 +710,12 @@
       L.draft = null; L.press = null; if (!L.drag && !L.marquee) winOn(false);
       if (spec.pts === 0 && d.pts.length < 2) { repaint(); return; }
       const obj = Object.assign({}, d); delete obj.cur;
+      if (obj.type === 'circle' && obj.anchor) {
+        // anclado: el 1.er punto es el de la vela y el 2.º, donde queda el círculo
+        if (obj.pts.length < 2) { repaint(); return; }
+        const a = obj.pts[0], c = obj.pts[1];
+        obj.anch = a; obj.pts = [c, shiftPt(c, obj.rPx || ANCHOR_R, 0, true)];
+      }
       commit(obj);
     }
     // Todo dibujo nuevo pertenece al gráfico donde se crea; solo se comparte si la preferencia lo pide.
@@ -643,7 +740,9 @@
       }
       if (obj.type === 'text') { openEditor(obj, true); return; }
       const added = store.add(sym, obj);
-      if (!store.prefs().keep) store.setTool(null);
+      // El pincel sigue activo para poder escribir con varios trazos (se sale con Esc o eligiendo otra herramienta) y no deja el trazo seleccionado.
+      if (obj.type === 'brush') store.select(null);
+      else if (!store.prefs().keep) store.setTool(null);
       repaint();
       // Aviso para que la interfaz ofrezca las plantillas favoritas junto al punto final del dibujo
       if (obj.type === 'trend' && added && obj.pts.length > 1) {
@@ -662,9 +761,10 @@
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'draw-text-input'; inp.placeholder = 'Escribe el texto y pulsa Enter';
       inp.value = d.text || '';
-      const ax = d.type === 'text' ? P[0].x : P.reduce((a, q) => a + q.x, 0) / P.length;
-      const ay = d.type === 'text' ? P[0].y : P.reduce((a, q) => a + q.y, 0) / P.length;
-      inp.style.left = Math.max(2, ax - (d.type === 'text' ? 0 : 60)) + 'px';
+      const one = d.type === 'text' || d.type === 'circle';           // texto suelto y círculo: se escribe sobre el primer punto (el centro)
+      const ax = one ? P[0].x : P.reduce((a, q) => a + q.x, 0) / P.length;
+      const ay = one ? P[0].y : P.reduce((a, q) => a + q.y, 0) / P.length;
+      inp.style.left = Math.max(2, ax - (d.type === 'text' ? 0 : 60)) + 'px';   // círculo: centrado sobre el centro
       inp.style.top = Math.max(2, pr.top - cr.top + ay - size - 8) + 'px';
       inp.style.fontSize = size + 'px';
       host.appendChild(inp);
@@ -793,16 +893,72 @@
     const isUi = (t) => !!(t && t.closest && t.closest('.max-btn, .pl-btns, .pl-btn, .ctimer, .draw-text-input, .poly-chip'));
     function stop(e) { e.stopPropagation(); e.preventDefault(); }
 
+    // Imán de cada punto: el 1.º de un círculo anclado se pega a la mecha; el 2.º (donde queda el círculo) es libre.
+    function draftSnap(first) {
+      if (first) return store.state.tool === 'circle' && store.typeDefaults('circle').anchor ? 'force' : undefined;
+      return L.draft && L.draft.type === 'circle' && L.draft.anchor ? 'off' : undefined;
+    }
+
+    // ---------- Pincel: trazo a mano alzada ----------
+    // Se toman TODOS los movimientos que el sistema entrega (incluso los que llegan juntos en un mismo fotograma) y no se pega al imán.
+    let brush = null;
+    function startBrush(loc) {
+      const pt = dataAt(loc.x, loc.y, null, 'off');
+      if (!pt) return;
+      const base = store.typeDefaults('brush');
+      L.draft = Object.assign(base, { type: 'brush', pts: [pt] });
+      brush = { last: { x: loc.x, y: loc.y }, raw: [{ x: loc.x, y: loc.y, t: pt.t, p: pt.p }] };
+      window.addEventListener('pointermove', onBrushMove, true);
+      window.addEventListener('pointerup', onBrushUp, true);
+      window.addEventListener('pointercancel', onBrushUp, true);
+      repaint();
+    }
+    function brushAdd(clientX, clientY) {
+      const cr = env.chartEl.getBoundingClientRect(), pr = env.paneRect();
+      const x = clientX - cr.left, y = clientY - (pr ? pr.top : cr.top);
+      if (Math.hypot(x - brush.last.x, y - brush.last.y) < BRUSH_MIN || L.draft.pts.length >= BRUSH_MAX_PTS) return;
+      const pt = dataAt(x, y, null, 'off');
+      if (!pt) return;
+      brush.last = { x, y };
+      brush.raw.push({ x, y, t: pt.t, p: pt.p });
+      L.draft.pts.push(pt);
+    }
+    function onBrushMove(e) {
+      if (!L.draft || !brush) return;
+      const list = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+      (list && list.length ? list : [e]).forEach((ev) => brushAdd(ev.clientX, ev.clientY));
+      repaint();
+    }
+    function brushOff() {
+      window.removeEventListener('pointermove', onBrushMove, true);
+      window.removeEventListener('pointerup', onBrushUp, true);
+      window.removeEventListener('pointercancel', onBrushUp, true);
+      brush = null;
+    }
+    function onBrushUp(e) {
+      if (!L.draft || !brush) { brushOff(); return; }
+      if (e && e.type === 'pointerup') brushAdd(e.clientX, e.clientY);
+      const d = L.draft, raw = brush.raw;
+      L.draft = null; brushOff();
+      // Quita puntos que no aportan (rectas largas muestreadas muy seguido) sin cambiar la forma: tolerancia de un cuarto de píxel
+      let pts = d.pts;
+      if (raw.length === pts.length && raw.length > 2) pts = G.simplifyPath(raw, 0.25).map((r) => ({ t: r.t, p: r.p }));
+      if (pts.length < 2) pts = pts.concat(pts);                     // un clic suelto = un punto (círculo pequeño)
+      const obj = Object.assign({}, d, { pts });
+      commit(obj);
+    }
+
     function onDown(e) {
       if (destroyed || e.button !== 0 || !env.active() || isUi(e.target)) return;
       const loc = local(e);
       if (!loc.inPane) return;
       const tool = store.state.tool, sym = env.symbol();
       if (L.ruler) { L.ruler = null; repaint(); }
+      if (tool === 'brush' && !L.draft) { stop(e); startBrush(loc); return; }
       if (tool || L.draft) {
         stop(e);
         const ref = L.draft && e.shiftKey ? draftShiftRef(L.draft) : null;
-        const pt = dataAt(loc.x, loc.y, ref);
+        const pt = dataAt(loc.x, loc.y, ref, draftSnap(!L.draft));
         if (!pt) return;
         if (L.draft) addPoint(pt); else startDraft(tool, pt, loc);
         return;
@@ -850,6 +1006,18 @@
         if (g.handle !== null && g.handle !== undefined) {
           const id = g.ids[0], orig = g.origs[id];
           let pts;
+          if (g.type === 'circle') {
+            const cd = store.get(sym, id);
+            if (g.handle === 4 && cd && cd.anchor) {                    // ancla: se pega a la punta de la mecha más cercana
+              const np = dataAt(loc.x, loc.y, null, 'force');
+              if (np) store.poke(sym, id, { anch: np });
+              return;
+            }
+            const np = dataAt(loc.x, loc.y, null, 'off');              // radio: cualquiera de los 4 tiradores
+            if (!np) return;
+            store.move(sym, id, [orig[0], np]);
+            return;
+          }
           if (g.type === 'rect') {
             const np = dataAt(loc.x, loc.y);
             if (!np || !g.px) return;
@@ -875,14 +1043,15 @@
             const q = store.get(sym, id);
             const pinned = q && q.type === 'table' && q.pin && q.pin !== 'none';
             if (pinned) q.pinDx = Math.max(0, Math.round((num(g.dx0[id]) ? g.dx0[id] : 12) + (q.pin === 'left' ? dx : -dx)));
-            map[id] = g.origs[id].map((p) => shiftPt(p, q && (q.type === 'hline' || pinned) ? 0 : dx, dy));
+            const fine = !!q && (q.type === 'circle' || q.type === 'brush');            // mover sin saltar de vela en vela
+            map[id] = g.origs[id].map((p) => shiftPt(p, q && (q.type === 'hline' || pinned) ? 0 : dx, dy, fine));
           });
           store.moveMany(sym, map);
         }
         return;
       }
-      if (L.draft) {
-        const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null);
+      if (L.draft && !brush) {
+        const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false));
         if (pt) { L.draft.cur = pt; repaint(); }
       }
     }
@@ -903,10 +1072,10 @@
         if (g.moved) store.end();
         return;
       }
-      if (L.draft && L.press) {
+      if (L.draft && L.press && !brush) {
         const loc = local(e), moved = Math.hypot(loc.x - L.press.x, loc.y - L.press.y);
         L.press = null;
-        if (moved > 6) { const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null); if (pt) addPoint(pt); }
+        if (moved > 6) { const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false)); if (pt) addPoint(pt); }
       }
     }
     // Pasar el ratón por encima: resalta el dibujo y cambia el cursor.
@@ -983,6 +1152,39 @@
         if (!L.draft) return false;
         if (L.draft.pts.length > 1) { L.draft.pts.pop(); L.draft.cur = L.draft.pts[L.draft.pts.length - 1]; repaint(); } else cancel();
         return true;
+      },
+      // Activa o quita el ancla de un círculo. Al activarla se pega a la punta de mecha (máximo o mínimo) más cercana bajo el círculo.
+      setAnchor(id, on) {
+        const sym = env.symbol(), d = store.get(sym, id);
+        if (!d || d.type !== 'circle') return false;
+        if (!on) { store.patch(sym, id, { anchor: false, anch: null }); repaint(); return true; }
+        let anch = d.anch || null;
+        if (!anch) {
+          const P = toPx(Object.assign({}, d, { anchor: false }));
+          if (P && P.length) {
+            const cx = P[0].x, cy = P[0].y;
+            const lg = env.logicalOfX(cx), bars = env.bars();
+            if (num(lg)) {
+              const i = Math.max(0, Math.min(bars.length - 1, Math.round(lg))), b = bars[i];
+              const vals = env.snapValues ? env.snapValues(i) : env.chartType() === 'candles' ? [b.high, b.low] : [b.close];
+              let best = null, bd = 1e9;
+              vals.forEach((v) => { const yy = env.yOfPrice(v); if (num(yy) && Math.abs(yy - cy) < bd) { bd = Math.abs(yy - cy); best = v; } });
+              if (best !== null) anch = { t: env.centerTime(i), p: best };
+            }
+          }
+        }
+        store.patch(sym, id, { anchor: true, anch });
+        repaint();
+        return !!anch;
+      },
+      // Radio actual (en píxeles) de un círculo y cambio del radio a mano (se recuerda para los siguientes círculos anclados).
+      radiusOf(id) { const d = store.get(env.symbol(), id), P = d && toPx(d), c = P && G.circleOf(P); return c ? c.r : null; },
+      setRadius(id, px) {
+        const sym = env.symbol(), d = store.get(sym, id);
+        if (!d || d.type !== 'circle' || !(px >= 2)) return;
+        const e = shiftPt(d.pts[0], px, 0, true);
+        store.patch(sym, id, { pts: [d.pts[0], e], rPx: px });
+        repaint();
       },
       editText(id) { const d = store.get(env.symbol(), id); if (d) openEditor(d, false); },
       clearRuler() { if (L.ruler) { L.ruler = null; repaint(); } },

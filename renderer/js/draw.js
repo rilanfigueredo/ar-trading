@@ -12,17 +12,21 @@
     poly: { label: 'Polilínea', pts: 0, cat: 'lines' },
     fib: { label: 'Retroceso de Fibonacci', pts: 2, cat: 'fib' },
     rect: { label: 'Rectángulo', pts: 2, cat: 'shapes', text: true },
+    // v0.26.20: círculo (centro + un punto del borde; opcionalmente anclado a un punto de una vela) y pincel (trazo a mano alzada)
+    circle: { label: 'Círculo', pts: 2, cat: 'shapes', text: true },
+    brush: { label: 'Pincel', pts: 0, cat: 'brush', freehand: true },
     text: { label: 'Texto', pts: 1, cat: 'text' },
     table: { label: 'Tabla', pts: 1, cat: 'text' },
     // Herramientas que no guardan nada: la regla mide y el zoom acerca una parte del gráfico
     ruler: { label: 'Regla', pts: 2, cat: 'ruler', ephemeral: true },
     zoom: { label: 'Acercar', pts: 2, cat: 'zoom', ephemeral: true },
   };
-  const TOOL_ORDER = ['trend', 'hline', 'hray', 'channel', 'poly', 'fib', 'rect', 'text', 'table', 'ruler', 'zoom'];
+  const TOOL_ORDER = ['trend', 'hline', 'hray', 'channel', 'poly', 'fib', 'rect', 'circle', 'brush', 'text', 'table', 'ruler', 'zoom'];
   const CATS = [
     { id: 'lines', label: 'Líneas', tools: ['trend', 'hline', 'hray', 'channel', 'poly'] },
     { id: 'fib', label: 'Fibonacci', tools: ['fib'] },
-    { id: 'shapes', label: 'Formas', tools: ['rect'] },
+    { id: 'shapes', label: 'Formas', tools: ['rect', 'circle'] },
+    { id: 'brush', label: 'Pincel', tools: ['brush'] },
     { id: 'text', label: 'Texto y tablas', tools: ['text', 'table'] },
   ];
   const DASHES = { solid: [], dashed: [8, 6], dotted: [2, 4] };
@@ -55,6 +59,10 @@
       case 'rect': return Object.assign(base, {
         width: 1, fill: true, fillOpacity: 15, extL: false, extR: false, measure: false, mColor: null, mSize: 12, mBold: true, mItalic: false, center: false, cColor: null, cWidth: 1, cDash: 'dashed',
       }, textOpts('center'), { tV: 'center' });
+      case 'circle': return Object.assign(base, {
+        fill: true, fillOpacity: 20, fColor: null, border: true, anchor: false, anchorLine: true, rPx: 16,
+      }, textOpts('center'), { tV: 'center', tSize: 14 });
+      case 'brush': return { color: '#f23645', width: 3, dash: 'solid', opacity: 100 };
       case 'text': return { color: '#2962ff', size: 14, bold: false, italic: false, text: '' };
       case 'table': return fixTable({
         color: '#ffffff', size: 13, bold: false, italic: false, align: 'left', bColor: '#787b86', bWidth: 1, pin: 'none', pinDx: 12,
@@ -66,7 +74,7 @@
   }
   // Claves de estilo que se recuerdan como "valor por defecto" para los siguientes dibujos del mismo tipo.
   const STYLE_KEYS = ['color', 'width', 'dash', 'fill', 'fillOpacity', 'fillColor', 'extL', 'extR', 'bg', 'bgOpacity', 'size', 'bold', 'italic', 'showPrice', 'trendLine', 'logScale', 'levels',
-    'fColor', 'c2Color', 'c2Width', 'c2Dash', 'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx', 'capA', 'capB', 'measure', 'mColor', 'mSize', 'mBold', 'mItalic'];
+    'fColor', 'c2Color', 'c2Width', 'c2Dash', 'tColor', 'tSize', 'tBold', 'tItalic', 'tH', 'tV', 'center', 'cColor', 'cWidth', 'cDash', 'align', 'bColor', 'bWidth', 'pin', 'pinDx', 'capA', 'capB', 'measure', 'mColor', 'mSize', 'mBold', 'mItalic', 'border', 'anchor', 'anchorLine', 'opacity', 'rPx'];
   // Una plantilla guarda el estilo y también el texto (y, en tablas, su forma y el contenido de las celdas).
   const TEMPLATE_KEYS = STYLE_KEYS.concat(['text', 'rows', 'cols', 'cells', 'colStyles']);
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -209,6 +217,37 @@
     const y1 = Math.min(P[0].y, P[1].y), y2 = Math.max(P[0].y, P[1].y);
     return { x1, y1, x2, y2 };
   }
+  // Círculo: P[0] = centro, P[1] = un punto del borde (en píxeles); el radio es la distancia entre ambos. P[2] (si existe) = ancla.
+  function circleOf(P) {
+    if (!P || P.length < 2) return null;
+    return { cx: P[0].x, cy: P[0].y, r: Math.hypot(P[1].x - P[0].x, P[1].y - P[0].y) };
+  }
+  // Tramo de la línea del ancla: va del borde del círculo (en dirección al ancla) hasta el ancla. null si el ancla está dentro del círculo.
+  function anchorSegment(P) {
+    const c = circleOf(P);
+    if (!c || !P[2]) return null;
+    const dx = P[2].x - c.cx, dy = P[2].y - c.cy, dist = Math.hypot(dx, dy);
+    if (dist <= c.r + 1) return null;
+    return [c.cx + (dx / dist) * c.r, c.cy + (dy / dist) * c.r, P[2].x, P[2].y];
+  }
+  // Pincel: simplifica el trazo (Ramer-Douglas-Peucker) sin perder la forma: eps = tolerancia en píxeles. pts = [{x, y, ...}]
+  function simplifyPath(pts, eps) {
+    const n = pts.length;
+    if (n < 3 || !(eps > 0)) return pts.slice();
+    const keep = new Uint8Array(n);
+    keep[0] = 1; keep[n - 1] = 1;
+    const stack = [[0, n - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      let md = -1, mi = -1;
+      for (let i = a + 1; i < b; i++) {
+        const dd = distPointSeg(pts[i].x, pts[i].y, pts[a].x, pts[a].y, pts[b].x, pts[b].y);
+        if (dd > md) { md = dd; mi = i; }
+      }
+      if (md > eps && mi > 0) { keep[mi] = 1; stack.push([a, mi], [mi, b]); }
+    }
+    return pts.filter((_, i) => keep[i]);
+  }
   // Límites horizontales de una caja de niveles (rectángulo, Fibonacci), con extensión a izquierda/derecha.
   function boxXRange(P, extL, extR, w) {
     let xl = Math.min(P[0].x, P[1].x), xr = Math.max(P[0].x, P[1].x);
@@ -266,6 +305,27 @@
         return Math.min(distPointSeg(x, y, xl, r.y1, xr, r.y1), distPointSeg(x, y, xr, r.y1, xr, r.y2),
           distPointSeg(x, y, xr, r.y2, xl, r.y2), distPointSeg(x, y, xl, r.y2, xl, r.y1));
       }
+      case 'circle': {
+        const c = circleOf(P);
+        if (!c) return 1e9;
+        const dc = Math.hypot(x - c.cx, y - c.cy);
+        let best = d.fill || d.text ? (dc <= c.r ? 0 : dc - c.r) : Math.abs(dc - c.r);
+        const as = d.anchor ? anchorSegment(P) : null;
+        if (as) best = Math.min(best, seg(as));
+        return best;
+      }
+      case 'brush': {
+        if (!P.length) return 1e9;
+        if (P.length === 1) return Math.hypot(x - P[0].x, y - P[0].y);
+        let best = 1e9;
+        for (let i = 1; i < P.length; i++) {
+          // rechazo rápido: si el tramo está lejos en horizontal o en vertical, no se mide
+          const lo = Math.min(P[i - 1].x, P[i].x) - 40, hi = Math.max(P[i - 1].x, P[i].x) + 40;
+          if (x < lo || x > hi) continue;
+          best = Math.min(best, distPointSeg(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y));
+        }
+        return best;
+      }
       case 'channel': {
         const cl = channelLines(d, P, w);
         if (!cl) return 1e9;
@@ -302,6 +362,15 @@
   // Dónde se dibujan los tiradores (círculos) de un dibujo seleccionado.
   function handlePoints(d, P, w) {
     if (d.type === 'rect') return P.length > 1 ? rectHandles(P) : P.slice();
+    if (d.type === 'circle') {
+      const c = circleOf(P);
+      if (!c) return P.slice();
+      // 0 derecha, 1 abajo, 2 izquierda, 3 arriba (cambian el radio) y 4 = el ancla (si el círculo está anclado)
+      const hs = [{ x: c.cx + c.r, y: c.cy }, { x: c.cx, y: c.cy + c.r }, { x: c.cx - c.r, y: c.cy }, { x: c.cx, y: c.cy - c.r }];
+      if (d.anchor && P[2]) hs.push({ x: P[2].x, y: P[2].y });
+      return hs;
+    }
+    if (d.type === 'brush') return [];
     if (d.type === 'channel' && P.length >= 4) { const c = channelLines(d, P, w); return c && c.h3 ? [P[0], P[1], P[2], c.h3] : P.slice(); }
     if (d.type === 'table' && d.pin && d.pin !== 'none') return [];
     if (d.type === 'hline' || d.type === 'hray') return P.length ? [{ x: Math.max(14, Math.min(w - 14, P[0].x)), y: P[0].y }] : [];
@@ -464,6 +533,8 @@
       // Gestos largos (arrastrar, ventana de propiedades): un solo paso de "deshacer" y un solo guardado. abort() lo revierte todo.
       begin(sym) { snap(sym); batch = sym; batchSnap = dump(sym); },
       move(sym, id, pts) { const d = find(sym, id); if (d) { d.pts = pts; emit('change'); } },
+      // Cambia campos sin crear un paso de "deshacer" (solo dentro de un gesto begin/end; por ejemplo, arrastrar el ancla de un círculo).
+      poke(sym, id, fields) { const d = find(sym, id); if (d) { Object.assign(d, clone(fields)); emit('change'); } },
       moveMany(sym, map) { Object.keys(map).forEach((id) => { const d = find(sym, id); if (d) d.pts = map[id]; }); emit('change'); },
       end() { if (batch) { batch = null; batchSnap = null; changed(); } },
       abort() {
@@ -523,7 +594,7 @@
         const copies = src.map((d) => {
           const c = clone(d);
           c.id = newId('d'); c.locked = false;
-          if (shift) c.pts = c.pts.map((p) => shift(p, c));
+          if (shift) { c.pts = c.pts.map((p) => shift(p, c)); if (c.anch) c.anch = shift(c.anch, c); }
           return c;
         });
         setList(sym, list(sym).concat(copies));
@@ -598,7 +669,7 @@
           c.id = newId('d'); c.locked = false; c.hidden = false;
           if (!c.shared) c.chart = chartId;
           if (!find(sym, d.id) || !c.folder || !store.folder(sym, c.folder)) delete c.folder;
-          if (shift) c.pts = c.pts.map((p) => shift(p, c));
+          if (shift) { c.pts = c.pts.map((p) => shift(p, c)); if (c.anch) c.anch = shift(c.anch, c); }
           return c;
         });
         setList(sym, list(sym).concat(copies));
@@ -821,7 +892,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, channelLines, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { circleOf, anchorSegment, simplifyPath, nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, channelLines, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;

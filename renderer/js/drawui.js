@@ -14,6 +14,9 @@
     poly: '<polyline points="3,18 9,8 15,15 21,5"/>',
     fib: '<line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/>',
     rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+    circle: '<circle cx="12" cy="12" r="8"/>',
+    brush: '<path d="M20 4l-9 9"/><path d="M9.5 12.5c-2 0-3.5 1.5-3.5 3.5 0 1.5-1 2.5-2.5 3 2.5 1.5 7 1 7-3 0-1-.5-2.5-1-3.5z"/>',
+    anchor: '<circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V21M6.5 12h11M5 15c0 3.5 3 6 7 6s7-2.5 7-6"/>',
     text: '<path d="M5 6h14M12 6v13"/>',
     ruler: '<rect x="2" y="9" width="20" height="7" rx="1"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/>',
     magnet: '<path d="M6 3v8a6 6 0 0012 0V3h-4v8a2 2 0 01-4 0V3z"/>',
@@ -42,7 +45,7 @@
     refresh: '<path d="M20 12a8 8 0 11-2.6-5.9"/><path d="M20 4v5h-5"/>',
   };
   const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
-  const SHORTCUT = { trend: 'Alt+T', hline: 'Alt+H', fib: 'Alt+F', rect: 'Alt+R' };
+  const SHORTCUT = { trend: 'Alt+T', hline: 'Alt+H', fib: 'Alt+F', rect: 'Alt+R', circle: 'Alt+C', brush: 'Alt+B' };
   const MAGNET = { off: 'Imán apagado', strong: 'Imán fuerte' };
 
   function el(tag, cls, text) {
@@ -55,7 +58,7 @@
 
   let X = null;      // enlace con app.js
   let store = null;
-  const lastTool = { lines: 'trend', fib: 'fib', shapes: 'rect', text: 'text' };
+  const lastTool = { lines: 'trend', fib: 'fib', shapes: 'rect', brush: 'brush', text: 'text' };
   let flyout = null, ctxMenu = null, tplMenu = null;
   const sel = { key: null, refs: null };
   let treeSig = '';
@@ -80,6 +83,14 @@
       if (prefs().hideAll) { prefs().hideAll = false; X.saveCfg(); }
     }
     store.setTool(type, tplId);
+  }
+  // Ancla del círculo: si está activa, los círculos nuevos se pegan a la punta de una vela (máximo o mínimo) y se separan con una línea.
+  const anchorOn = () => !!((prefs().styles || {}).circle || {}).anchor;
+  function setAnchorDefault(v) {
+    const pr = prefs();
+    if (!pr.styles) pr.styles = {};
+    pr.styles.circle = Object.assign({}, pr.styles.circle || {}, { anchor: !!v });
+    X.saveCfg();
   }
   function toggleFav(key) {
     const f = prefs().favs;
@@ -488,6 +499,19 @@
       };
       row(D.TYPES[t].label, SHORTCUT[t], null, '', t);
     });
+    if (cat.id === 'shapes') {
+      // Interruptor del ancla (para los círculos nuevos)
+      const b = el('div', 'ctx-item db-row db-anchor');
+      const ic = el('span', 'db-ic'); ic.innerHTML = svg('anchor', 18);
+      const lab = el('span', 'db-label', '');
+      const paint = () => { lab.textContent = (anchorOn() ? '✓ ' : '') + 'Círculo con ancla'; b.classList.toggle('on', anchorOn()); };
+      paint();
+      b.title = 'Al dibujar un círculo: primero un clic en la punta de una vela (máximo o mínimo) y luego otro clic donde quieres el círculo; los une una línea.';
+      b.append(ic, lab);
+      b.onclick = () => { setAnchorDefault(!anchorOn()); paint(); toast(anchorOn() ? 'Ancla activada: clic en la punta de una vela y luego clic donde quieres el círculo' : 'Ancla desactivada: el círculo se dibuja normal'); };
+      m.appendChild(el('div', 'ctx-sep'));
+      m.appendChild(b);
+    }
     placeMenu(m, anchor, 'right');
     flyout = m;
   }
@@ -845,7 +869,7 @@
       r.color = el('input'); r.color.type = 'color';
       r.color.oninput = () => store.patchMany(sym, selIds(), { color: r.color.value });
       r.width = el('select');
-      [1, 2, 3, 4, 5].forEach((n) => { const o = el('option', '', n + ' px'); o.value = String(n); r.width.appendChild(o); });
+      [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20].forEach((n) => { const o = el('option', '', n + ' px'); o.value = String(n); r.width.appendChild(o); });
       r.width.onchange = () => store.patchMany(sym, selIds(), { width: Number(r.width.value) });
       r.lock = iconBtn('lock', 'Bloquear / desbloquear', () => { const all = selIds().every((id) => (store.get(sym, id) || {}).locked); store.patchMany(sym, selIds(), { locked: !all }); });
       r.share = iconBtn('share', 'Mostrar este dibujo también en los demás gráficos del mismo activo', () => toggleShare(sym, selIds()));
@@ -867,7 +891,19 @@
       r.titalic = el('button', 'db-btn small sb-fmt sb-italic', 'K'); r.titalic.title = 'Cursiva';
       r.titalic.onclick = () => patchText('italic', !textVal(store.get(sym, selIds()[0]), 'italic'));
       r.tgroup = el('span', 'sb-text'); r.tgroup.append(r.tsize, r.tbold, r.titalic);
-      bar.append(r.color, r.width, r.lock, r.share, r.eye, dup, grp, r.tgroup);
+      // círculo: color y transparencia del relleno (independientes del contorno) y ancla
+      r.fillc = el('input'); r.fillc.type = 'color'; r.fillc.title = 'Color del relleno';
+      r.fillc.oninput = () => store.patchMany(sym, selIds(), { fColor: r.fillc.value, fill: true });
+      r.fillop = el('input', 'sb-op'); r.fillop.type = 'range'; r.fillop.min = 0; r.fillop.max = 100; r.fillop.title = 'Transparencia del relleno (izquierda: más transparente · derecha: más denso)';
+      r.fillop.oninput = () => store.patchMany(sym, selIds(), { fillOpacity: Number(r.fillop.value), fill: true });
+      r.fillop.onkeydown = (k) => k.stopPropagation();
+      r.fgroup = el('span', 'sb-fill'); r.fgroup.append(r.fillc, r.fillop);
+      r.anchor = iconBtn('anchor', 'Ancla: pegar el círculo a la punta de una vela (máximo o mínimo) y unirlos con una línea', () => {
+        const layer = layerNow(); if (!layer) return;
+        const all = selIds().every((id) => (store.get(sym, id) || {}).anchor);
+        selIds().forEach((id) => layer.setAnchor(id, !all));
+      });
+      bar.append(r.color, r.fgroup, r.anchor, r.width, r.lock, r.share, r.eye, dup, grp, r.tgroup);
       if (!many) bar.appendChild(r.cfg);
       bar.appendChild(r.del);
       sel.refs = r;
@@ -876,9 +912,18 @@
     const r = sel.refs;
     const ds = ids.map((id) => store.get(sym, id));
     if (document.activeElement !== r.color) r.color.value = hexOk(ds[0].color);
-    r.width.value = String(Math.max(1, Math.min(5, Math.round(ds[0].width || 1))));
+    r.width.value = String(Math.max(1, Math.min(20, Math.round(ds[0].width || 1))));
+    if (r.width.value === '') r.width.value = String([1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20].reduce((b, n) => (Math.abs(n - (ds[0].width || 1)) < Math.abs(b - (ds[0].width || 1)) ? n : b), 1));
     const onlyText = ds.every((d) => d.type === 'text' || d.type === 'table');
     r.width.classList.toggle('hidden', onlyText);
+    const allCircle = ds.every((d) => d.type === 'circle');
+    r.fgroup.classList.toggle('hidden', !allCircle);
+    r.anchor.classList.toggle('hidden', !allCircle);
+    if (allCircle) {
+      if (document.activeElement !== r.fillc) r.fillc.value = hexOk(ds[0].fColor || ds[0].color);
+      if (document.activeElement !== r.fillop) r.fillop.value = String(ds[0].fill ? (ds[0].fillOpacity == null ? 20 : ds[0].fillOpacity) : 0);
+      r.anchor.classList.toggle('active', ds.every((d) => d.anchor));
+    }
     const canText = ds.every((d) => textKey(d, 'size') !== null);
     r.tgroup.classList.toggle('hidden', !canText);
     if (canText) {
@@ -1219,7 +1264,7 @@
   const CAP_OPTS = [['none', 'Ninguna'], ['arrow', 'Flecha'], ['circle', 'Círculo'], ['bar', 'Barra vertical']];
   const DASH_OPTS = [['solid', 'Continua'], ['dashed', 'Guiones'], ['dotted', 'Puntos']];
       // Texto sobre la línea / niveles: mismos controles en tendencia, horizontal, rayo horizontal y Fibonacci.
-      const textBlock = (d, withContent) => {
+      const textBlock = (d, withContent, noPos) => {
         if (!withContent) sub('Texto de los niveles');
         if (withContent) {
           const ti = el('input'); ti.type = 'text'; ti.value = d.text || ''; ti.style.width = '230px'; ti.placeholder = 'Escribe un texto (opcional)';
@@ -1238,6 +1283,7 @@
         const posOpts = t === 'rect'
           ? [['center', 'Interior'], ['above', 'Superior (por encima de la línea de arriba)'], ['below', 'Inferior (por debajo de la línea de abajo)']]
           : [['above', 'Por encima de la línea'], ['center', 'En el centro (sobre la línea)'], ['below', 'Por debajo de la línea']];
+        if (noPos) return;
         field('Posición', selIn(posOpts, d.tV || 'above', (v) => patch({ tV: v })));
         field('Lugar del texto', selIn([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']], d.tH || 'left', (v) => patch({ tH: v })));
       };
@@ -1401,6 +1447,33 @@
           field('Cursiva', checkIn(d.italic, (v) => patch({ italic: v })));
         } else if (t === 'table') {
           tableBlock(d);
+        } else if (t === 'circle') {
+          sec('style');
+          sub('Contorno');
+          const fB = field('Mostrar contorno', checkIn(d.border !== false, (v) => patch({ border: v })));
+          gate(fB, [field('Color del contorno', colorIn(d.color, (v) => patch({ color: v }))), field('Grosor', numIn(d.width || 1, 1, 12, 1, (v) => patch({ width: v }))), field('Estilo de línea', selIn(DASH_OPTS, d.dash || 'solid', (v) => patch({ dash: v })))]);
+          sub('Relleno (independiente del contorno)');
+          const fF = field('Relleno', checkIn(d.fill, (v) => patch({ fill: v })));
+          const fw = el('span', 'cwrap');
+          fw.appendChild(colorIn(d.fColor || d.color, (v) => patch({ fColor: v })));
+          const fs = el('button', 'btn secondary small', 'Como el contorno'); fs.onclick = () => { patch({ fColor: null }); fill(); };
+          fw.appendChild(fs);
+          gate(fF, [field('Color del relleno', fw), field('Transparencia (0 = invisible · 100 = sólido)', rangeIn(d.fillOpacity == null ? 20 : d.fillOpacity, (v) => patch({ fillOpacity: v })))]);
+          sub('Ancla');
+          const layer = layerNow();
+          const fA = field('Anclar a la punta de una vela (máximo o mínimo)', checkIn(d.anchor, (v) => { if (layer) layer.setAnchor(d.id, v); else patch({ anchor: v }); fill(); }));
+          void fA;
+          if (d.anchor) {
+            field('Mostrar la línea entre la vela y el círculo', checkIn(d.anchorLine !== false, (v) => patch({ anchorLine: v })));
+            body.appendChild(el('p', 'hint small', 'Con el círculo seleccionado, arrastra el punto de la vela para cambiar el ancla, o arrastra el círculo para alejarlo o acercarlo: la línea lo sigue.'));
+          }
+          const r0 = layer && layer.radiusOf ? layer.radiusOf(d.id) : null;
+          if (r0) field('Radio (px)', numIn(Math.round(r0), 3, 400, 1, (v) => { if (layer) layer.setRadius(d.id, v); }));
+        } else if (t === 'brush') {
+          sec('style');
+          field('Color', colorIn(d.color, (v) => patch({ color: v })));
+          field('Grosor', numIn(d.width || 3, 1, 40, 1, (v) => patch({ width: v })));
+          field('Opacidad del trazo', rangeIn(d.opacity == null ? 100 : d.opacity, (v) => patch({ opacity: v })));
         } else {
           sec('style');
           if (t === 'channel') sub('Línea 1 (la base)');
@@ -1493,6 +1566,7 @@
           }
         }
         if (t === 'trend' || t === 'hline' || t === 'hray' || t === 'rect') { sec('text'); textBlock(d, true); }
+        if (t === 'circle') { sec('text'); textBlock(d, true, true); }
         if (t === 'rect') {
           sec('text');
           sub('Medidas (escala logarítmica)');
@@ -1639,7 +1713,7 @@
       }
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
-      const map = { t: 'trend', h: 'hline', f: 'fib', r: 'rect' };
+      const map = { t: 'trend', h: 'hline', f: 'fib', r: 'rect', c: 'circle', b: 'brush' };
       const type = map[k.toLowerCase()];
       if (type) { e.preventDefault(); selectTool(type); }
     }

@@ -1,3 +1,12 @@
+AR_TRADING - VERSION 0.26.20
+========================
+
+HERRAMIENTAS NUEVAS: CIRCULO (CON ANCLA) Y PINCEL
+- CIRCULO: esta en la barra de dibujo, en "Formas" (junto al rectangulo). Haz clic y arrastra con el mouse sostenido: el circulo toma el tamano que quieras. Tiene texto en el centro (selecciona el circulo y pulsa Enter), color de contorno y color de relleno INDEPENDIENTES, y transparencia del relleno (barra rapida: deslizador; mas a la izquierda = mas transparente). En sus propiedades (doble clic) tambien puedes quitar el contorno, cambiar el grosor, el estilo de linea y el radio.
+- ANCLA: en el menu de "Formas" hay una opcion "Circulo con ancla". Con ella activada: 1) haz clic en la punta de una vela (se pega sola al maximo o minimo de la mecha), 2) haz otro clic donde quieres el circulo. Queda una linea entre la vela y el circulo. Despues puedes arrastrar el circulo para alejarlo o acercarlo (la linea lo sigue; el punto de la vela no se mueve) o arrastrar el punto de la vela para cambiar el ancla. Tambien se activa en un circulo ya dibujado con el boton del ancla de la barra rapida.
+- PINCEL: nuevo boton "Pincel" en la barra de dibujo (atajo Alt+B). Dibuja a mano alzada con el mouse sostenido. Es mas fiel que el de TradingView: captura todos los movimientos del mouse, no se pega a las velas y respeta las esquinas. Ancho de 1 a 20 px, color y opacidad (barra rapida o doble clic). El pincel sigue activo para hacer varios trazos seguidos (por ejemplo, escribir letras); pulsa Esc para salir. Un clic suelto deja un punto.
+- Los circulos y trazos se guardan con el grafico, se pueden mover, duplicar, ocultar, bloquear y borrar como los demas dibujos.
+
 AR_TRADING - VERSION 0.26.19
 ========================
 

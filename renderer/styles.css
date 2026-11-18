@@ -297,6 +297,13 @@ input[type=color]:disabled { cursor: not-allowed; }
 #selBar.horiz .sb-text { flex-direction: row; }
 #selBar:not(.horiz) .sb-text { flex-direction: column; }
 #selBar .sb-size { width: 54px; font-size: 14px; padding: 5px 4px; }
+#selBar .sb-fill { display: inline-flex; align-items: center; gap: 5px; }
+#selBar.horiz .sb-fill { flex-direction: row; }
+#selBar:not(.horiz) .sb-fill { flex-direction: column; }
+#selBar .sb-op { width: 70px; }
+#selBar:not(.horiz) .sb-op { width: 40px; }
+.db-anchor.on { color: #2962ff; }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 #selBar .sb-fmt { font-size: 15px; }
 #selBar .sb-bold { font-weight: 800; }
 #selBar .sb-italic { font-style: italic; font-family: serif; }

@@ -367,3 +367,58 @@ console.log('draw.test.js v0.9 OK');
   assert.strictEqual(names(), 'BA');
   console.log('draw.test.js v0.26.14 plantillas favoritas OK');
 }
+
+// ---------- v0.26.20: círculo, ancla y pincel ----------
+{
+  const circ = { type: 'circle', fill: false, text: '', anchor: false };
+  const P = [{ x: 100, y: 100 }, { x: 130, y: 140 }];          // radio 50
+  close(G.circleOf(P).r, 50);
+  close(G.hitDistance(circ, P, 150, 100, 800, {}), 0);          // sobre el borde
+  close(G.hitDistance(circ, P, 100, 100, 800, {}), 50);         // centro sin relleno: lejos del borde
+  close(G.hitDistance(Object.assign({}, circ, { fill: true }), P, 100, 100, 800, {}), 0);   // con relleno, dentro cuenta
+  // ancla: la línea va del borde del círculo hasta el punto de la vela
+  const PA = P.concat([{ x: 100, y: 300 }]);
+  const as = G.anchorSegment(PA);
+  close(as[0], 100); close(as[1], 150); close(as[2], 100); close(as[3], 300);
+  eq(G.anchorSegment(P.concat([{ x: 110, y: 110 }])), null);   // ancla dentro del círculo: sin línea
+  close(G.hitDistance(Object.assign({}, circ, { anchor: true }), PA, 104, 220, 800, {}), 4);   // clic cerca de la línea del ancla
+  eq(G.hitDistance(circ, PA, 104, 220, 800, {}) > 30, true);    // sin ancla activa la línea no cuenta
+  // tiradores: 4 del radio (+ el ancla)
+  eq(G.handlePoints(circ, P, 800).length, 4);
+  eq(G.handlePoints(Object.assign({}, circ, { anchor: true }), PA, 800).length, 5);
+  eq(G.handlePoints({ type: 'brush' }, [{ x: 1, y: 1 }], 800).length, 0);
+  eq(D.TYPES.circle.pts, 2); eq(D.TYPES.brush.freehand, true);
+  eq(D.defaults('circle').fillOpacity, 20); eq(D.defaults('circle').anchor, false); eq(D.defaults('circle').border, true);
+}
+// pincel: el simplificador quita solo lo que cae sobre rectas y conserva las esquinas
+{
+  const line = []; for (let i = 0; i <= 100; i++) line.push({ x: i, y: i * 0.5 });
+  eq(G.simplifyPath(line, 0.25).length, 2);
+  const L = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 20, y: 20 }];
+  const s = G.simplifyPath(L, 0.25);
+  eq(s.length, 3); eq(s[1].x, 20); eq(s[1].y, 0);
+  eq(G.simplifyPath(L, 0).length, 5);                            // tolerancia 0: no toca nada
+  // trazo en curva: se conserva a menos de 0,25 px del original
+  const arc = []; for (let i = 0; i <= 180; i++) arc.push({ x: 100 * Math.cos(i * Math.PI / 180), y: 100 * Math.sin(i * Math.PI / 180) });
+  const sa = G.simplifyPath(arc, 0.25);
+  eq(sa.length < arc.length, true);
+  arc.forEach((p) => { let b = 1e9; for (let i = 1; i < sa.length; i++) b = Math.min(b, G.distPointSeg(p.x, p.y, sa[i - 1].x, sa[i - 1].y, sa[i].x, sa[i].y)); assert.ok(b <= 0.2501, 'desvío ' + b); });
+  // toque sobre el trazo
+  const bd = G.hitDistance({ type: 'brush' }, [{ x: 0, y: 0 }, { x: 100, y: 0 }], 50, 4, 800, {});
+  close(bd, 4);
+  eq(G.hitDistance({ type: 'brush' }, [{ x: 0, y: 0 }, { x: 100, y: 0 }], 500, 0, 800, {}) > 100, true);
+}
+// almacén: duplicar un círculo anclado mueve también el ancla
+{
+  const root = {}, prefs = { styles: {}, templates: {} };
+  const st = D.createStore(() => root, () => prefs, () => {});
+  const c = st.add('X', Object.assign(D.defaults('circle'), { type: 'circle', pts: [{ t: 10, p: 5 }, { t: 12, p: 5 }], anchor: true, anch: { t: 10, p: 9 } }));
+  const dup = st.duplicate('X', c.id, (pt) => ({ t: pt.t + 1, p: pt.p - 1 }));
+  eq(dup.anch.t, 11); eq(dup.anch.p, 8); eq(dup.pts[0].t, 11);
+  eq(c.anch.t, 10);                                              // el original no cambia
+  st.begin('X'); st.poke('X', c.id, { anch: { t: 3, p: 3 } }); st.end();
+  eq(st.get('X', c.id).anch.t, 3);
+  st.patch('X', c.id, { anchor: false });
+  eq(prefs.styles.circle.anchor, false);                         // el ancla se recuerda como valor por defecto del círculo
+}
+console.log('draw circulo/pincel OK');
