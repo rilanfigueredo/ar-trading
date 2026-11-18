@@ -422,3 +422,33 @@ console.log('draw.test.js v0.9 OK');
   eq(prefs.styles.circle.anchor, false);                         // el ancla se recuerda como valor por defecto del círculo
 }
 console.log('draw circulo/pincel OK');
+
+// ---------- v0.26.21: unir y separar trazos de pincel ----------
+{
+  const root = {}, prefs = { styles: {}, templates: {} };
+  const st = D.createStore(() => root, () => prefs, () => {});
+  const mk = (t0, color) => st.add('X', Object.assign(D.defaults('brush'), { type: 'brush', color, pts: [{ t: t0, p: 1 }, { t: t0 + 1, p: 2 }, { t: t0 + 2, p: 1 }] }));
+  const a = mk(10, '#111111'), b = mk(20, '#222222'), c = mk(30, '#333333');
+  const m = st.mergeBrushes('X', [a.id, b.id, c.id]);
+  eq(st.list('X').length, 1); eq(m.pts.length, 9); eq(m.breaks.join(','), '3,6'); eq(m.color, '#111111');
+  // el trazo unido se dibuja y se toca por partes: el hueco entre el final de un trazo y el inicio del siguiente NO es parte del trazo
+  const P = m.pts.map((p, i) => ({ x: p.t * 10, y: i < 3 ? 0 : i < 6 ? 100 : 200 }));
+  eq(G.brushRuns(P, m.breaks).map((r) => r.length).join(','), '3,3,3');
+  eq(G.hitDistance(m, P, 110, 50, 800, {}) > 40, true);        // entre el 1.º y el 2.º trazo: lejos
+  close(G.hitDistance(m, P, 210, 100, 800, {}), 0);            // sobre el 2.º trazo
+  // separar: vuelven 3 trazos
+  const parts = st.splitBrush('X', m.id);
+  eq(parts.length, 3); eq(st.list('X').length, 3); eq(parts[1].pts.length, 3); eq(parts[1].breaks, undefined);
+  // no se unen con uno solo, bloqueados ni de otro tipo
+  eq(st.mergeBrushes('X', [parts[0].id]), null);
+  st.patch('X', parts[0].id, { locked: true });
+  eq(st.mergeBrushes('X', [parts[0].id, parts[1].id]), null);
+  // unir de nuevo conserva los saltos de uniones anteriores
+  const m2 = st.mergeBrushes('X', [parts[1].id, parts[2].id]);
+  const m3 = st.mergeBrushes('X', [m2.id].concat([]));
+  eq(m3, null);
+  st.patch('X', parts[0].id, { locked: false });
+  const m4 = st.mergeBrushes('X', [parts[0].id, m2.id]);
+  eq(m4.pts.length, 9); eq(m4.breaks.join(','), '3,6');
+}
+console.log('draw unir pincel OK');

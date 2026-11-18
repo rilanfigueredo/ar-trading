@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.21
+========================
+
+PINCEL: UNIR VARIOS TRAZOS EN UNO SOLO
+- Selecciona varios trazos del pincel (mantén Shift y arrastra un recuadro sobre ellos, o Shift + clic en cada uno). En la barra rapida aparece el boton "Unir los trazos" (tambien en el menu de clic derecho). Quedan como un solo dibujo: lo mueves, copias, borras o cambias de color todo junto. Los saltos entre trazos se respetan: no se dibujan lineas entre el final de uno y el inicio del siguiente.
+- El trazo unido toma el color, grosor y opacidad del primer trazo.
+- Para volver atras: selecciona el trazo unido y pulsa "Separar este trazo" (o clic derecho > Separar). Tambien funciona deshacer (Ctrl+Z).
+
 AR_TRADING - VERSION 0.26.20
 ========================
 

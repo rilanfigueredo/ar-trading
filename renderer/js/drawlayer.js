@@ -261,23 +261,23 @@
       ctx.save();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.globalAlpha = (d.opacity == null ? 100 : d.opacity) / 100;
-      const n = P.length;
-      const same = P.every((p) => p.x === P[0].x && p.y === P[0].y);
-      if (same) { ctx.fillStyle = themed(d.color); ctx.beginPath(); ctx.arc(P[0].x, P[0].y, Math.max(1, (d.width || 3) / 2), 0, Math.PI * 2); ctx.fill(); }
-      else {
-        ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y);
-        if (n < 3) ctx.lineTo(P[n - 1].x, P[n - 1].y);
+      G.brushRuns(P, d.breaks).forEach((R) => {            // un trazo unido se pinta por partes: el pincel "se levanta" entre ellas
+        const n = R.length;
+        const same = R.every((p) => p.x === R[0].x && p.y === R[0].y);
+        if (same) { ctx.fillStyle = themed(d.color); ctx.beginPath(); ctx.arc(R[0].x, R[0].y, Math.max(1, (d.width || 3) / 2), 0, Math.PI * 2); ctx.fill(); return; }
+        ctx.beginPath(); ctx.moveTo(R[0].x, R[0].y);
+        if (n < 3) ctx.lineTo(R[n - 1].x, R[n - 1].y);
         else {
           // Se suaviza solo donde el trazo es denso (tramos cortos); un giro brusco entre tramos largos queda como esquina, igual que se dibujó.
           for (let i = 1; i < n - 1; i++) {
-            const a = Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y), b = Math.hypot(P[i + 1].x - P[i].x, P[i + 1].y - P[i].y);
-            if (a > 16 || b > 16) ctx.lineTo(P[i].x, P[i].y);
-            else ctx.quadraticCurveTo(P[i].x, P[i].y, (P[i].x + P[i + 1].x) / 2, (P[i].y + P[i + 1].y) / 2);
+            const a = Math.hypot(R[i].x - R[i - 1].x, R[i].y - R[i - 1].y), b = Math.hypot(R[i + 1].x - R[i].x, R[i + 1].y - R[i].y);
+            if (a > 16 || b > 16) ctx.lineTo(R[i].x, R[i].y);
+            else ctx.quadraticCurveTo(R[i].x, R[i].y, (R[i].x + R[i + 1].x) / 2, (R[i].y + R[i + 1].y) / 2);
           }
-          ctx.lineTo(P[n - 1].x, P[n - 1].y);
+          ctx.lineTo(R[n - 1].x, R[n - 1].y);
         }
         ctx.stroke();
-      }
+      });
       ctx.restore();
       if (o && o.selected && !o.draft) {            // trazo seleccionado: recuadro tenue para saber que está elegido
         let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;

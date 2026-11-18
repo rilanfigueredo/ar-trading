@@ -16,6 +16,8 @@
     rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
     circle: '<circle cx="12" cy="12" r="8"/>',
     brush: '<path d="M20 4l-9 9"/><path d="M9.5 12.5c-2 0-3.5 1.5-3.5 3.5 0 1.5-1 2.5-2.5 3 2.5 1.5 7 1 7-3 0-1-.5-2.5-1-3.5z"/>',
+    join: '<path d="M3 6c5 0 5 12 10 12"/><path d="M3 18c5 0 5-12 10-12"/><path d="M13 12h8"/>',
+    split: '<path d="M21 6c-5 0-5 12-10 12"/><path d="M21 18c-5 0-5-12-10-12"/><path d="M3 12h6"/>',
     anchor: '<circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V21M6.5 12h11M5 15c0 3.5 3 6 7 6s7-2.5 7-6"/>',
     text: '<path d="M5 6h14M12 6v13"/>',
     ruler: '<rect x="2" y="9" width="20" height="7" rx="1"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/>',
@@ -573,6 +575,11 @@
       if (Object.keys(segs).some((k) => segs[k] && segs[k].hidden)) item('Restaurar los tramos eliminados', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.hidden; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
       if (Object.keys(segs).some((k) => segs[k] && segs[k].color)) item('Quitar los colores de los tramos', () => { const cur = store.get(sym, id); if (!cur) return; const s2 = {}; Object.keys(cur.segs || {}).forEach((k) => { const o = Object.assign({}, cur.segs[k]); delete o.color; if (Object.keys(o).length) s2[k] = o; }); store.patch(sym, id, { segs: s2 }); });
     }
+    // Pincel: unir varios trazos en uno solo y separarlos
+    if (many && ids.length > 1 && ids.every((i) => (store.get(sym, i) || {}).type === 'brush')) {
+      item(`Unir los ${ids.length} trazos en uno solo`, () => store.mergeBrushes(sym, ids));
+    }
+    if (!many && d.type === 'brush' && d.breaks && d.breaks.length) item(`Separar en los ${d.breaks.length + 1} trazos originales`, () => store.splitBrush(sym, id));
     // Polilíneas: fusionar varias seleccionadas y dividir
     if (many && ids.length > 1 && ids.every((i) => (store.get(sym, i) || {}).type === 'poly')) {
       item(`Fusionar las ${ids.length} polilíneas en una sola`, () => store.mergePolys(sym, ids));
@@ -903,7 +910,10 @@
         const all = selIds().every((id) => (store.get(sym, id) || {}).anchor);
         selIds().forEach((id) => layer.setAnchor(id, !all));
       });
-      bar.append(r.color, r.fgroup, r.anchor, r.width, r.lock, r.share, r.eye, dup, grp, r.tgroup);
+      // pincel: unir varios trazos en uno solo / separarlos
+      r.join = iconBtn('join', 'Unir los trazos seleccionados en un solo trazo', () => store.mergeBrushes(sym, selIds()));
+      r.split = iconBtn('split', 'Separar este trazo en los trazos originales', () => { const ids = selIds(); if (ids.length === 1) store.splitBrush(sym, ids[0]); });
+      bar.append(r.color, r.fgroup, r.anchor, r.join, r.split, r.width, r.lock, r.share, r.eye, dup, grp, r.tgroup);
       if (!many) bar.appendChild(r.cfg);
       bar.appendChild(r.del);
       sel.refs = r;
@@ -919,6 +929,9 @@
     const allCircle = ds.every((d) => d.type === 'circle');
     r.fgroup.classList.toggle('hidden', !allCircle);
     r.anchor.classList.toggle('hidden', !allCircle);
+    const allBrush = ds.every((d) => d.type === 'brush');
+    r.join.classList.toggle('hidden', !(allBrush && ds.length > 1 && ds.every((d) => !d.locked)));
+    r.split.classList.toggle('hidden', !(allBrush && ds.length === 1 && ds[0].breaks && ds[0].breaks.length && !ds[0].locked));
     if (allCircle) {
       if (document.activeElement !== r.fillc) r.fillc.value = hexOk(ds[0].fColor || ds[0].color);
       if (document.activeElement !== r.fillop) r.fillop.value = String(ds[0].fill ? (ds[0].fillOpacity == null ? 20 : ds[0].fillOpacity) : 0);

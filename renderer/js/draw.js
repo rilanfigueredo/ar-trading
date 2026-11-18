@@ -230,6 +230,14 @@
     if (dist <= c.r + 1) return null;
     return [c.cx + (dx / dist) * c.r, c.cy + (dy / dist) * c.r, P[2].x, P[2].y];
   }
+  // Pincel unido: `breaks` = posiciones donde empieza un trazo nuevo (el pincel se levantó). Devuelve los trazos sueltos como listas de puntos.
+  function brushRuns(P, breaks) {
+    if (!breaks || !breaks.length) return [P];
+    const out = []; let a = 0;
+    breaks.slice().sort((x, y) => x - y).forEach((b) => { if (b > a && b < P.length) { out.push(P.slice(a, b)); a = b; } });
+    out.push(P.slice(a));
+    return out;
+  }
   // Pincel: simplifica el trazo (Ramer-Douglas-Peucker) sin perder la forma: eps = tolerancia en píxeles. pts = [{x, y, ...}]
   function simplifyPath(pts, eps) {
     const n = pts.length;
@@ -316,14 +324,16 @@
       }
       case 'brush': {
         if (!P.length) return 1e9;
-        if (P.length === 1) return Math.hypot(x - P[0].x, y - P[0].y);
         let best = 1e9;
-        for (let i = 1; i < P.length; i++) {
-          // rechazo rápido: si el tramo está lejos en horizontal o en vertical, no se mide
-          const lo = Math.min(P[i - 1].x, P[i].x) - 40, hi = Math.max(P[i - 1].x, P[i].x) + 40;
-          if (x < lo || x > hi) continue;
-          best = Math.min(best, distPointSeg(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y));
-        }
+        brushRuns(P, d.breaks).forEach((R) => {
+          if (R.length === 1) { best = Math.min(best, Math.hypot(x - R[0].x, y - R[0].y)); return; }
+          for (let i = 1; i < R.length; i++) {
+            // rechazo rápido: si el tramo está lejos en horizontal, no se mide
+            const lo = Math.min(R[i - 1].x, R[i].x) - 40, hi = Math.max(R[i - 1].x, R[i].x) + 40;
+            if (x < lo || x > hi) continue;
+            best = Math.min(best, distPointSeg(x, y, R[i - 1].x, R[i - 1].y, R[i].x, R[i].y));
+          }
+        });
         return best;
       }
       case 'channel': {
@@ -629,6 +639,46 @@
         changed(); emit('select');
         return merged;
       },
+      // Pincel: une varios trazos en uno solo (se conservan los saltos entre ellos) o los separa de nuevo. El estilo es el del primer trazo.
+      mergeBrushes(sym, ids) {
+        const pane = (d) => d.pane || 'main';
+        const src = list(sym).filter((d) => ids.indexOf(d.id) >= 0 && d.type === 'brush' && d.pts && d.pts.length > 1 && !d.locked);
+        if (src.length < 2 || src.some((d) => pane(d) !== pane(src[0]))) return null;
+        snap(sym);
+        const merged = clone(src[0]);
+        merged.id = newId('d'); merged.pts = []; merged.breaks = [];
+        src.forEach((d, k) => {
+          const off = merged.pts.length;
+          if (k > 0) merged.breaks.push(off);
+          (d.breaks || []).forEach((b) => merged.breaks.push(b + off));
+          d.pts.forEach((p) => merged.pts.push(clone(p)));
+        });
+        const first = list(sym).findIndex((d) => d.id === src[0].id);
+        const rest = list(sym).filter((d) => !src.some((q) => q.id === d.id));
+        rest.splice(Math.min(first, rest.length), 0, merged);
+        setList(sym, rest);
+        st.sel = { sym, id: merged.id }; st.multi = [merged.id];
+        changed(); emit('select');
+        return merged;
+      },
+      splitBrush(sym, id) {
+        const d = find(sym, id);
+        if (!d || d.type !== 'brush' || d.locked || !d.breaks || !d.breaks.length) return [];
+        snap(sym);
+        const cuts = [0].concat(d.breaks.filter((b) => b > 0 && b < d.pts.length).sort((x, y) => x - y), [d.pts.length]);
+        const pieces = [];
+        for (let i = 0; i + 1 < cuts.length; i++) {
+          const c = clone(d); c.id = newId('d'); delete c.breaks; c.pts = d.pts.slice(cuts[i], cuts[i + 1]).map(clone);
+          if (c.pts.length) pieces.push(c);
+        }
+        const at = list(sym).findIndex((q) => q.id === id);
+        const rest = list(sym).filter((q) => q.id !== id);
+        rest.splice(Math.min(at, rest.length), 0, ...pieces);
+        setList(sym, rest);
+        st.sel = { sym, id: pieces[pieces.length - 1].id }; st.multi = pieces.map((p) => p.id);
+        changed(); emit('select');
+        return pieces;
+      },
       // Divide una polilínea: sin 'seg' vuelve a las piezas originales (si fue fusionada); con 'seg' la corta en ese tramo.
       splitPoly(sym, id, seg) {
         const d = find(sym, id);
@@ -892,7 +942,7 @@
 
   const api = {
     TYPES, TOOL_ORDER, CATS, DASHES, STYLE_KEYS, TEMPLATE_KEYS, defaults, fibLevels, createStore, fixTable, cellStyle, tableDims,
-    geom: { circleOf, anchorSegment, simplifyPath, nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, channelLines, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
+    geom: { brushRuns, circleOf, anchorSegment, simplifyPath, nearestSegment, distPointSeg, lineSegment, raySegment, channelOffset, channelLines, fibPrice, humanDur, rectOf, logMeasure, boxXRange, textBox, hitDistance, handlePoints, rectHandles, resizeRectData, inRect },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TVDraw = api;
