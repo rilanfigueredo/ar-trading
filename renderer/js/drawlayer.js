@@ -63,6 +63,12 @@
         if (!num(x) || !num(y)) return null;
         out.push({ x, y });
       }
+      // círculo: el radio es FIJO en píxeles (`rad`): no cambia con el zoom del gráfico; solo el centro sigue al precio y al tiempo.
+      // Los círculos de la 0.26.20 no tenían `rad`: se fija la primera vez con el tamaño que tienen en pantalla.
+      if (d.type === 'circle' && out.length > 1) {
+        if (!(d.rad > 0)) d.rad = Math.max(3, Math.hypot(out[1].x - out[0].x, out[1].y - out[0].y));
+        out[1] = { x: out[0].x + d.rad, y: out[0].y };
+      }
       // círculo anclado: el 3.er punto en píxeles es el ancla (el punto de la vela)
       if (d.type === 'circle' && d.anchor && d.anch && out.length > 1) {
         const ax = env.xOfTime(d.anch.t), ay = env.yOfPrice(d.anch.p);
@@ -520,7 +526,7 @@
       const pts = dr.pts.concat(dr.cur ? [dr.cur] : []);
       if (dr.type === 'circle' && dr.anchor && pts.length >= 1) {
         const c = pts[pts.length - 1];
-        return Object.assign({}, dr, { anch: pts[0], pts: [c, shiftPt(c, dr.rPx || ANCHOR_R, 0, true)] });
+        return Object.assign({}, dr, { anch: pts[0], pts: [c, shiftPt(c, dr.rPx || ANCHOR_R, 0, true)], rad: dr.rPx || ANCHOR_R });
       }
       return Object.assign({}, dr, { pts });
     }
@@ -715,7 +721,9 @@
         if (obj.pts.length < 2) { repaint(); return; }
         const a = obj.pts[0], c = obj.pts[1];
         obj.anch = a; obj.pts = [c, shiftPt(c, obj.rPx || ANCHOR_R, 0, true)];
+        obj.rad = obj.rPx || ANCHOR_R;
       }
+      if (obj.type === 'circle' && !(obj.rad > 0)) toPx(obj);          // fija el radio (px) con lo que se arrastró
       commit(obj);
     }
     // Todo dibujo nuevo pertenece al gráfico donde se crea; solo se comparte si la preferencia lo pide.
@@ -1013,9 +1021,10 @@
               if (np) store.poke(sym, id, { anch: np });
               return;
             }
-            const np = dataAt(loc.x, loc.y, null, 'off');              // radio: cualquiera de los 4 tiradores
-            if (!np) return;
-            store.move(sym, id, [orig[0], np]);
+            // radio (en píxeles, fijo): distancia del mouse al centro, con cualquiera de los 4 tiradores
+            const Pc = cd && toPx(cd);
+            if (!Pc) return;
+            store.poke(sym, id, { rad: Math.max(3, Math.hypot(loc.x - Pc[0].x, loc.y - Pc[0].y)) });
             return;
           }
           if (g.type === 'rect') {
@@ -1182,8 +1191,7 @@
       setRadius(id, px) {
         const sym = env.symbol(), d = store.get(sym, id);
         if (!d || d.type !== 'circle' || !(px >= 2)) return;
-        const e = shiftPt(d.pts[0], px, 0, true);
-        store.patch(sym, id, { pts: [d.pts[0], e], rPx: px });
+        store.patch(sym, id, { rad: px, rPx: px });
         repaint();
       },
       editText(id) { const d = store.get(env.symbol(), id); if (d) openEditor(d, false); },

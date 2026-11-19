@@ -1,3 +1,11 @@
+AR_TRADING - VERSION 0.26.22
+========================
+
+CIRCULO: TAMANO FIJO AL HACER ZOOM
+- El circulo ya NO cambia de tamano al acercar o alejar el grafico con la rueda del mouse: se queda con el tamano (en pantalla) que le diste. Su centro sigue pegado al precio y al tiempo donde lo pusiste, y en el circulo con ancla la linea sigue unida a la vela.
+- Los circulos que hiciste en la version anterior tambien quedan fijos, con el tamano que tengan en pantalla al abrir esta version.
+- Para cambiar el tamano: arrastra uno de los 4 puntos del borde, o usa "Radio (px)" en las propiedades (doble clic).
+
 AR_TRADING - VERSION 0.26.21
 ========================
 
