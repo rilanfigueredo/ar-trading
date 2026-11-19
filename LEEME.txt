@@ -1,3 +1,12 @@
+AR_TRADING - VERSION 0.26.23
+========================
+
+CIRCULO: SHIFT PARA LINEAS PERFECTAMENTE RECTAS
+- Mientras arrastras con la herramienta Circulo, mantén Shift y el movimiento queda en linea recta perfecta, en horizontal o en vertical (el eje al que mas te acerques).
+- Circulo con ancla: al colocarlo (segundo clic) o al moverlo despues, con Shift queda exactamente en horizontal o en vertical respecto a la vela, y la linea que los une sale recta. El punto de la vela no se mueve.
+- Circulo normal: al dibujarlo, el radio se mide en linea recta horizontal o vertical; al moverlo, solo se desplaza por un eje (horizontal o vertical).
+- Sin Shift todo funciona como antes.
+
 AR_TRADING - VERSION 0.26.22
 ========================
 

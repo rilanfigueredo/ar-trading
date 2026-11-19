@@ -901,6 +901,14 @@
     const isUi = (t) => !!(t && t.closest && t.closest('.max-btn, .pl-btns, .pl-btn, .ctimer, .draw-text-input, .poly-chip'));
     function stop(e) { e.stopPropagation(); e.preventDefault(); }
 
+    // Círculo + Shift: el punto que se arrastra queda EXACTAMENTE en horizontal o en vertical respecto al primero (el eje que más se acerque).
+    // Anclado: la línea entre la vela y el círculo sale recta. Sin ancla: el radio se mide en línea recta.
+    function circleLock(pt, e) {
+      if (!pt || !e || !e.shiftKey || !L.draft || L.draft.type !== 'circle' || !L.draft.pts.length) return pt;
+      const a = L.draft.pts[0], ax = env.xOfTime(a.t), ay = env.yOfPrice(a.p), bx = env.xOfTime(pt.t), by = env.yOfPrice(pt.p);
+      if (![ax, ay, bx, by].every(num)) return pt;
+      return Math.abs(bx - ax) >= Math.abs(by - ay) ? { t: pt.t, p: a.p } : { t: a.t, p: pt.p };
+    }
     // Imán de cada punto: el 1.º de un círculo anclado se pega a la mecha; el 2.º (donde queda el círculo) es libre.
     function draftSnap(first) {
       if (first) return store.state.tool === 'circle' && store.typeDefaults('circle').anchor ? 'force' : undefined;
@@ -966,7 +974,7 @@
       if (tool || L.draft) {
         stop(e);
         const ref = L.draft && e.shiftKey ? draftShiftRef(L.draft) : null;
-        const pt = dataAt(loc.x, loc.y, ref, draftSnap(!L.draft));
+        const pt = circleLock(dataAt(loc.x, loc.y, ref, draftSnap(!L.draft)), e);
         if (!pt) return;
         if (L.draft) addPoint(pt); else startDraft(tool, pt, loc);
         return;
@@ -1053,14 +1061,29 @@
             const pinned = q && q.type === 'table' && q.pin && q.pin !== 'none';
             if (pinned) q.pinDx = Math.max(0, Math.round((num(g.dx0[id]) ? g.dx0[id] : 12) + (q.pin === 'left' ? dx : -dx)));
             const fine = !!q && (q.type === 'circle' || q.type === 'brush');            // mover sin saltar de vela en vela
-            map[id] = g.origs[id].map((p) => shiftPt(p, q && (q.type === 'hline' || pinned) ? 0 : dx, dy, fine));
+            let mdx = dx, mdy = dy, lock = null;
+            if (e.shiftKey && q && q.type === 'circle') {
+              // Shift: el círculo se mueve en línea recta. Anclado: queda exactamente en horizontal o vertical respecto a la vela (línea recta);
+              // sin ancla: el movimiento se limita al eje horizontal o al vertical, el que más se haya arrastrado.
+              const o = g.origs[id][0], ocx = env.xOfTime(o.t), ocy = env.yOfPrice(o.p);
+              if (q.anchor && q.anch && g.ids.length === 1 && num(ocx) && num(ocy)) {
+                const ax = env.xOfTime(q.anch.t), ay = env.yOfPrice(q.anch.p);
+                if (num(ax) && num(ay)) {
+                  const nx = ocx + dx, ny = ocy + dy;
+                  if (Math.abs(nx - ax) >= Math.abs(ny - ay)) { mdx = dx; mdy = ay - ocy; lock = 'h'; } else { mdx = ax - ocx; mdy = dy; lock = 'v'; }
+                }
+              } else if (!q.anchor) { if (Math.abs(dx) >= Math.abs(dy)) mdy = 0; else mdx = 0; }
+            }
+            map[id] = g.origs[id].map((p) => shiftPt(p, q && (q.type === 'hline' || pinned) ? 0 : mdx, mdy, fine));
+            if (lock === 'h') map[id][0].p = q.anch.p;                     // exactamente el mismo precio que la vela
+            else if (lock === 'v') map[id][0].t = q.anch.t;                // exactamente el mismo tiempo que la vela
           });
           store.moveMany(sym, map);
         }
         return;
       }
       if (L.draft && !brush) {
-        const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false));
+        const pt = circleLock(dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false)), e);
         if (pt) { L.draft.cur = pt; repaint(); }
       }
     }
@@ -1084,7 +1107,7 @@
       if (L.draft && L.press && !brush) {
         const loc = local(e), moved = Math.hypot(loc.x - L.press.x, loc.y - L.press.y);
         L.press = null;
-        if (moved > 6) { const pt = dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false)); if (pt) addPoint(pt); }
+        if (moved > 6) { const pt = circleLock(dataAt(loc.x, loc.y, e.shiftKey ? draftShiftRef(L.draft) : null, draftSnap(false)), e); if (pt) addPoint(pt); }
       }
     }
     // Pasar el ratón por encima: resalta el dibujo y cambia el cursor.
