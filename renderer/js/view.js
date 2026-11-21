@@ -1290,6 +1290,7 @@
 
     async function load() {
       zoomStack.length = 0;
+      const resume = s.resume; s.resume = null; // v0.26.24: Replay que se conserva al cambiar de temporalidad
       rpReset();
       if (tfNow().kind === 'vol') return loadVol();
       const token = ++s.token;
@@ -1324,8 +1325,16 @@
           }
         }
         // Primera carga corta para mostrar el gráfico rápido; el historial anterior se amplía cuando hace falta.
-        const pages = Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 24 : 16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
-        const res = await fetchBack(undefined, pages, token);
+        let pages = Math.min(L.ratioOf(tf) > L.MAX_RATIO ? 24 : 16, Math.max(2, Math.ceil((600 * L.ratioOf(tf)) / 1000)));
+        const useResume = !!(resume && !trOn());
+        let endMs;
+        if (useResume) {
+          // se carga el historial alrededor del punto del Replay: antes (para ver el contexto) y unas 1000 velas después (para reproducir)
+          endMs = Math.round((resume.cut + 1000 * tf.sec) * 1000);
+          if (endMs >= Date.now()) endMs = undefined;
+          pages = Math.min(24, Math.max(pages, Math.ceil((1600 * L.ratioOf(tf)) / 1000)));
+        }
+        const res = await fetchBack(endMs, pages, token);
         if (!res) return;
         if (!res.candles.length) throw new Error(`No hay datos para ${vcfg.symbol} en ${exName()}.`);
         s.base = res.candles;
@@ -1346,6 +1355,7 @@
         if (view.draw) view.draw.repaint();
         setStatus(okText(), 'live');
         if (!s.suspended) s.pollTimer = setInterval(poll, tf.sec < 60 ? 1000 : 3000);
+        if (useResume) rpResume(resume);
         G.onLoaded(view);
       } catch (e) {
         if (token !== s.token || s.destroyed) return;
@@ -1753,8 +1763,8 @@
       if (!s.rp) return;
       const last = s.bars[s.bars.length - 1];
       const t = last ? new Date(last.time * 1000).toLocaleString('es', { timeZone: cfg().tz === 'UTC' ? 'UTC' : undefined, day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-      const i = rpBar.querySelector('#rpInfo'); if (i) i.textContent = `${s.rp.k} / ${s.rp.full.length} · ${t}`;
-      setStatus(`Reproducción · vela ${s.rp.k} de ${s.rp.full.length}`, 'live');
+      const i = rpBar.querySelector('#rpInfo'); if (i) i.textContent = `${s.rp.k} / ${s.rp.full.length} · ${t}${s.rp.partial ? ' · vela incompleta' : ''}`;
+      setStatus(`Reproducción · vela ${s.rp.k} de ${s.rp.full.length}${s.rp.partial ? ' (incompleta)' : ''}`, 'live');
     }
     function rpReset(notify) {
       if (s.rp && s.rp.timer) clearInterval(s.rp.timer);
@@ -1782,7 +1792,7 @@
       const k = Math.max(1, Math.min(full.length - 1, idx + 1)); // al menos una vela queda oculta
       s.rpPick = false;
       stopPolling();
-      s.rp = { full, k, start: k, playing: false, speed: 2, timer: null };
+      s.rp = { full, k, start: k, playing: false, speed: 2, timer: null, partial: false, cut: null, startCut: null, fine: null };
       s.bars = full.slice(0, k);
       applyBars();
       s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, k - 160), to: k + 7 });
@@ -1792,13 +1802,24 @@
     function rpGoto(k) {
       if (!s.rp) return;
       rpPause();
-      s.rp.k = Math.max(1, Math.min(s.rp.full.length, k));
-      s.bars = s.rp.full.slice(0, s.rp.k);
+      const kk = Math.max(1, Math.min(s.rp.full.length, k));
+      rpShow(kk, kk === s.rp.start ? s.rp.startCut : null); // al volver al inicio se recupera la vela a medias, si la había
       applyBars(); rpInfo();
     }
     function rpStep(d) {
       const r = s.rp; if (!r) return false;
       if (d > 0) {
+        if (r.partial) { // primer paso: la vela a medias se completa
+          r.partial = false; r.cut = null;
+          s.bars = r.full.slice(0, r.k);
+          const j = r.k - 1;
+          s.series.update(toPoint(s.bars[j]));
+          updateMasTail(j); syncIndicators(false, j);
+          renderLegend(null);
+          if (view.draw) view.draw.repaint();
+          rpInfo();
+          return true;
+        }
         if (r.k >= r.full.length) { rpPause(); return false; }
         r.k++;
         s.bars = r.full.slice(0, r.k);
@@ -1809,14 +1830,14 @@
         if (view.draw) view.draw.repaint();
       } else {
         if (r.k <= 1) return false;
-        r.k--; s.bars = r.full.slice(0, r.k); applyBars();
+        rpShow(r.k - 1, null); applyBars();
       }
       rpInfo();
       return true;
     }
     function rpPlay() {
       const r = s.rp; if (!r || r.playing) return;
-      if (r.k >= r.full.length) rpGoto(r.start);
+      if (r.k >= r.full.length && !r.partial) rpGoto(r.start);
       r.playing = true;
       r.timer = setInterval(() => { if (!rpStep(1)) { rpPause(); } }, Math.round(1000 / r.speed));
       rpUi();
@@ -1826,6 +1847,60 @@
       if (r.timer) clearInterval(r.timer);
       r.timer = null;
       if (r.playing) { r.playing = false; rpUi(); }
+    }
+    // ---- v0.26.24: el Replay se conserva al cambiar de temporalidad ----
+    // Instante exacto (en segundos) hasta donde "ya ocurrió" todo: el final de la última vela mostrada, o el corte exacto si la vela está a medias.
+    function rpCut() {
+      const r = s.rp;
+      if (!r) return null;
+      if (r.partial) return r.cut;
+      const b = s.bars[r.k - 1];
+      return b ? nextClose(tfNow(), b) : null;
+    }
+    // Muestra k velas; si partialCut viene, la última se arma solo con datos finos anteriores a ese instante.
+    function rpShow(k, partialCut) {
+      const r = s.rp;
+      r.k = k; r.partial = false; r.cut = null;
+      s.bars = r.full.slice(0, k);
+      if (partialCut !== null && partialCut !== undefined && k >= 1) {
+        const pb = L.partialBar(r.full[k - 1], r.fine, partialCut, nextClose(tfNow(), r.full[k - 1]));
+        if (pb) { s.bars[k - 1] = pb; r.partial = true; r.cut = partialCut; }
+      }
+    }
+    // Antes de cambiar de temporalidad: guarda el punto exacto y los datos más finos que haya (para armar velas a medias).
+    function rpKeep() {
+      const r = s.rp;
+      if (!r || isVol() || trOn() || !s.bars.length) return null;
+      const cut = rpCut();
+      if (cut === null || cut === undefined) return null;
+      let fine = { candles: s.base, sec: L.baseSec(tfNow()) };
+      if (r.fine && r.fine.sec && (!fine.sec || r.fine.sec < fine.sec)) fine = r.fine;
+      return { cut, fine, speed: r.speed };
+    }
+    // Después de cargar la nueva temporalidad: vuelve a entrar al Replay en el mismo instante.
+    function rpResume(R) {
+      const full = s.bars, tf = tfNow();
+      const idx = L.lastBefore(full, R.cut);
+      if (idx < 0) { toast('No se pudo ubicar en esta temporalidad el punto donde estabas en el Replay.'); return; }
+      let fine = R.fine;
+      const own = { candles: s.base, sec: L.baseSec(tf) };
+      if (own.sec && (!fine || !fine.sec || own.sec <= fine.sec)) fine = own;
+      s.rp = { full, k: idx + 1, start: idx + 1, playing: false, speed: R.speed || 2, timer: null, partial: false, cut: null, startCut: null, fine };
+      const end = nextClose(tf, full[idx]);
+      if (end !== null && end !== undefined && end > R.cut) { // la vela ya había empezado pero no terminado: se muestra tal como estaba
+        rpShow(idx + 1, R.cut);
+        if (s.rp.partial) s.rp.startCut = R.cut;
+        else if (idx >= 1) { // no hay datos más finos para armarla: se llega hasta la vela anterior (sin mostrar el futuro)
+          rpShow(idx, null); s.rp.start = idx;
+          toast('No hay datos más finos para mostrar la vela a medias: el Replay empieza en la vela anterior.');
+        } else { s.rp = null; toast('No se pudo ubicar en esta temporalidad el punto donde estabas en el Replay.'); return; }
+      } else rpShow(idx + 1, null);
+      stopPolling();
+      applyBars();
+      const k = s.rp.k;
+      s.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, k - 160), to: k + 7 });
+      rpUi();
+      if (G.onReplay) G.onReplay(view);
     }
     function rpStop() { rpReset(true); return load(); }
     // Al elegir la vela de inicio: las velas a la derecha del ratón se ocultan (vista previa)
@@ -1879,6 +1954,7 @@
       },
       setTf(id) {
         if (id === vcfg.tf) return;
+        s.resume = rpKeep(); // si hay Replay activo, se conserva el punto exacto al cambiar de temporalidad
         vcfg.tf = id;
         refreshFormatters();
         renderWatermark();

@@ -642,7 +642,33 @@
 
   // v0.23.3: tema 'system' = el del sistema (claro u oscuro); cualquier otro valor raro cae a oscuro
   const resolveTheme = (t, systemLight) => (t === 'light' ? 'light' : t === 'system' ? (systemLight ? 'light' : 'dark') : 'dark');
-  const lib = { resolveTheme, deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
+  // v0.26.24 (Replay): índice de la última vela que empieza ANTES del instante t (o -1). Las velas deben estar ordenadas.
+  function lastBefore(bars, t) {
+    let lo = 0, hi = bars.length - 1, idx = -1;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (bars[m].time < t) { idx = m; lo = m + 1; } else hi = m - 1; }
+    return idx;
+  }
+  // Vela "a medias": arma la vela `bar` solo con las velas finas (fine.candles, de duración fine.sec) que ya terminaron antes del corte `cut`.
+  // Devuelve null si no hay datos finos para ese tramo.
+  function partialBar(bar, fine, cut, end) {
+    if (!fine || !fine.sec || !fine.candles || !fine.candles.length) return null;
+    const cs = fine.candles;
+    let lo = 0, hi = cs.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cs[m].time < bar.time) lo = m + 1; else hi = m; }
+    let out = null;
+    for (let i = lo; i < cs.length; i++) {
+      const c = cs[i];
+      if (c.time + fine.sec > cut || (end && c.time >= end)) break;
+      if (!out) out = { time: bar.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+      else {
+        if (c.high > out.high) out.high = c.high;
+        if (c.low < out.low) out.low = c.low;
+        out.close = c.close; out.volume += c.volume;
+      }
+    }
+    return out;
+  }
+  const lib = { lastBefore, partialBar, resolveTheme, deltaOf, cumDelta, TRADES_EX, EXCHANGES, exchangeName, GENESIS_SEC, tfFor, labelDur, MAX_RATIO, MAX_EXACT_RATIO, volAppend, volPrepend, volSpeed, rsi, macd, stoch, atr, obv, vwap, pivots, pivotLevels, periodKey, periodStart, resolvePeriod, timeToLogical, logicalToTime, barAtTime, DEFAULT_TFS, UNITS, makeTf, parseNumber, tfById, normalizeId, needsAnchor, describe, baseSec, ratioOf, bucketStart, aggregate, parseKline, mergeCandles, sma, ema, detectPrecision, themedColor };
   if (typeof module !== 'undefined' && module.exports) module.exports = lib;
   else root.TVLib = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

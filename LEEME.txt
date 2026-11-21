@@ -1,3 +1,13 @@
+AR_TRADING - VERSION 0.26.24
+========================
+
+REPLAY: SE QUEDA EN EL MISMO PUNTO AL CAMBIAR DE TEMPORALIDAD
+- Si estas en Replay y cambias de temporalidad (por ejemplo de 1D a 15m), el Replay ya no se desactiva: el grafico se queda exactamente en el mismo momento y puedes seguir avanzando vela a vela.
+- Funciona tambien de menor a mayor (por ejemplo de 15m a 1D): si la vela grande estaba a medias en ese momento, se muestra tal como estaba (vela incompleta, hecha solo con lo que ya habia pasado). Al dar un paso adelante, la vela se completa.
+- Al volver con el boton de inicio del Replay, la vela a medias vuelve a quedar como estaba.
+- Si no hay datos mas finos para armar la vela a medias, el Replay empieza en la vela anterior y te avisa.
+- Cambiar de simbolo o de fuente de velas sigue saliendo del Replay. No aplica a velas por volumen ni por operaciones.
+
 AR_TRADING - VERSION 0.26.23
 ========================
 
